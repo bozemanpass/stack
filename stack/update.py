@@ -47,7 +47,7 @@ def command(ctx, check_only):
     '''update shiv binary from a distribution url'''
     # Get the distribution URL from config
     config_key = 'distribution-url'
-    config_file_path = Path(os.path.expanduser("~/.bpi-so/config.yml"))
+    config_file_path = Path(os.path.expanduser("~/.stack/config.yml"))
     if not config_file_path.exists():
         _error_exit(f"Error: Config file: {config_file_path} not found")
     yaml = get_yaml()
@@ -60,7 +60,7 @@ def command(ctx, check_only):
         _error_exit(f"ERROR: distribution url: {distribution_url} is not valid")
     # Figure out the filename for ourselves
     shiv_binary_path = Path(sys.argv[0])
-    timestamp_filename = f"bpi-so-download-{datetime.datetime.now().strftime('%y%m%d-%H%M%S')}"
+    timestamp_filename = f"stack-download-{datetime.datetime.now().strftime('%y%m%d-%H%M%S')}"
     temp_download_path = shiv_binary_path.parent.joinpath(timestamp_filename)
     # Download the file to a temp filename
     if ctx.obj.verbose:
@@ -88,4 +88,4 @@ def command(ctx, check_only):
                 print(f"Replacing: {shiv_binary_path} with {temp_download_path}")
             os.replace(temp_download_path, shiv_binary_path)
             if not ctx.obj.quiet:
-                print("Run \"bpi-so version\" to see the newly installed version")
+                print("Run \"stack version\" to see the newly installed version")

@@ -66,7 +66,7 @@ class package_registry_stack(base_stack):
                 # If not, print a message about how to start it and return fail to the caller
                 print("ERROR: The package-registry stack is not running, and no external registry "
                       "specified with BPI_NPM_REGISTRY_URL")
-                print("ERROR: Start the local package registry with: bpi-so --stack package-registry deploy-system up")
+                print("ERROR: Start the local package registry with: stack --stack package-registry deploy-system up")
                 return False
         return True
 

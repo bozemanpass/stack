@@ -8,9 +8,9 @@ echo "Environment variables:"
 env
 
 if [ "$1" == "from-path" ]; then
-    TEST_TARGET_SO="bpi-so"
+    TEST_TARGET_SO="stack"
 else
-    TEST_TARGET_SO=$( ls -t1 ./package/bpi-so* | head -1 )
+    TEST_TARGET_SO=$( ls -t1 ./package/stack* | head -1 )
 fi
 
 delete_cluster_exit () {

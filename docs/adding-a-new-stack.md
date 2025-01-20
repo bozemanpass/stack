@@ -65,7 +65,7 @@ my-new-stack
 Now, the following commands will fetch, build, and deploy you app:
 
 ```bash
-bpi-so --stack my-new-stack setup-repositories
-bpi-so --stack my-new-stack build-containers
-bpi-so --stack my-new-stack deploy-system up
+stack --stack my-new-stack setup-repositories
+stack --stack my-new-stack build-containers
+stack --stack my-new-stack deploy-system up
 ```

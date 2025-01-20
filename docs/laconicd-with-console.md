@@ -1,14 +1,14 @@
 # Running a laconicd fixturenet with console
 
-The following tutorial explains the steps to run a laconicd fixturenet with CLI and web console that displays records in the registry. It is designed as an introduction to Stack Orchestrator and to showcase one component of the Laconic Stack. Prior to Stack Orchestrator, the following repositories had to be cloned and setup manually:
+The following tutorial explains the steps to run a laconicd fixturenet with CLI and web console that displays records in the registry. It is designed as an introduction to BPI stack and to showcase one component of the Laconic Stack. Prior to BPI stack, the following repositories had to be cloned and setup manually:
 
 - https://git.vdb.to/cerc-io/laconicd
 - https://git.vdb.to/cerc-io/laconic-registry-cli
 - https://git.vdb.to/cerc-io/laconic-console
 
-Now, with Stack Orchestrator, it is a few quick commands. Additionally, the `docker` and `docker compose` integration on the back-end allows the stack to easily persist, facilitating workflows.
+Now, with BPI stack, it is a few quick commands. Additionally, the `docker` and `docker compose` integration on the back-end allows the stack to easily persist, facilitating workflows.
 
-## Setup bpi-so
+## Setup stack
 
 To avoid hiccups on Mac M1/M2 and any local machine nuances that may affect the user experience, this tutorial is focused on using a fresh Digital Ocean (DO) droplet with similar specs:
 16 GB Memory / 8 Intel vCPUs / 160 GB Disk.
@@ -42,7 +42,7 @@ To avoid hiccups on Mac M1/M2 and any local machine nuances that may affect the 
 1. Verify installation:
 
     ```
-    bpi-so version
+    stack version
     ```
 
 ## Setup the laconic fixturenet stack
@@ -50,13 +50,13 @@ To avoid hiccups on Mac M1/M2 and any local machine nuances that may affect the 
 1. Get the repositories
 
     ```
-    bpi-so --stack fixturenet-laconic-loaded setup-repositories --include git.vdb.to/cerc-io/laconicd
+    stack --stack fixturenet-laconic-loaded setup-repositories --include git.vdb.to/cerc-io/laconicd
     ```
 
 1. Build the containers:
 
     ```
-    bpi-so --stack fixturenet-laconic-loaded build-containers
+    stack --stack fixturenet-laconic-loaded build-containers
     ```
 
     It's possible to run into an `ESOCKETTIMEDOUT` error, e.g., `error An unexpected error occurred: "https://registry.yarnpkg.com/@material-ui/icons/-/icons-4.11.3.tgz: ESOCKETTIMEDOUT"`. This may happen even if you have a great internet connection. In that case, re-run the `build-containers` command.
@@ -74,23 +74,23 @@ To avoid hiccups on Mac M1/M2 and any local machine nuances that may affect the 
 
 1. Create a deployment directory for the stack:
     ```
-    bpi-so --stack fixturenet-laconic-loaded deploy init --output laconic-loaded.spec --map-ports-to-host any-same --config BPI_HOSTED_ENDPOINT=$BACKEND_ENDPOINT
+    stack --stack fixturenet-laconic-loaded deploy init --output laconic-loaded.spec --map-ports-to-host any-same --config BPI_HOSTED_ENDPOINT=$BACKEND_ENDPOINT
 
     # Update port mapping in the laconic-loaded.spec file to resolve port conflicts on host if any
     ```
     ```
-    bpi-so --stack fixturenet-laconic-loaded deploy create --deployment-dir laconic-loaded-deployment --spec-file laconic-loaded.spec
+    stack --stack fixturenet-laconic-loaded deploy create --deployment-dir laconic-loaded-deployment --spec-file laconic-loaded.spec
     ```
 2. Start the stack:
 
     ```
-    bpi-so deployment --dir laconic-loaded-deployment start
+    stack deployment --dir laconic-loaded-deployment start
     ```
 
 3. Check the logs:
 
     ```
-    bpi-so deployment --dir laconic-loaded-deployment logs
+    stack deployment --dir laconic-loaded-deployment logs
     ```
 
     You'll see output from `laconicd` and the block height should be >1 to confirm it is running:
@@ -110,7 +110,7 @@ To avoid hiccups on Mac M1/M2 and any local machine nuances that may affect the 
 4. Confirm operation of the registry CLI:
 
    ```
-   bpi-so deployment --dir laconic-loaded-deployment exec cli "laconic registry status"
+   stack deployment --dir laconic-loaded-deployment exec cli "laconic registry status"
    ```
 
    ```
@@ -155,7 +155,7 @@ Let's open some ports.
 2. Get the port for the running console:
 
 ```
-echo http://IP:$(bpi-so --stack fixturenet-laconic-loaded deploy port laconic-console 80 | cut -d ':' -f 2)
+echo http://IP:$(stack --stack fixturenet-laconic-loaded deploy port laconic-console 80 | cut -d ':' -f 2)
 ```
 ```
 http://IP:32778
@@ -186,7 +186,7 @@ wns
 1. The following command will create a bond and publish a record:
 
 ```
-bpi-so deployment --dir laconic-loaded-deployment exec cli ./scripts/create-demo-records.sh
+stack deployment --dir laconic-loaded-deployment exec cli ./scripts/create-demo-records.sh
 ```
 
 You'll get an output like:
@@ -223,5 +223,5 @@ record:
 - e.g,:
 
 ```
-bpi-so deployment --dir laconic-loaded-deployment exec cli "laconic registry record list"
+stack deployment --dir laconic-loaded-deployment exec cli "laconic registry record list"
 ```

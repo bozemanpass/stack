@@ -15,7 +15,7 @@ delete_cluster_exit () {
 # Test basic stack deploy
 echo "Running stack deploy test"
 # Bit of a hack, test the most recent package
-TEST_TARGET_SO=$( ls -t1 ./package/bpi-so* | head -1 )
+TEST_TARGET_SO=$( ls -t1 ./package/stack* | head -1 )
 # Set a non-default repo dir
 export BPI_REPO_BASE_DIR=~/stack-test/repo-base-dir
 echo "Testing this package: $TEST_TARGET_SO"

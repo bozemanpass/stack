@@ -56,9 +56,9 @@ def _fixup_url_spec(spec_file_name: str, url: str):
 
 def create_deployment(ctx, deployment_dir, image, url, kube_config, image_registry, env_file):
     # Do the equivalent of:
-    # 1. bpi-so --stack webapp-template deploy --deploy-to k8s init --output webapp-spec.yml
+    # 1. stack --stack webapp-template deploy --deploy-to k8s init --output webapp-spec.yml
     #   --config (eqivalent of the contents of my-config.env)
-    # 2. bpi-so  --stack webapp-template deploy --deploy-to k8s create --deployment-dir test-deployment
+    # 2. stack  --stack webapp-template deploy --deploy-to k8s create --deployment-dir test-deployment
     #   --spec-file webapp-spec.yml
     # 3. Replace the container image tag with the specified image
     deployment_dir_path = Path(deployment_dir)

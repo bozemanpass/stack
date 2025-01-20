@@ -7,7 +7,7 @@ with open("requirements.txt", "r", encoding="utf-8") as fh:
 with open("stack/data/version.txt", "r", encoding="utf-8") as fh:
     version = fh.readlines()[-1].strip(" \n")
 setup(
-    name='bpi-stack',
+    name='stack',
     version=version,
     author='BPI',
     author_email='info@bozemanpass.com',
@@ -27,6 +27,6 @@ setup(
         "Operating System :: OS Independent",
     ],
     entry_points={
-        'console_scripts': ['bpi-so=stack.main:cli'],
+        'console_scripts': ['stack=stack.main:cli'],
     }
 )

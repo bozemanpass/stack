@@ -29,7 +29,7 @@ Built host container for $BPI_CONTAINER_BUILD_WORK_DIR with tag:
 
 To test locally run:
 
-    bpi-so run-webapp --image $BPI_CONTAINER_BUILD_TAG --env-file /path/to/environment.env
+    stack run-webapp --image $BPI_CONTAINER_BUILD_TAG --env-file /path/to/environment.env
 
 EOF
 fi

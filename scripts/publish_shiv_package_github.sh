@@ -24,7 +24,7 @@ export PATH=$BPI_GH_RELEASE_SCRIPTS_DIR:$PATH
 github_org="cerc-io"
 github_repository="stack"
 latest_package=$(ls -1t ./package/* | head -1)
-uploaded_package="./package/bpi-so"
+uploaded_package="./package/stack"
 # Remove any old package
 rm ${uploaded_package}
 cp ${latest_package} ${uploaded_package}

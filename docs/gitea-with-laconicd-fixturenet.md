@@ -5,10 +5,10 @@ Deploy a local Gitea server, publish NPM packages to it, then use those packages
 ### Build and Deploy Gitea
 
 ```bash
-bpi-so --stack build-support build-containers
-bpi-so --stack package-registry setup-repositories
-bpi-so --stack package-registry build-containers 
-bpi-so --stack package-registry deploy up
+stack --stack build-support build-containers
+stack --stack package-registry setup-repositories
+stack --stack package-registry build-containers 
+stack --stack package-registry deploy up
 ```
 
 These commands can take awhile. Eventually, some instructions and a token will output. Set `BPI_NPM_AUTH_TOKEN`:
@@ -44,13 +44,13 @@ Although not necessary in order to build and publish packages, you can now acces
 Clone the required repositories:
 
 ```bash
-bpi-so --stack fixturenet-laconicd setup-repositories
+stack --stack fixturenet-laconicd setup-repositories
 ```
 
 Build and publish the npm packages:
 
 ```bash
-bpi-so --stack fixturenet-laconicd build-npms
+stack --stack fixturenet-laconicd build-npms
 ```
 
 Navigate to the Gitea console and switch to the `cerc-io` user then find the `Packages` tab to confirm that these two npm packages have been published:
@@ -61,20 +61,20 @@ Navigate to the Gitea console and switch to the `cerc-io` user then find the `Pa
 ### Build and deploy fixturenet containers
 
 ```bash
-bpi-so --stack fixturenet-laconicd build-containers
-bpi-so --stack fixturenet-laconicd deploy up
+stack --stack fixturenet-laconicd build-containers
+stack --stack fixturenet-laconicd deploy up
 ```
 
 Check the logs:
 
 ```bash
-bpi-so --stack fixturenet-laconicd deploy logs
+stack --stack fixturenet-laconicd deploy logs
 ```
 
 ### Test with the registry CLI
 
 ```bash
-bpi-so --stack fixturenet-laconicd deploy exec cli "laconic registry status"
+stack --stack fixturenet-laconicd deploy exec cli "laconic registry status"
 ```
 
 Try additional CLI commands, documented [here](https://github.com/cerc-io/laconic-registry-cli#operations).

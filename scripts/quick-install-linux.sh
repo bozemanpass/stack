@@ -11,7 +11,7 @@ if ! [[ -n "$BPI_SO_INSTALL_SKIP_PACKAGES" ]]; then
 # First display a reasonable warning to the user unless run with -y
 if ! [[ $# -eq 1 && $1 == "-y" ]]; then
   echo "**************************************************************************************"
-  echo "This script requires sudo privilege. It installs BPI Stack Orchestrator"
+  echo "This script requires sudo privilege. It installs BPI stack"
   echo "into: ${install_dir}. It also *removes* any existing docker installed on"
   echo "this machine and then installs the latest docker release as well as other"
   echo "required packages."
@@ -89,9 +89,9 @@ echo "**************************************************************************
 echo "Installing dependencies"
 sudo apt -y update
 
-# bpi-so depends on jq
+# stack depends on jq
 sudo apt -y install jq
-# bpi-so depends on git
+# stack depends on git
 sudo apt -y install git
 # curl used below
 sudo apt -y install curl 
@@ -135,16 +135,16 @@ sudo usermod -aG docker $USER
 fi
 
 echo "**************************************************************************************"
-echo "Installing bpi-so"
-# install latest `bpi-so`
-distribution_url=https://github.com/bozemanpass/stack/releases/download/latest/bpi-so
-install_filename=${install_dir}/bpi-so
+echo "Installing stack"
+# install latest `stack`
+distribution_url=https://github.com/bozemanpass/stack/releases/download/latest/stack
+install_filename=${install_dir}/stack
 mkdir -p  ${install_dir}
 curl -L -o ${install_filename} ${distribution_url}
 chmod +x ${install_filename}
 # Set up config file for self-update feature
-mkdir ~/.bpi-so
-echo "distribution-url: ${distribution_url}" >  ~/.bpi-so/config.yml
+mkdir ~/.stack
+echo "distribution-url: ${distribution_url}" >  ~/.stack/config.yml
 
 echo "**************************************************************************************"
 # Check if our PATH line is already there
@@ -159,10 +159,10 @@ fi
 echo "**************************************************************************************"
 # PATH set here for commands run in this script
 export PATH=$PATH:${install_dir}
-echo Installed bpi-so version: $(bpi-so version)
+echo Installed stack version: $(stack version)
 
 echo "**************************************************************************************"
-echo "The BPI Stack Orchestrator program bpi-so has been installed at ${install_filename}"
+echo "The BPI stack program stack has been installed at ${install_filename}"
 echo "The directory ${install_dir} has been added to PATH in *new* shells via ~/.profile"
 echo "**************************************************************************************"
 # Message the user to check docker is working for them

@@ -170,5 +170,5 @@ def _ensure_prerequisites():
     images = docker.image.list(builder_js_image_name)
     if len(images) == 0:
         print(f"FATAL: builder image: {builder_js_image_name} is required but was not found")
-        print("Please run this command to create it: bpi-so --stack build-support build-containers")
+        print("Please run this command to create it: stack --stack build-support build-containers")
         sys.exit(1)

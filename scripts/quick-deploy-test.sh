@@ -12,8 +12,8 @@ spec_file_name="${stack_name}-spec.yml"
 deployment_dir_name="${stack_name}-deployment"
 rm -f ${spec_file_name}
 rm -rf ${deployment_dir_name}
-bpi-so --stack ${stack_name} deploy --deploy-to compose init --output ${spec_file_name}
-bpi-so --stack ${stack_name} deploy --deploy-to compose create --deployment-dir ${deployment_dir_name} --spec-file ${spec_file_name}
-#bpi-so deployment --dir ${deployment_dir_name} start
-#bpi-so deployment --dir ${deployment_dir_name} ps
-#bpi-so deployment --dir ${deployment_dir_name} stop
+stack --stack ${stack_name} deploy --deploy-to compose init --output ${spec_file_name}
+stack --stack ${stack_name} deploy --deploy-to compose create --deployment-dir ${deployment_dir_name} --spec-file ${spec_file_name}
+#stack deployment --dir ${deployment_dir_name} start
+#stack deployment --dir ${deployment_dir_name} ps
+#stack deployment --dir ${deployment_dir_name} stop

@@ -1,6 +1,6 @@
 # Contributing
 
-Thank you for taking the time to make a contribution to Stack Orchestrator.
+Thank you for taking the time to make a contribution to BPI stack.
 
 ## Install (developer mode)
 
@@ -50,10 +50,10 @@ In addition to the pre-requisites listed in the [README](/README.md), the follow
 
 5. Verify installation:
    ```
-   (venv) $ bpi-so
-   Usage: bpi-so [OPTIONS] COMMAND [ARGS]...
+   (venv) $ stack
+   Usage: stack [OPTIONS] COMMAND [ARGS]...
 
-    BPI Stack Orchestrator
+    BPI stack
 
    Options:
     --quiet
@@ -69,7 +69,7 @@ In addition to the pre-requisites listed in the [README](/README.md), the follow
 
 ## Build a zipapp (single file distributable script)
 
-Use shiv to build a single file Python executable zip archive of bpi-so:
+Use shiv to build a single file Python executable zip archive of stack:
 
 1. Install [shiv](https://github.com/linkedin/shiv):
    ```
@@ -79,17 +79,17 @@ Use shiv to build a single file Python executable zip archive of bpi-so:
 
 2. Run shiv to create a zipapp file:
    ```
-   $ (venv)  shiv -c bpi-so -o bpi-so .
+   $ (venv)  shiv -c stack -o stack .
    ```
-   This creates a file `./bpi-so` that is executable outside of any venv, and on other machines and OSes and architectures, and requiring only the system Python3:
+   This creates a file `./stack` that is executable outside of any venv, and on other machines and OSes and architectures, and requiring only the system Python3:
 
 3. Verify it works:
    ```
-   $ cp stack-orchetrator/bpi-so ~/bin
-   $ bpi-so
-      Usage: bpi-so [OPTIONS] COMMAND [ARGS]...
+   $ cp stack-orchetrator/stack ~/bin
+   $ stack
+      Usage: stack [OPTIONS] COMMAND [ARGS]...
 
-      BPI Stack Orchestrator
+      BPI stack
 
    Options:
       --stack TEXT         specify a stack to build/deploy

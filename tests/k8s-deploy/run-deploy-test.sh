@@ -53,7 +53,7 @@ delete_cluster_exit () {
 
 # Note: eventually this test should be folded into ../deploy/
 # but keeping it separate for now for convenience
-TEST_TARGET_SO=$( ls -t1 ./package/bpi-so* | head -1 )
+TEST_TARGET_SO=$( ls -t1 ./package/stack* | head -1 )
 # Set a non-default repo dir
 export BPI_REPO_BASE_DIR=~/stack-test/repo-base-dir
 echo "Testing this package: $TEST_TARGET_SO"

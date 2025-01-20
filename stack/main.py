@@ -44,7 +44,7 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 # See: https://click.palletsprojects.com/en/8.1.x/complex/#building-a-git-clone
 @click.pass_context
 def cli(ctx, stack, quiet, verbose, dry_run, local_stack, debug, continue_on_error):
-    """BPI Stack Orchestrator"""
+    """BPI stack"""
     command_options = CommandOptions(stack, quiet, verbose, dry_run, local_stack, debug, continue_on_error)
     opts.opts.o = command_options
     ctx.obj = command_options

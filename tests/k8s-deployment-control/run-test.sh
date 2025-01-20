@@ -8,9 +8,9 @@ if [ -n "$BPI_SCRIPT_DEBUG" ]; then
 fi
 
 if [ "$1" == "from-path" ]; then
-    TEST_TARGET_SO="bpi-so"
+    TEST_TARGET_SO="stack"
 else
-    TEST_TARGET_SO=$( ls -t1 ./package/bpi-so* | head -1 )
+    TEST_TARGET_SO=$( ls -t1 ./package/stack* | head -1 )
 fi
 
 # Helper functions: TODO move into a separate file

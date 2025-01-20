@@ -11,9 +11,9 @@ env
 # Test basic stack webapp
 echo "Running stack webapp test"
 if [ "$1" == "from-path" ]; then
-    TEST_TARGET_SO="bpi-so"
+    TEST_TARGET_SO="stack"
 else
-    TEST_TARGET_SO=$( ls -t1 ./package/bpi-so* | head -1 )
+    TEST_TARGET_SO=$( ls -t1 ./package/stack* | head -1 )
 fi
 # Set a non-default repo dir
 export BPI_REPO_BASE_DIR=~/stack-test/repo-base-dir
