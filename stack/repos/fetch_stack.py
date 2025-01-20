@@ -30,13 +30,13 @@ from stack.util import error_exit
 
 
 @click.command()
-@click.argument('stack-locator')
-@click.option('--git-ssh', is_flag=True, default=False)
-@click.option('--check-only', is_flag=True, default=False)
-@click.option('--pull', is_flag=True, default=False)
+@click.argument("stack-locator")
+@click.option("--git-ssh", is_flag=True, default=False)
+@click.option("--check-only", is_flag=True, default=False)
+@click.option("--pull", is_flag=True, default=False)
 @click.pass_context
 def command(ctx, stack_locator, git_ssh, check_only, pull):
-    '''optionally resolve then git clone a repository containing one or more stack definitions'''
+    """optionally resolve then git clone a repository containing one or more stack definitions"""
     dev_root_path = os.path.expanduser(config("BPI_REPO_BASE_DIR", default="~/bpi"))
     if not opts.o.quiet:
         print(f"Dev Root is: {dev_root_path}")

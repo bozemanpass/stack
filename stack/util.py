@@ -48,8 +48,10 @@ def get_stack_path(stack):
 def get_dev_root_path(ctx):
     if ctx and ctx.local_stack:
         # TODO: This code probably doesn't work
-        dev_root_path = os.getcwd()[0:os.getcwd().rindex("stack")]
-        print(f'Local stack dev_root_path (BPI_REPO_BASE_DIR) overridden to: {dev_root_path}')
+        dev_root_path = os.getcwd()[0 : os.getcwd().rindex("stack")]
+        print(
+            f"Local stack dev_root_path (BPI_REPO_BASE_DIR) overridden to: {dev_root_path}"
+        )
     else:
         dev_root_path = os.path.expanduser(config("BPI_REPO_BASE_DIR", default="~/bpi"))
     return dev_root_path
@@ -87,7 +89,9 @@ def get_plugin_code_paths(stack) -> List[Path]:
         if type(pod) is str:
             result.add(get_stack_path(stack))
         else:
-            pod_root_dir = os.path.join(get_dev_root_path(None), pod["repository"].split("/")[-1], pod["path"])
+            pod_root_dir = os.path.join(
+                get_dev_root_path(None), pod["repository"].split("/")[-1], pod["path"]
+            )
             result.add(Path(os.path.join(pod_root_dir, "stack")))
     return list(result)
 
@@ -127,7 +131,11 @@ def get_pod_file_path(stack, parsed_stack, pod_name: str):
     else:
         for pod in pods:
             if pod["name"] == pod_name:
-                pod_root_dir = os.path.join(get_dev_root_path(None), pod["repository"].split("/")[-1], pod["path"])
+                pod_root_dir = os.path.join(
+                    get_dev_root_path(None),
+                    pod["repository"].split("/")[-1],
+                    pod["path"],
+                )
                 result = os.path.join(pod_root_dir, "docker-compose.yml")
     return result
 
@@ -138,7 +146,11 @@ def get_pod_script_paths(parsed_stack, pod_name: str):
     if not type(pods[0]) is str:
         for pod in pods:
             if pod["name"] == pod_name:
-                pod_root_dir = os.path.join(get_dev_root_path(None), pod["repository"].split("/")[-1], pod["path"])
+                pod_root_dir = os.path.join(
+                    get_dev_root_path(None),
+                    pod["repository"].split("/")[-1],
+                    pod["path"],
+                )
                 if "pre_start_command" in pod:
                     result.append(os.path.join(pod_root_dir, pod["pre_start_command"]))
                 if "post_start_command" in pod:

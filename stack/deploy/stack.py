@@ -19,7 +19,6 @@ from stack.util import get_yaml
 
 
 class Stack:
-
     name: str
     obj: typing.Any
 
