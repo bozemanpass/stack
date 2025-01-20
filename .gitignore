@@ -1,0 +1,10 @@
+.idea
+venv
+.vscode
+bpi-so
+laconic_stack_orchestrator.egg-info
+__pycache__
+*~
+package
+stack_orchestrator/data/build_tag.txt
+/build
