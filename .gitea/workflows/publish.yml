@@ -45,7 +45,7 @@ jobs:
           exit $result_code
       - name: "Stage artifact file"
         run: |
-          cp ${{ steps.build.outputs.package-file }} ./bpi-so
+          cp ${{ steps.build.outputs.package-file }} ./stack
       - name: "Create release"
         uses: https://gitea.com/cerc-io/action-gh-release@gitea-v2
         with:
@@ -53,7 +53,7 @@ jobs:
           # On the publish test branch, mark our release as a draft
           # Hack using endsWith to workaround Gitea sometimes sending "publish-test" vs "refs/heads/publish-test"
           draft: ${{ endsWith('publish-test', github.ref ) }}
-          files: ./bpi-so
+          files: ./stack
       - name: Notify Vulcanize Slack on CI failure
         if: ${{ always() && github.ref_name == 'main' }}
         uses: ravsamhq/notify-slack-action@v2
