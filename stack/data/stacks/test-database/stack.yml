@@ -1,0 +1,9 @@
+version: "1.0"
+name: test
+description: "A test database stack"
+repos:
+containers:
+  - bpi/test-database-container
+  - bpi/test-database-client
+pods:
+  - test-database

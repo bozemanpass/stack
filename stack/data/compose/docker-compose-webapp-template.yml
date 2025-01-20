@@ -1,0 +1,8 @@
+services:
+  webapp:
+    image: bpi/webapp-container:local
+    restart: always
+    environment:
+      BPI_SCRIPT_DEBUG: ${BPI_SCRIPT_DEBUG}
+    ports:
+      - "80"

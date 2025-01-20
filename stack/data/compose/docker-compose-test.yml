@@ -1,0 +1,20 @@
+services:
+  test:
+    image: bpi/test-container:local
+    restart: always
+    environment:
+      BPI_SCRIPT_DEBUG: ${BPI_SCRIPT_DEBUG}
+      BPI_TEST_PARAM_1: ${BPI_TEST_PARAM_1:-FAILED}
+      BPI_TEST_PARAM_2: "BPI_TEST_PARAM_2_VALUE"
+      BPI_TEST_PARAM_3: ${BPI_TEST_PARAM_3:-FAILED}
+    volumes:
+      - test-data-bind:/data
+      - test-data-auto:/data2
+      - test-config:/config:ro
+    ports:
+      - "80"
+
+volumes:
+  test-data-bind:
+  test-data-auto:
+  test-config:
