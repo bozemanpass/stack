@@ -60,15 +60,6 @@ If BPI stack was installed using the process described above, it is able to subs
 stack update
 ```
 
-## Usage
-
-The various [stacks](/stack/data/stacks) each contain instructions for running different stacks based on your use case. For example:
-
-- [self-hosted Gitea](/stack/data/stacks/build-support)
-- [an Optimism Fixturenet](/stack/data/stacks/fixturenet-optimism)
-- [laconicd with console and CLI](stack/data/stacks/fixturenet-laconic-loaded)
-- [kubo (IPFS)](stack/data/stacks/kubo)
-
 ## Contributing
 
 See the [CONTRIBUTING.md](/docs/CONTRIBUTING.md) for developer mode install.
@@ -76,6 +67,3 @@ See the [CONTRIBUTING.md](/docs/CONTRIBUTING.md) for developer mode install.
 ## Platform Support
 
 Native aarm64 is _not_ currently supported. x64 emulation on ARM64 macos should work (not yet tested).
-
-
-
