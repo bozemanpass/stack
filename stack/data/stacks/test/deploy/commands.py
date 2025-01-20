@@ -30,10 +30,13 @@ def setup(command_context: DeployCommandContext, parameters, extra_args):
     host_directory = "./container-output-dir"
     host_directory_absolute = Path(extra_args[0]).absolute().joinpath(host_directory)
     host_directory_absolute.mkdir(parents=True, exist_ok=True)
-    mounts = [
-        VolumeMapping(host_directory_absolute, "/data")
-    ]
-    output, status = run_container_command(command_context, "test", "echo output-data > /data/output-file && echo success", mounts)
+    mounts = [VolumeMapping(host_directory_absolute, "/data")]
+    output, status = run_container_command(
+        command_context,
+        "test",
+        "echo output-data > /data/output-file && echo success",
+        mounts,
+    )
 
 
 def init(command_context: DeployCommandContext):
@@ -44,7 +47,7 @@ def init(command_context: DeployCommandContext):
 def create(command_context: DeployCommandContext, extra_args):
     data = "create-command-output-data"
     output_file_path = command_context.deployment_dir.joinpath("create-file")
-    with open(output_file_path, 'w+') as output_file:
+    with open(output_file_path, "w+") as output_file:
         output_file.write(data)
 
 

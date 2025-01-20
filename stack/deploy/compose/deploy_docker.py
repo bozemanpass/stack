@@ -24,9 +24,19 @@ class DockerDeployer(Deployer):
     name: str = "compose"
     type: str
 
-    def __init__(self, type, deployment_context: DeploymentContext, compose_files, compose_project_name, compose_env_file) -> None:
-        self.docker = DockerClient(compose_files=compose_files, compose_project_name=compose_project_name,
-                                   compose_env_file=compose_env_file)
+    def __init__(
+        self,
+        type,
+        deployment_context: DeploymentContext,
+        compose_files,
+        compose_project_name,
+        compose_env_file,
+    ) -> None:
+        self.docker = DockerClient(
+            compose_files=compose_files,
+            compose_project_name=compose_project_name,
+            compose_env_file=compose_env_file,
+        )
         self.type = type
 
     def up(self, detach, skip_cluster_management, services):
@@ -68,35 +78,59 @@ class DockerDeployer(Deployer):
     def port(self, service, private_port):
         if not opts.o.dry_run:
             try:
-                return self.docker.compose.port(service=service, private_port=private_port)
+                return self.docker.compose.port(
+                    service=service, private_port=private_port
+                )
             except DockerException as e:
                 raise DeployerException(e)
 
     def execute(self, service, command, tty, envs):
         if not opts.o.dry_run:
             try:
-                return self.docker.compose.execute(service=service, command=command, tty=tty, envs=envs)
+                return self.docker.compose.execute(
+                    service=service, command=command, tty=tty, envs=envs
+                )
             except DockerException as e:
                 raise DeployerException(e)
 
     def logs(self, services, tail, follow, stream):
         if not opts.o.dry_run:
             try:
-                return self.docker.compose.logs(services=services, tail=tail, follow=follow, stream=stream)
+                return self.docker.compose.logs(
+                    services=services, tail=tail, follow=follow, stream=stream
+                )
             except DockerException as e:
                 raise DeployerException(e)
 
-    def run(self, image: str, command=None, user=None, volumes=None, entrypoint=None, env={}, ports=[], detach=False):
+    def run(
+        self,
+        image: str,
+        command=None,
+        user=None,
+        volumes=None,
+        entrypoint=None,
+        env={},
+        ports=[],
+        detach=False,
+    ):
         if not opts.o.dry_run:
             try:
-                return self.docker.run(image=image, command=command, user=user, volumes=volumes,
-                                       entrypoint=entrypoint, envs=env, detach=detach, publish=ports, publish_all=len(ports) == 0)
+                return self.docker.run(
+                    image=image,
+                    command=command,
+                    user=user,
+                    volumes=volumes,
+                    entrypoint=entrypoint,
+                    envs=env,
+                    detach=detach,
+                    publish=ports,
+                    publish_all=len(ports) == 0,
+                )
             except DockerException as e:
                 raise DeployerException(e)
 
 
 class DockerDeployerConfigGenerator(DeployerConfigGenerator):
-
     def __init__(self, type: str) -> None:
         super().__init__()
 

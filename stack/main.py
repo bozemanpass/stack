@@ -22,30 +22,31 @@ from stack.repos import fetch_stack
 from stack.build import build_containers, fetch_containers
 from stack.build import build_npms
 from stack.build import build_webapp
-from stack.deploy.webapp import (run_webapp,
-                                              deploy_webapp)
+from stack.deploy.webapp import run_webapp, deploy_webapp
 from stack.deploy import deploy
 from stack import version
 from stack.deploy import deployment
 from stack import opts
 from stack import update
 
-CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
+CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 
 @click.group(context_settings=CONTEXT_SETTINGS)
-@click.option('--stack', help="specify a stack to build/deploy")
-@click.option('--quiet', is_flag=True, default=False)
-@click.option('--verbose', is_flag=True, default=False)
-@click.option('--dry-run', is_flag=True, default=False)
-@click.option('--local-stack', is_flag=True, default=False)
-@click.option('--debug', is_flag=True, default=False)
-@click.option('--continue-on-error', is_flag=True, default=False)
+@click.option("--stack", help="specify a stack to build/deploy")
+@click.option("--quiet", is_flag=True, default=False)
+@click.option("--verbose", is_flag=True, default=False)
+@click.option("--dry-run", is_flag=True, default=False)
+@click.option("--local-stack", is_flag=True, default=False)
+@click.option("--debug", is_flag=True, default=False)
+@click.option("--continue-on-error", is_flag=True, default=False)
 # See: https://click.palletsprojects.com/en/8.1.x/complex/#building-a-git-clone
 @click.pass_context
 def cli(ctx, stack, quiet, verbose, dry_run, local_stack, debug, continue_on_error):
     """BPI stack"""
-    command_options = CommandOptions(stack, quiet, verbose, dry_run, local_stack, debug, continue_on_error)
+    command_options = CommandOptions(
+        stack, quiet, verbose, dry_run, local_stack, debug, continue_on_error
+    )
     opts.opts.o = command_options
     ctx.obj = command_options
 
