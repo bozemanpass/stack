@@ -306,9 +306,15 @@ def _expand_shell_vars(raw_val: str) -> str:
 # TODO: handle the case where the same env var is defined in multiple places
 def envs_from_compose_file(compose_file_envs: Mapping[str, str]) -> Mapping[str, str]:
     result = {}
-    for env_var, env_val in compose_file_envs.items():
-        expanded_env_val = _expand_shell_vars(env_val)
-        result.update({env_var: expanded_env_val})
+    if isinstance(compose_file_envs, CommentedSeq):
+        for item in compose_file_envs:
+            env_var, env_val = item.split("=", 2)
+            expanded_env_val = _expand_shell_vars(env_val)
+            result.update({env_var: expanded_env_val})
+    else:
+        for env_var, env_val in compose_file_envs.items():
+            expanded_env_val = _expand_shell_vars(env_val)
+            result.update({env_var: expanded_env_val})
     return result
 
 
@@ -318,8 +324,8 @@ def envs_from_environment_variables_map(
     result = []
     if isinstance(map, CommentedSeq):
         for item in map:
-            parts = item.split("=", 2)
-            result.append(client.V1EnvVar(parts[0], parts[1]))
+            env_var, env_val = item.split("=", 2)
+            result.append(client.V1EnvVar(env_var, env_val))
     else:
         for env_var, env_val in map.items():
             result.append(client.V1EnvVar(env_var, env_val))
