@@ -13,11 +13,13 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http:#www.gnu.org/licenses/>.
 
-from kubernetes import client, utils, watch
 import os
-from pathlib import Path
 import subprocess
 import re
+
+from kubernetes import client, utils, watch
+from pathlib import Path
+from ruamel.yaml.comments import CommentedSeq
 from typing import Set, Mapping, List
 
 from stack.util import get_k8s_dir, error_exit
@@ -314,8 +316,13 @@ def envs_from_environment_variables_map(
     map: Mapping[str, str]
 ) -> List[client.V1EnvVar]:
     result = []
-    for env_var, env_val in map.items():
-        result.append(client.V1EnvVar(env_var, env_val))
+    if isinstance(map, CommentedSeq):
+        for item in map:
+            parts = item.split("=", 2)
+            result.append(client.V1EnvVar(parts[0], parts[1]))
+    else:
+        for env_var, env_val in map.items():
+            result.append(client.V1EnvVar(env_var, env_val))
     return result
 
 
