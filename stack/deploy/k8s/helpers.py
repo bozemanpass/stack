@@ -17,6 +17,7 @@ import os
 import subprocess
 import re
 
+from expandvars import expandvars
 from kubernetes import client, utils, watch
 from pathlib import Path
 from ruamel.yaml.comments import CommentedSeq
@@ -294,11 +295,10 @@ def _expand_shell_vars(raw_val: str) -> str:
     # TODO: implement support for variable substitution and default values
     # if raw_val is like ${<something>} print a warning and substitute an empty string
     # otherwise return raw_val
+    raw_val = str(raw_val)
     match = re.search(r"^\$\{(.*)\}$", raw_val)
     if match:
-        print(
-            f"WARNING: found unimplemented environment variable substitution: {raw_val}"
-        )
+        return expandvars(raw_val)
     else:
         return raw_val
 
