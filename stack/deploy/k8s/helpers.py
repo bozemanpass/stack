@@ -324,7 +324,7 @@ def envs_from_environment_variables_map(
     result = []
     if isinstance(map, CommentedSeq):
         for item in map:
-            env_var, env_val = item.split("=", 2)
+            env_var, env_val = item.split("=", 1)
             result.append(client.V1EnvVar(env_var, env_val))
     else:
         for env_var, env_val in map.items():

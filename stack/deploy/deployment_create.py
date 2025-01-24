@@ -342,6 +342,11 @@ def _parse_config_variables(variable_values: str):
     "--image-registry",
     help="Provide a container image registry url for this k8s cluster",
 )
+@click.option(
+    "--http-proxy",
+    required=False,
+    help="k8s http proxy settings in the form: <host>[/path]:<target_svc>:<target_port>",
+)
 @click.option("--output", required=True, help="Write yaml spec file here")
 @click.option(
     "--map-ports-to-host",
@@ -351,7 +356,14 @@ def _parse_config_variables(variable_values: str):
 )
 @click.pass_context
 def init(
-    ctx, config, config_file, kube_config, image_registry, output, map_ports_to_host
+    ctx,
+    config,
+    config_file,
+    kube_config,
+    image_registry,
+    http_proxy,
+    output,
+    map_ports_to_host,
 ):
     stack = global_options(ctx).stack
     deployer_type = ctx.obj.deployer.type
@@ -364,6 +376,7 @@ def init(
         config_file,
         kube_config,
         image_registry,
+        http_proxy,
         output,
         map_ports_to_host,
     )
@@ -379,6 +392,7 @@ def init_operation(
     config_file,
     kube_config,
     image_registry,
+    k8s_http_proxy,
     output,
     map_ports_to_host,
 ):
@@ -395,6 +409,25 @@ def init_operation(
             print(
                 "WARNING: --image-registry not specified, only default container registries (eg, Docker Hub) will be available"
             )
+        if k8s_http_proxy:
+            host, path, proxy_to = _parse_http_proxy(k8s_http_proxy)
+            http_proxy = [
+                {
+                    constants.host_name_key: host,
+                    constants.routes_key: [
+                        {constants.path_key: path, constants.proxy_to_key: proxy_to}
+                    ],
+                }
+            ]
+            if constants.network_key not in spec_file_content:
+                spec_file_content[constants.network_key] = {}
+            spec_file_content[constants.network_key].update(
+                {constants.http_proxy_key: http_proxy}
+            )
+        else:
+            print(
+                "WARNING: --http-proxy not specified, no external HTTP access will be configured."
+            )
     else:
         # Check for --kube-config supplied for non-relevant deployer types
         if kube_config is not None:
@@ -405,6 +438,8 @@ def init_operation(
             error_exit(
                 f"--image-registry is not allowed with a {deployer_type} deployment"
             )
+        if k8s_http_proxy is not None:
+            error_exit(f"--http-proxy is not allowed with a {deployer_type} deployment")
     if default_spec_file_content:
         spec_file_content.update(default_spec_file_content)
     config_variables = _parse_config_variables(config)
@@ -426,7 +461,28 @@ def init_operation(
             spec_file_content.update({"config": merged_config})
 
     ports = _get_mapped_ports(stack, map_ports_to_host)
-    spec_file_content.update({"network": {"ports": ports}})
+    if constants.network_key in spec_file_content:
+        proxy_targets = []
+        if constants.http_proxy_key in spec_file_content[constants.network_key]:
+            for entry in spec_file_content[constants.network_key][
+                constants.http_proxy_key
+            ]:
+                for r in entry[constants.routes_key]:
+                    proxy_targets.append(r[constants.proxy_to_key])
+        for target in proxy_targets:
+            matched = False
+            for svc in ports:
+                for svc_port in ports[svc]:
+                    if f"{svc}:{svc_port}" == target:
+                        matched = True
+                        break
+            if not matched:
+                print(
+                    f"WARN: Unable to match http-proxy target {target} to a defined service and port."
+                )
+        spec_file_content[constants.network_key][constants.ports_key] = ports
+    else:
+        spec_file_content.update({constants.network_key: {constants.ports_key: ports}})
 
     named_volumes = _get_named_volumes(stack)
     if named_volumes:
@@ -457,6 +513,17 @@ def init_operation(
 
     with open(output, "w") as output_file:
         get_yaml().dump(spec_file_content, output_file)
+
+
+def _parse_http_proxy(raw_val: str):
+    stripped = raw_val.replace("http://", "").replace("https://", "")
+    host, target = stripped.split(":", 1)
+    route = "/"
+    if "/" in host:
+        host, route = host.split("/", 1)
+        route = "/" + route
+
+    return host, route, target
 
 
 def _write_config_file(spec_file: Path, config_env_file: Path):

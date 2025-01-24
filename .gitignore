@@ -1,10 +1,9 @@
 .idea
 venv
 .vscode
-stack
-laconic_stack_orchestrator.egg-info
+stack.egg-info
 __pycache__
 *~
 package
-stack_orchestrator/data/build_tag.txt
+stack/data/build_tag.txt
 /build
