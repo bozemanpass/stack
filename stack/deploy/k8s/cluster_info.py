@@ -20,12 +20,14 @@ import base64
 from kubernetes import client
 from typing import Any, List, Set
 
+from stack import constants
 from stack.opts import opts
 from stack.util import env_var_map_from_file
 from stack.deploy.k8s.helpers import (
     named_volumes_from_pod_files,
     volume_mounts_for_service,
     volumes_for_pod_files,
+    container_ports_for_service,
 )
 from stack.deploy.k8s.helpers import get_kind_pv_bind_mount_path
 from stack.deploy.k8s.helpers import (
@@ -92,47 +94,8 @@ class ClusterInfo:
         if opts.o.debug:
             print(f"Env vars: {self.environment_variables.map}")
 
-    def get_nodeports(self):
-        nodeports = []
-        for pod_name in self.parsed_pod_yaml_map:
-            pod = self.parsed_pod_yaml_map[pod_name]
-            services = pod["services"]
-            for service_name in services:
-                service_info = services[service_name]
-                if "ports" in service_info:
-                    for raw_port in [str(p) for p in service_info["ports"]]:
-                        if opts.o.debug:
-                            print(f"service port: {raw_port}")
-                        if ":" in raw_port:
-                            parts = raw_port.split(":")
-                            if len(parts) != 2:
-                                raise Exception(f"Invalid port definition: {raw_port}")
-                            node_port = int(parts[0])
-                            pod_port = int(parts[1])
-                        else:
-                            node_port = None
-                            pod_port = int(raw_port)
-                        service = client.V1Service(
-                            metadata=client.V1ObjectMeta(
-                                name=f"{self.app_name}-nodeport-{pod_port}"
-                            ),
-                            spec=client.V1ServiceSpec(
-                                type="NodePort",
-                                ports=[
-                                    client.V1ServicePort(
-                                        port=pod_port,
-                                        target_port=pod_port,
-                                        node_port=node_port,
-                                    )
-                                ],
-                                selector={"app": self.app_name},
-                            ),
-                        )
-                        nodeports.append(service)
-        return nodeports
-
     def get_ingress(
-        self, use_tls=False, certificate=None, cluster_issuer="letsencrypt-prod"
+        self, use_tls=False, certificate=None, def_cluster_issuer="letsencrypt-prod"
     ):
         # No ingress for a deployment that has no http-proxy defined, for now
         http_proxy_info_list = self.spec.get_http_proxy()
@@ -143,7 +106,7 @@ class ClusterInfo:
             if opts.o.debug:
                 print(f"http-proxy: {http_proxy_info}")
             # TODO: good enough parsing for webapp deployment for now
-            host_name = http_proxy_info["host-name"]
+            host_name = http_proxy_info[constants.host_name_key]
             rules = []
             tls = (
                 [
@@ -160,9 +123,9 @@ class ClusterInfo:
                 else None
             )
             paths = []
-            for route in http_proxy_info["routes"]:
-                path = route["path"]
-                proxy_to = route["proxy-to"]
+            for route in http_proxy_info[constants.routes_key]:
+                path = route[constants.path_key]
+                proxy_to = route[constants.proxy_to_key]
                 if opts.o.debug:
                     print(f"proxy config: {path} -> {proxy_to}")
                 # proxy_to has the form <service>:<port>
@@ -194,7 +157,11 @@ class ClusterInfo:
                 "kubernetes.io/ingress.class": "nginx",
             }
             if not certificate:
-                ingress_annotations["cert-manager.io/cluster-issuer"] = cluster_issuer
+                ingress_annotations[
+                    "cert-manager.io/cluster-issuer"
+                ] = http_proxy_info.get(
+                    constants.cluster_issuer_key, def_cluster_issuer
+                )
 
             ingress = client.V1Ingress(
                 metadata=client.V1ObjectMeta(
@@ -204,26 +171,58 @@ class ClusterInfo:
             )
         return ingress
 
-    # TODO: suppoprt multiple services
-    def get_service(self):
+    def get_services(self):
+        ret = []
         for pod_name in self.parsed_pod_yaml_map:
             pod = self.parsed_pod_yaml_map[pod_name]
             services = pod["services"]
             for service_name in services:
                 service_info = services[service_name]
                 if "ports" in service_info:
-                    port = int(service_info["ports"][0])
-                    if opts.o.debug:
-                        print(f"service port: {port}")
-        service = client.V1Service(
-            metadata=client.V1ObjectMeta(name=f"{self.app_name}-service"),
-            spec=client.V1ServiceSpec(
-                type="ClusterIP",
-                ports=[client.V1ServicePort(port=port, target_port=port)],
-                selector={"app": self.app_name},
-            ),
-        )
-        return service
+                    for raw_port in [str(p) for p in service_info["ports"]]:
+                        if opts.o.debug:
+                            print(f"service port: {service_name}:{raw_port}")
+                        if ":" in raw_port:
+                            parts = raw_port.split(":")
+                            if len(parts) != 2:
+                                raise Exception(f"Invalid port definition: {raw_port}")
+                            node_port = int(parts[0])
+                            pod_port = int(parts[1])
+                            service = client.V1Service(
+                                metadata=client.V1ObjectMeta(
+                                    name=f"{self.app_name}-nodeport-{pod_port}"
+                                ),
+                                spec=client.V1ServiceSpec(
+                                    type="NodePort",
+                                    ports=[
+                                        client.V1ServicePort(
+                                            port=pod_port,
+                                            target_port=pod_port,
+                                            node_port=node_port,
+                                        )
+                                    ],
+                                    selector={"app": self.app_name},
+                                ),
+                            )
+                            ret.append(service)
+                        else:
+                            service = client.V1Service(
+                                metadata=client.V1ObjectMeta(
+                                    name=f"{self.app_name}-service"
+                                ),
+                                spec=client.V1ServiceSpec(
+                                    type="ClusterIP",
+                                    ports=[
+                                        client.V1ServicePort(
+                                            port=int(raw_port),
+                                            target_port=int(raw_port),
+                                        )
+                                    ],
+                                    selector={"app": self.app_name},
+                                ),
+                            )
+                            ret.append(service)
+        return ret
 
     def get_pvcs(self):
         result = []
@@ -367,11 +366,8 @@ class ClusterInfo:
                 container_name = service_name
                 service_info = services[service_name]
                 image = service_info["image"]
-                if "ports" in service_info:
-                    port = int(service_info["ports"][0])
-                    if opts.o.debug:
-                        print(f"image: {image}")
-                        print(f"service port: {port}")
+                container_ports = container_ports_for_service(service_info)
+
                 merged_envs = (
                     merge_envs(
                         envs_from_compose_file(service_info["environment"]),
@@ -400,7 +396,7 @@ class ClusterInfo:
                     image=image_to_use,
                     image_pull_policy=image_pull_policy,
                     env=envs,
-                    ports=[client.V1ContainerPort(container_port=port)],
+                    ports=container_ports,
                     volume_mounts=volume_mounts,
                     security_context=client.V1SecurityContext(
                         privileged=self.spec.get_privileged(),

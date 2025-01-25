@@ -137,6 +137,20 @@ def get_kind_pv_bind_mount_path(volume_name: str):
     return f"/mnt/{volume_name}"
 
 
+def container_ports_for_service(service):
+    container_ports = []
+    if "ports" in service:
+        for port in service["ports"]:
+            port = str(port)
+            if ":" in port:
+                container_ports.append(
+                    client.V1ContainerPort(container_port=int(port.split(":")[-1]))
+                )
+            else:
+                container_ports.append(client.V1ContainerPort(container_port=int(port)))
+    return container_ports
+
+
 def volume_mounts_for_service(parsed_pod_files, service):
     result = []
     # Find the service

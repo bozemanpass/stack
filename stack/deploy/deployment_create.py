@@ -274,6 +274,8 @@ def _get_mapped_ports(stack: str, map_recipe: str):
         "any-same",
         "localhost-fixed-random",
         "any-fixed-random",
+        "k8s-clusterip-same",
+        "k8s-nodeport-fixed-random",
     ]
     ports = _get_ports(stack)
     if ports:
@@ -286,8 +288,9 @@ def _get_mapped_ports(stack: str, map_recipe: str):
                         orig_port = ports_array[x]
                         # Strip /udp suffix if present
                         bare_orig_port = orig_port.replace("/udp", "")
+                        # limit to k8s NodePort range
                         random_port = random.randint(
-                            20000, 50000
+                            30000, 32767
                         )  # Beware: we're relying on luck to not collide
                         if map_recipe == "any-variable-random":
                             # This is the default so take no action
@@ -304,6 +307,10 @@ def _get_mapped_ports(stack: str, map_recipe: str):
                         elif map_recipe == "any-fixed-random":
                             # Replace instances of "- XX" with "- 0.0.0.0:<rnd>:XX"
                             ports_array[x] = f"0.0.0.0:{random_port}:{orig_port}"
+                        elif map_recipe == "k8s-clusterip-same":
+                            ports_array[x] = f"{bare_orig_port}"
+                        elif map_recipe == "k8s-nodeport-fixed-random":
+                            ports_array[x] = f"{random_port}:{bare_orig_port}"
                         else:
                             print("Error: bad map_recipe")
             else:
@@ -345,14 +352,14 @@ def _parse_config_variables(variable_values: str):
 @click.option(
     "--http-proxy",
     required=False,
-    help="k8s http proxy settings in the form: <host>[/path]:<target_svc>:<target_port>",
+    help="k8s http proxy settings in the form: [cluster-issuer~]<host>[/path]:<target_svc>:<target_port>",
 )
 @click.option("--output", required=True, help="Write yaml spec file here")
 @click.option(
     "--map-ports-to-host",
     required=False,
-    help="Map ports to the host as one of: any-variable-random (default), "
-    "localhost-same, any-same, localhost-fixed-random, any-fixed-random",
+    help="Map ports to the host as one of: any-variable-random (docker default), "
+    "localhost-same, any-same, localhost-fixed-random, any-fixed-random, k8s-clusterip-same (k8s default), k8s-nodeport-fixed-random",
 )
 @click.pass_context
 def init(
@@ -410,10 +417,13 @@ def init_operation(
                 "WARNING: --image-registry not specified, only default container registries (eg, Docker Hub) will be available"
             )
         if k8s_http_proxy:
-            host, path, proxy_to = _parse_http_proxy(k8s_http_proxy)
+            cluster_issuer, host, path, proxy_to = _parse_http_proxy(k8s_http_proxy)
+            if not cluster_issuer:
+                cluster_issuer = "letsencrypt-prod"
             http_proxy = [
                 {
                     constants.host_name_key: host,
+                    constants.cluster_issuer_key: cluster_issuer,
                     constants.routes_key: [
                         {constants.path_key: path, constants.proxy_to_key: proxy_to}
                     ],
@@ -460,6 +470,18 @@ def init_operation(
             merged_config = {**new_config, **orig_config}
             spec_file_content.update({"config": merged_config})
 
+    if not map_ports_to_host:
+        if deployer_type == "k8s":
+            map_ports_to_host = "k8s-clusterip-same"
+        elif deployer_type == "compose":
+            map_ports_to_host = "any-variable-random"
+
+    if map_ports_to_host and deployer_type == "k8s":
+        if "k8s-" not in map_ports_to_host:
+            error_exit(
+                f"Error: --map-ports-to-host {map_ports_to_host} is not allowed with a {deployer_type} deployment "
+            )
+
     ports = _get_mapped_ports(stack, map_ports_to_host)
     if constants.network_key in spec_file_content:
         proxy_targets = []
@@ -473,12 +495,13 @@ def init_operation(
             matched = False
             for svc in ports:
                 for svc_port in ports[svc]:
+                    print(target, f"{svc}:{svc_port}")
                     if f"{svc}:{svc_port}" == target:
                         matched = True
                         break
             if not matched:
                 print(
-                    f"WARN: Unable to match http-proxy target {target} to a defined service and port."
+                    f"WARN: Unable to match http-proxy target {target} to a ClusterIP service and port."
                 )
         spec_file_content[constants.network_key][constants.ports_key] = ports
     else:
@@ -517,13 +540,16 @@ def init_operation(
 
 def _parse_http_proxy(raw_val: str):
     stripped = raw_val.replace("http://", "").replace("https://", "")
+    cluster_issuer = None
+    if "~" in stripped:
+        cluster_issuer, stripped = stripped.split("~", 1)
     host, target = stripped.split(":", 1)
     route = "/"
     if "/" in host:
         host, route = host.split("/", 1)
         route = "/" + route
 
-    return host, route, target
+    return cluster_issuer, host, route, target
 
 
 def _write_config_file(spec_file: Path, config_env_file: Path):

@@ -82,26 +82,6 @@ def make_deploy_context(ctx) -> DeployCommandContext:
     )
 
 
-# TODO: remove legacy up command since it's an alias for start
-@command.command()
-@click.option(
-    "--stay-attached/--detatch-terminal",
-    default=False,
-    help="detatch or not to see container stdout",
-)
-@click.option(
-    "--skip-cluster-management/--perform-cluster-management",
-    default=False,
-    help="Skip cluster initialization/tear-down (only for kind-k8s deployments)",
-)
-@click.argument("extra_args", nargs=-1)  # help: command: up <service1> <service2>
-@click.pass_context
-def up(ctx, stay_attached, skip_cluster_management, extra_args):
-    ctx.obj = make_deploy_context(ctx)
-    services_list = list(extra_args) or None
-    up_operation(ctx, services_list, stay_attached, skip_cluster_management)
-
-
 # start is the preferred alias for up
 @command.command()
 @click.option(
@@ -113,6 +93,11 @@ def up(ctx, stay_attached, skip_cluster_management, extra_args):
     "--skip-cluster-management/--perform-cluster-management",
     default=False,
     help="Skip cluster initialization/tear-down (only for kind-k8s deployments)",
+)
+@click.option(
+    "--k8s-cluster-issuer",
+    default="letsencrypt-prod",
+    help="k8s ClusterIssuer to use if a certificate must be issued.",
 )
 @click.argument("extra_args", nargs=-1)  # help: command: up <service1> <service2>
 @click.pass_context

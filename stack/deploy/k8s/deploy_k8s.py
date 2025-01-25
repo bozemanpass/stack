@@ -192,16 +192,17 @@ class K8sDeployer(Deployer):
                     {deployment_resp.metadata.generation} {deployment_resp.spec.template.spec.containers[0].image}"
                 )
 
-        service: client.V1Service = self.cluster_info.get_service()
+        services: client.V1Service = self.cluster_info.get_services()
         if opts.o.debug:
-            print(f"Sending this service: {service}")
+            print(f"Sending these services: {services}")
         if not opts.o.dry_run:
-            service_resp = self.core_api.create_namespaced_service(
-                namespace=self.k8s_namespace, body=service
-            )
-            if opts.o.debug:
-                print("Service created:")
-                print(f"{service_resp}")
+            for svc in services:
+                service_resp = self.core_api.create_namespaced_service(
+                    namespace=self.k8s_namespace, body=svc
+                )
+                if opts.o.debug:
+                    print("Service created:")
+                    print(f"{service_resp}")
 
     def _find_certificate_for_host_name(self, host_name):
         all_certificates = self.custom_obj_api.list_namespaced_custom_object(
@@ -294,18 +295,6 @@ class K8sDeployer(Deployer):
             if opts.o.debug:
                 print("No ingress configured")
 
-        nodeports: List[client.V1Service] = self.cluster_info.get_nodeports()
-        for nodeport in nodeports:
-            if opts.o.debug:
-                print(f"Sending this nodeport: {nodeport}")
-            if not opts.o.dry_run:
-                nodeport_resp = self.core_api.create_namespaced_service(
-                    namespace=self.k8s_namespace, body=nodeport
-                )
-                if opts.o.debug:
-                    print("NodePort created:")
-                    print(f"{nodeport_resp}")
-
     def down(self, timeout, volumes, skip_cluster_management):  # noqa: C901
         self.skip_cluster_management = skip_cluster_management
         self.connect_api()
@@ -367,15 +356,16 @@ class K8sDeployer(Deployer):
         except client.exceptions.ApiException as e:
             _check_delete_exception(e)
 
-        service: client.V1Service = self.cluster_info.get_service()
-        if opts.o.debug:
-            print(f"Deleting service: {service}")
-        try:
-            self.core_api.delete_namespaced_service(
-                namespace=self.k8s_namespace, name=service.metadata.name
-            )
-        except client.exceptions.ApiException as e:
-            _check_delete_exception(e)
+        services: client.V1Service = self.cluster_info.get_services()
+        for svc in services:
+            if opts.o.debug:
+                print(f"Deleting service: {svc}")
+            try:
+                self.core_api.delete_namespaced_service(
+                    namespace=self.k8s_namespace, name=svc.metadata.name
+                )
+            except client.exceptions.ApiException as e:
+                _check_delete_exception(e)
 
         ingress: client.V1Ingress = self.cluster_info.get_ingress(
             use_tls=not self.is_kind()
@@ -392,20 +382,6 @@ class K8sDeployer(Deployer):
         else:
             if opts.o.debug:
                 print("No ingress to delete")
-
-        nodeports: List[client.V1Service] = self.cluster_info.get_nodeports()
-        for nodeport in nodeports:
-            if opts.o.debug:
-                print(f"Deleting this nodeport: {nodeport}")
-            try:
-                self.core_api.delete_namespaced_service(
-                    namespace=self.k8s_namespace, name=nodeport.metadata.name
-                )
-            except client.exceptions.ApiException as e:
-                _check_delete_exception(e)
-        else:
-            if opts.o.debug:
-                print("No nodeport to delete")
 
         if self.is_kind() and not self.skip_cluster_management:
             # Destroy the kind cluster
