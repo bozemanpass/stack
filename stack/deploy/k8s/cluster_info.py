@@ -118,7 +118,7 @@ class ClusterInfo:
                 proxy_to = route[constants.proxy_to_key]
                 if opts.o.debug:
                     print(f"proxy config: {path} -> {proxy_to}")
-                # proxy_to has the form <service>:<port>
+                # proxy_to has the form <container>:<port>
                 proxy_to_port = int(proxy_to.split(":")[1])
                 paths.append(
                     client.V1HTTPIngressPath(
@@ -126,9 +126,7 @@ class ClusterInfo:
                         path=path,
                         backend=client.V1IngressBackend(
                             service=client.V1IngressServiceBackend(
-                                # TODO: this looks wrong
-                                name=f"{self.app_name}-service",
-                                # TODO: pull port number from the service
+                                name=f"{self.app_name}-service-{proxy_to_port}",
                                 port=client.V1ServiceBackendPort(number=proxy_to_port),
                             )
                         ),
