@@ -94,11 +94,6 @@ def make_deploy_context(ctx) -> DeployCommandContext:
     default=False,
     help="Skip cluster initialization/tear-down (only for kind-k8s deployments)",
 )
-@click.option(
-    "--k8s-cluster-issuer",
-    default="letsencrypt-prod",
-    help="k8s ClusterIssuer to use if a certificate must be issued.",
-)
 @click.argument("extra_args", nargs=-1)  # help: command: up <service1> <service2>
 @click.pass_context
 def start(ctx, stay_attached, skip_cluster_management, extra_args):
