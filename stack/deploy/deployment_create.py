@@ -495,7 +495,6 @@ def init_operation(
             matched = False
             for svc in ports:
                 for svc_port in ports[svc]:
-                    print(target, f"{svc}:{svc_port}")
                     if f"{svc}:{svc_port}" == target:
                         matched = True
                         break

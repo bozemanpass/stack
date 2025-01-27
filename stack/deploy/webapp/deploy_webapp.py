@@ -86,6 +86,7 @@ def create_deployment(
         env_file,
         kube_config,
         image_registry,
+        None,
         spec_file_name,
         None,
     )
