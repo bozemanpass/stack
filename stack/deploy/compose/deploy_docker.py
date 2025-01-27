@@ -78,27 +78,21 @@ class DockerDeployer(Deployer):
     def port(self, service, private_port):
         if not opts.o.dry_run:
             try:
-                return self.docker.compose.port(
-                    service=service, private_port=private_port
-                )
+                return self.docker.compose.port(service=service, private_port=private_port)
             except DockerException as e:
                 raise DeployerException(e)
 
     def execute(self, service, command, tty, envs):
         if not opts.o.dry_run:
             try:
-                return self.docker.compose.execute(
-                    service=service, command=command, tty=tty, envs=envs
-                )
+                return self.docker.compose.execute(service=service, command=command, tty=tty, envs=envs)
             except DockerException as e:
                 raise DeployerException(e)
 
     def logs(self, services, tail, follow, stream):
         if not opts.o.dry_run:
             try:
-                return self.docker.compose.logs(
-                    services=services, tail=tail, follow=follow, stream=stream
-                )
+                return self.docker.compose.logs(services=services, tail=tail, follow=follow, stream=stream)
             except DockerException as e:
                 raise DeployerException(e)
 

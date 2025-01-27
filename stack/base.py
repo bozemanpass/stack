@@ -48,9 +48,7 @@ class package_registry_stack(base_stack):
         url_from_environment = os.environ.get("BPI_NPM_REGISTRY_URL")
         if url_from_environment:
             if self.config.verbose:
-                print(
-                    f"Using package registry url from BPI_NPM_REGISTRY_URL: {url_from_environment}"
-                )
+                print(f"Using package registry url from BPI_NPM_REGISTRY_URL: {url_from_environment}")
             self.url = url_from_environment
         else:
             # Otherwise we expect to use the local package-registry stack
@@ -68,9 +66,7 @@ class package_registry_stack(base_stack):
                     "ERROR: The package-registry stack is not running, and no external registry "
                     "specified with BPI_NPM_REGISTRY_URL"
                 )
-                print(
-                    "ERROR: Start the local package registry with: stack --stack package-registry deploy-system up"
-                )
+                print("ERROR: Start the local package registry with: stack --stack package-registry deploy-system up")
                 return False
         return True
 

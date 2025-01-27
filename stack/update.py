@@ -41,9 +41,7 @@ def _error_exit(s: str):
 
 # Note at present this probably won't work on non-Unix based OSes like Windows
 @click.command()
-@click.option(
-    "--check-only", is_flag=True, default=False, help="only check, don't update"
-)
+@click.option("--check-only", is_flag=True, default=False, help="only check, don't update")
 @click.pass_context
 def command(ctx, check_only):
     """update shiv binary from a distribution url"""
@@ -62,9 +60,7 @@ def command(ctx, check_only):
         _error_exit(f"ERROR: distribution url: {distribution_url} is not valid")
     # Figure out the filename for ourselves
     shiv_binary_path = Path(sys.argv[0])
-    timestamp_filename = (
-        f"stack-download-{datetime.datetime.now().strftime('%y%m%d-%H%M%S')}"
-    )
+    timestamp_filename = f"stack-download-{datetime.datetime.now().strftime('%y%m%d-%H%M%S')}"
     temp_download_path = shiv_binary_path.parent.joinpath(timestamp_filename)
     # Download the file to a temp filename
     if ctx.obj.verbose:

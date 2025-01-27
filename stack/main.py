@@ -44,9 +44,7 @@ CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 @click.pass_context
 def cli(ctx, stack, quiet, verbose, dry_run, local_stack, debug, continue_on_error):
     """BPI stack"""
-    command_options = CommandOptions(
-        stack, quiet, verbose, dry_run, local_stack, debug, continue_on_error
-    )
+    command_options = CommandOptions(stack, quiet, verbose, dry_run, local_stack, debug, continue_on_error)
     opts.opts.o = command_options
     ctx.obj = command_options
 

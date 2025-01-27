@@ -96,10 +96,7 @@ def _get_named_volumes(stack):
                 for vu in find_vol_usage(parsed_pod_file, volume).values():
                     read_only = vu["options"] == "ro"
                     if read_only:
-                        if (
-                            vu["volume"] not in named_volumes["rw"]
-                            and vu["volume"] not in named_volumes["ro"]
-                        ):
+                        if vu["volume"] not in named_volumes["rw"] and vu["volume"] not in named_volumes["ro"]:
                             named_volumes["ro"].append(vu["volume"])
                     else:
                         if vu["volume"] not in named_volumes["rw"]:
@@ -119,9 +116,7 @@ def _create_bind_dir_if_relative(volume, path_string, compose_dir):
         absolute_path.mkdir(parents=True, exist_ok=True)
     else:
         if not path.exists():
-            print(
-                f"WARNING: mount path for volume {volume} does not exist: {path_string}"
-            )
+            print(f"WARNING: mount path for volume {volume} does not exist: {path_string}")
 
 
 # See: https://stackoverflow.com/questions/45699189/editing-docker-compose-yml-with-pyyaml
@@ -136,11 +131,7 @@ def _fixup_pod_file(pod, spec, compose_dir):
                 if volume in spec_volumes:
                     volume_spec = spec_volumes[volume]
                     if volume_spec:
-                        volume_spec_fixedup = (
-                            volume_spec
-                            if Path(volume_spec).is_absolute()
-                            else f".{volume_spec}"
-                        )
+                        volume_spec_fixedup = volume_spec if Path(volume_spec).is_absolute() else f".{volume_spec}"
                         _create_bind_dir_if_relative(volume, volume_spec, compose_dir)
                         # this is Docker specific
                         if spec.is_docker_deployment():
@@ -206,16 +197,12 @@ def call_stack_deploy_init(deploy_command_context):
                     init_done = True
                 else:
                     # TODO: remove this restriction
-                    print(
-                        f"Skipping init() from plugin {python_file_path}. Only one init() is allowed."
-                    )
+                    print(f"Skipping init() from plugin {python_file_path}. Only one init() is allowed.")
     return ret
 
 
 # TODO: fold this with function above
-def call_stack_deploy_setup(
-    deploy_command_context, parameters: LaconicStackSetupCommand, extra_args
-):
+def call_stack_deploy_setup(deploy_command_context, parameters: LaconicStackSetupCommand, extra_args):
     # Link with the python file in the stack
     # Call a function in it
     # If no function found, return None
@@ -289,9 +276,7 @@ def _get_mapped_ports(stack: str, map_recipe: str):
                         # Strip /udp suffix if present
                         bare_orig_port = orig_port.replace("/udp", "")
                         # limit to k8s NodePort range
-                        random_port = random.randint(
-                            30000, 32767
-                        )  # Beware: we're relying on luck to not collide
+                        random_port = random.randint(30000, 32767)  # Beware: we're relying on luck to not collide
                         if map_recipe == "any-variable-random":
                             # This is the default so take no action
                             pass
@@ -314,9 +299,7 @@ def _get_mapped_ports(stack: str, map_recipe: str):
                         else:
                             print("Error: bad map_recipe")
             else:
-                print(
-                    f"Error: --map-ports-to-host must specify one of: {port_map_recipes}"
-                )
+                print(f"Error: --map-ports-to-host must specify one of: {port_map_recipes}")
                 sys.exit(1)
     return ports
 
@@ -341,9 +324,7 @@ def _parse_config_variables(variable_values: str):
 
 @click.command()
 @click.option("--config", help="Provide config variables for the deployment")
-@click.option(
-    "--config-file", help="Provide config variables in a file for the deployment"
-)
+@click.option("--config-file", help="Provide config variables in a file for the deployment")
 @click.option("--kube-config", help="Provide a config file for a k8s deployment")
 @click.option(
     "--image-registry",
@@ -391,7 +372,7 @@ def init(
 
 # The init command's implementation is in a separate function so that we can
 # call it from other commands, bypassing the click decoration stuff
-def init_operation(
+def init_operation(  # noqa: C901
     deploy_command_context,
     stack,
     deployer_type,
@@ -413,9 +394,7 @@ def init_operation(
         if image_registry:
             spec_file_content.update({constants.image_registry_key: image_registry})
         else:
-            print(
-                "WARNING: --image-registry not specified, only default container registries (eg, Docker Hub) will be available"
-            )
+            print("WARNING: --image-registry not specified, only default container registries (eg, Docker Hub) will be available")
         if k8s_http_proxy:
             cluster_issuer, host, path, proxy_to = _parse_http_proxy(k8s_http_proxy)
             if not cluster_issuer:
@@ -424,30 +403,20 @@ def init_operation(
                 {
                     constants.host_name_key: host,
                     constants.cluster_issuer_key: cluster_issuer,
-                    constants.routes_key: [
-                        {constants.path_key: path, constants.proxy_to_key: proxy_to}
-                    ],
+                    constants.routes_key: [{constants.path_key: path, constants.proxy_to_key: proxy_to}],
                 }
             ]
             if constants.network_key not in spec_file_content:
                 spec_file_content[constants.network_key] = {}
-            spec_file_content[constants.network_key].update(
-                {constants.http_proxy_key: http_proxy}
-            )
+            spec_file_content[constants.network_key].update({constants.http_proxy_key: http_proxy})
         else:
-            print(
-                "WARNING: --http-proxy not specified, no external HTTP access will be configured."
-            )
+            print("WARNING: --http-proxy not specified, no external HTTP access will be configured.")
     else:
         # Check for --kube-config supplied for non-relevant deployer types
         if kube_config is not None:
-            error_exit(
-                f"--kube-config is not allowed with a {deployer_type} deployment"
-            )
+            error_exit(f"--kube-config is not allowed with a {deployer_type} deployment")
         if image_registry is not None:
-            error_exit(
-                f"--image-registry is not allowed with a {deployer_type} deployment"
-            )
+            error_exit(f"--image-registry is not allowed with a {deployer_type} deployment")
         if k8s_http_proxy is not None:
             error_exit(f"--http-proxy is not allowed with a {deployer_type} deployment")
     if default_spec_file_content:
@@ -478,17 +447,13 @@ def init_operation(
 
     if map_ports_to_host and deployer_type == "k8s":
         if "k8s-" not in map_ports_to_host:
-            error_exit(
-                f"Error: --map-ports-to-host {map_ports_to_host} is not allowed with a {deployer_type} deployment "
-            )
+            error_exit(f"Error: --map-ports-to-host {map_ports_to_host} is not allowed with a {deployer_type} deployment ")
 
     ports = _get_mapped_ports(stack, map_ports_to_host)
     if constants.network_key in spec_file_content:
         proxy_targets = []
         if constants.http_proxy_key in spec_file_content[constants.network_key]:
-            for entry in spec_file_content[constants.network_key][
-                constants.http_proxy_key
-            ]:
+            for entry in spec_file_content[constants.network_key][constants.http_proxy_key]:
                 for r in entry[constants.routes_key]:
                     proxy_targets.append(r[constants.proxy_to_key])
         for target in proxy_targets:
@@ -499,9 +464,7 @@ def init_operation(
                         matched = True
                         break
             if not matched:
-                print(
-                    f"WARN: Unable to match http-proxy target {target} to a ClusterIP service and port."
-                )
+                print(f"WARN: Unable to match http-proxy target {target} to a ClusterIP service and port.")
         spec_file_content[constants.network_key][constants.ports_key] = ports
     else:
         spec_file_content.update({constants.network_key: {constants.ports_key: ports}})
@@ -529,9 +492,7 @@ def init_operation(
             spec_file_content["configmaps"] = configmap_descriptors
 
     if opts.o.debug:
-        print(
-            f"Creating spec file for stack: {stack} with content: {spec_file_content}"
-        )
+        print(f"Creating spec file for stack: {stack} with content: {spec_file_content}")
 
     with open(output, "w") as output_file:
         get_yaml().dump(spec_file_content, output_file)
@@ -593,9 +554,7 @@ def _check_volume_definitions(spec):
 
 
 @click.command()
-@click.option(
-    "--spec-file", required=True, help="Spec file to use to create this deployment"
-)
+@click.option("--spec-file", required=True, help="Spec file to use to create this deployment")
 @click.option("--deployment-dir", help="Create deployment files in this directory")
 # TODO: Hack
 @click.option("--network-dir", help="Network configuration supplied in this directory")
@@ -614,12 +573,8 @@ def create(ctx, spec_file, deployment_dir, network_dir, initial_peers):
 
 # The init command's implementation is in a separate function so that we can
 # call it from other commands, bypassing the click decoration stuff
-def create_operation(
-    deployment_command_context, spec_file, deployment_dir, network_dir, initial_peers
-):
-    parsed_spec = Spec(
-        os.path.abspath(spec_file), get_parsed_deployment_spec(spec_file)
-    )
+def create_operation(deployment_command_context, spec_file, deployment_dir, network_dir, initial_peers):
+    parsed_spec = Spec(os.path.abspath(spec_file), get_parsed_deployment_spec(spec_file))
     _check_volume_definitions(parsed_spec)
     stack_name = parsed_spec["stack"]
     deployment_type = parsed_spec[constants.deploy_to_key]
@@ -639,9 +594,7 @@ def create_operation(
     copyfile(stack_file, deployment_dir_path.joinpath(constants.stack_file_name))
     _create_deployment_file(deployment_dir_path)
     # Copy any config varibles from the spec file into an env file suitable for compose
-    _write_config_file(
-        spec_file, deployment_dir_path.joinpath(constants.config_file_name)
-    )
+    _write_config_file(spec_file, deployment_dir_path.joinpath(constants.config_file_name))
     # Copy any k8s config file into the deployment dir
     if deployment_type == "k8s":
         _write_kube_config_file(
@@ -664,9 +617,7 @@ def create_operation(
         if opts.o.debug:
             print(f"extra config dirs: {extra_config_dirs}")
         _fixup_pod_file(parsed_pod_file, parsed_spec, destination_compose_dir)
-        with open(
-            destination_compose_dir.joinpath("docker-compose-%s.yml" % pod), "w"
-        ) as output_file:
+        with open(destination_compose_dir.joinpath("docker-compose-%s.yml" % pod), "w") as output_file:
             yaml.dump(parsed_pod_file, output_file)
         # Copy the config files for the pod, if any
         config_dirs = {pod}
@@ -674,9 +625,7 @@ def create_operation(
         for config_dir in config_dirs:
             source_config_dir = resolve_config_dir(stack_name, config_dir)
             if os.path.exists(source_config_dir):
-                destination_config_dir = deployment_dir_path.joinpath(
-                    "config", config_dir
-                )
+                destination_config_dir = deployment_dir_path.joinpath("config", config_dir)
                 # If the same config dir appears in multiple pods, it may already have been copied
                 if not os.path.exists(destination_config_dir):
                     copytree(source_config_dir, destination_config_dir)
@@ -690,12 +639,8 @@ def create_operation(
             for configmap in parsed_spec.get_configmaps():
                 source_config_dir = resolve_config_dir(stack_name, configmap)
                 if os.path.exists(source_config_dir):
-                    destination_config_dir = deployment_dir_path.joinpath(
-                        "configmaps", configmap
-                    )
-                    copytree(
-                        source_config_dir, destination_config_dir, dirs_exist_ok=True
-                    )
+                    destination_config_dir = deployment_dir_path.joinpath("configmaps", configmap)
+                    copytree(source_config_dir, destination_config_dir, dirs_exist_ok=True)
         else:
             # TODO: We should probably only do this if the volume is marked :ro.
             for volume_name, volume_path in parsed_spec.get_volumes().items():
@@ -704,9 +649,7 @@ def create_operation(
                 if os.path.exists(source_config_dir) and os.listdir(source_config_dir):
                     destination_config_dir = deployment_dir_path.joinpath(volume_path)
                     # Only copy if the destination exists and _is_ empty.
-                    if os.path.exists(destination_config_dir) and not os.listdir(
-                        destination_config_dir
-                    ):
+                    if os.path.exists(destination_config_dir) and not os.listdir(destination_config_dir):
                         copytree(
                             source_config_dir,
                             destination_config_dir,
@@ -720,14 +663,10 @@ def create_operation(
     deployment_context = DeploymentContext()
     deployment_context.init(deployment_dir_path)
     # Call the deployer to generate any deployer-specific files (e.g. for kind)
-    deployer_config_generator = getDeployerConfigGenerator(
-        deployment_type, deployment_context
-    )
+    deployer_config_generator = getDeployerConfigGenerator(deployment_type, deployment_context)
     # TODO: make deployment_dir_path a Path above
     deployer_config_generator.generate(deployment_dir_path)
-    call_stack_deploy_create(
-        deployment_context, [network_dir, initial_peers, deployment_command_context]
-    )
+    call_stack_deploy_create(deployment_context, [network_dir, initial_peers, deployment_command_context])
 
 
 # TODO: this code should be in the stack .py files but
@@ -737,18 +676,14 @@ def create_operation(
 @click.option("--node-moniker", help="Moniker for this node")
 @click.option("--chain-id", help="The new chain id")
 @click.option("--key-name", help="Name for new node key")
-@click.option(
-    "--gentx-files", help="List of comma-delimited gentx filenames from other nodes"
-)
+@click.option("--gentx-files", help="List of comma-delimited gentx filenames from other nodes")
 @click.option(
     "--gentx-addresses",
     type=str,
     help="List of comma-delimited validator addresses for other nodes",
 )
 @click.option("--genesis-file", help="Genesis file for the network")
-@click.option(
-    "--initialize-network", is_flag=True, default=False, help="Initialize phase"
-)
+@click.option("--initialize-network", is_flag=True, default=False, help="Initialize phase")
 @click.option("--join-network", is_flag=True, default=False, help="Join phase")
 @click.option("--connect-network", is_flag=True, default=False, help="Connect phase")
 @click.option("--create-network", is_flag=True, default=False, help="Create phase")

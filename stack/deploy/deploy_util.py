@@ -78,9 +78,7 @@ def _volumes_to_docker(mounts: List[VolumeMapping]):
     return result
 
 
-def run_container_command(
-    ctx: DeployCommandContext, service: str, command: str, mounts: List[VolumeMapping]
-):
+def run_container_command(ctx: DeployCommandContext, service: str, command: str, mounts: List[VolumeMapping]):
     deployer = ctx.deployer
     container_image = _container_image_from_service(ctx.stack, service)
     docker_volumes = _volumes_to_docker(mounts)

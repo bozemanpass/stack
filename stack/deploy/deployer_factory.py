@@ -30,9 +30,7 @@ def getDeployerConfigGenerator(type: str, deployment_context):
         print(f"ERROR: deploy-to {type} is not valid")
 
 
-def getDeployer(
-    type: str, deployment_context, compose_files, compose_project_name, compose_env_file
-):
+def getDeployer(type: str, deployment_context, compose_files, compose_project_name, compose_env_file):
     if type == "compose" or type is None:
         return DockerDeployer(
             type,
@@ -41,10 +39,7 @@ def getDeployer(
             compose_project_name,
             compose_env_file,
         )
-    elif (
-        type == type == constants.k8s_deploy_type
-        or type == constants.k8s_kind_deploy_type
-    ):
+    elif type == type == constants.k8s_deploy_type or type == constants.k8s_kind_deploy_type:
         return K8sDeployer(
             type,
             deployment_context,

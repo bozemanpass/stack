@@ -27,9 +27,7 @@ from stack.deploy.deploy_types import DeployCommandContext
 
 def _fixup_container_tag(deployment_dir: str, image: str):
     deployment_dir_path = Path(deployment_dir)
-    compose_file = deployment_dir_path.joinpath(
-        "compose", "docker-compose-webapp-template.yml"
-    )
+    compose_file = deployment_dir_path.joinpath("compose", "docker-compose-webapp-template.yml")
     # replace "bpi/webapp-container:local" in the file with our image tag
     with open(compose_file) as rfile:
         contents = rfile.read()
@@ -56,9 +54,7 @@ def _fixup_url_spec(spec_file_name: str, url: str):
         wfile.write(contents)
 
 
-def create_deployment(
-    ctx, deployment_dir, image, url, kube_config, image_registry, env_file
-):
+def create_deployment(ctx, deployment_dir, image, url, kube_config, image_registry, env_file):
     # Do the equivalent of:
     # 1. stack --stack webapp-template deploy --deploy-to k8s init --output webapp-spec.yml
     #   --config (eqivalent of the contents of my-config.env)
@@ -114,9 +110,7 @@ def command(ctx):
     "--image-registry",
     help="Provide a container image registry url for this k8s cluster",
 )
-@click.option(
-    "--deployment-dir", help="Create deployment files in this directory", required=True
-)
+@click.option("--deployment-dir", help="Create deployment files in this directory", required=True)
 @click.option("--image", help="image to deploy", required=True)
 @click.option("--url", help="url to serve", required=True)
 @click.option("--env-file", help="environment file for webapp")
@@ -124,6 +118,4 @@ def command(ctx):
 def create(ctx, deployment_dir, image, url, kube_config, image_registry, env_file):
     """create a deployment for the specified webapp container"""
 
-    return create_deployment(
-        ctx, deployment_dir, image, url, kube_config, image_registry, env_file
-    )
+    return create_deployment(ctx, deployment_dir, image, url, kube_config, image_registry, env_file)

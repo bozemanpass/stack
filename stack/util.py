@@ -49,9 +49,7 @@ def get_dev_root_path(ctx):
     if ctx and ctx.local_stack:
         # TODO: This code probably doesn't work
         dev_root_path = os.getcwd()[0 : os.getcwd().rindex("stack")]
-        print(
-            f"Local stack dev_root_path (BPI_REPO_BASE_DIR) overridden to: {dev_root_path}"
-        )
+        print(f"Local stack dev_root_path (BPI_REPO_BASE_DIR) overridden to: {dev_root_path}")
     else:
         dev_root_path = os.path.expanduser(config("BPI_REPO_BASE_DIR", default="~/bpi"))
     return dev_root_path
@@ -89,9 +87,7 @@ def get_plugin_code_paths(stack) -> List[Path]:
         if type(pod) is str:
             result.add(get_stack_path(stack))
         else:
-            pod_root_dir = os.path.join(
-                get_dev_root_path(None), pod["repository"].split("/")[-1], pod["path"]
-            )
+            pod_root_dir = os.path.join(get_dev_root_path(None), pod["repository"].split("/")[-1], pod["path"])
             result.add(Path(os.path.join(pod_root_dir, "stack")))
     return list(result)
 

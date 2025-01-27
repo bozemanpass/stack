@@ -108,53 +108,38 @@ def confirm_payment(laconic, record, payment_address, min_amount, logger):
         return False
 
     if tx.code != 0:
-        logger.log(
-            f"{record.id}: payment tx {tx.hash} was not successful - code: {tx.code}, log: {tx.log}"
-        )
+        logger.log(f"{record.id}: payment tx {tx.hash} was not successful - code: {tx.code}, log: {tx.log}")
         return False
 
     if tx.sender != req_owner:
         logger.log(
-            f"{record.id}: payment sender {tx.sender} in tx {tx.hash} does not match deployment "
-            f"request owner {req_owner}"
+            f"{record.id}: payment sender {tx.sender} in tx {tx.hash} does not match deployment " f"request owner {req_owner}"
         )
         return False
 
     if tx.recipient != payment_address:
-        logger.log(
-            f"{record.id}: payment recipient {tx.recipient} in tx {tx.hash} does not match {payment_address}"
-        )
+        logger.log(f"{record.id}: payment recipient {tx.recipient} in tx {tx.hash} does not match {payment_address}")
         return False
 
     pay_denom = "".join([i for i in tx.amount if not i.isdigit()])
     if pay_denom != "alnt":
-        logger.log(
-            f"{record.id}: {pay_denom} in tx {tx.hash} is not an expected payment denomination"
-        )
+        logger.log(f"{record.id}: {pay_denom} in tx {tx.hash} is not an expected payment denomination")
         return False
 
     pay_amount = int("".join([i for i in tx.amount if i.isdigit()]))
     if pay_amount < min_amount:
-        logger.log(
-            f"{record.id}: payment amount {tx.amount} is less than minimum {min_amount}"
-        )
+        logger.log(f"{record.id}: payment amount {tx.amount} is less than minimum {min_amount}")
         return False
 
     # Check if the payment was already used on a
-    used = laconic.app_deployments(
-        {"deployer": payment_address, "payment": tx.hash}, all=True
-    )
+    used = laconic.app_deployments({"deployer": payment_address, "payment": tx.hash}, all=True)
     if len(used):
         logger.log(f"{record.id}: payment {tx.hash} already used on deployment {used}")
         return False
 
-    used = laconic.app_deployment_removals(
-        {"deployer": payment_address, "payment": tx.hash}, all=True
-    )
+    used = laconic.app_deployment_removals({"deployer": payment_address, "payment": tx.hash}, all=True)
     if len(used):
-        logger.log(
-            f"{record.id}: payment {tx.hash} already used on deployment removal {used}"
-        )
+        logger.log(f"{record.id}: payment {tx.hash} already used on deployment removal {used}")
         return False
 
     return True
@@ -177,9 +162,7 @@ class LaconicRegistryClient:
             return self.cache["whoami"]
 
         args = ["laconic", "-c", self.config_file, "registry", "account", "get"]
-        results = [
-            AttrDict(r) for r in json.loads(logged_cmd(self.log_file, *args)) if r
-        ]
+        results = [AttrDict(r) for r in json.loads(logged_cmd(self.log_file, *args)) if r]
 
         if len(results):
             self.cache["whoami"] = results[0]
@@ -208,9 +191,7 @@ class LaconicRegistryClient:
             "--address",
             address,
         ]
-        results = [
-            AttrDict(r) for r in json.loads(logged_cmd(self.log_file, *args)) if r
-        ]
+        results = [AttrDict(r) for r in json.loads(logged_cmd(self.log_file, *args)) if r]
         if len(results):
             self.cache["accounts"][address] = results[0]
             return results[0]
@@ -233,9 +214,7 @@ class LaconicRegistryClient:
             "--id",
             id,
         ]
-        results = [
-            AttrDict(r) for r in json.loads(logged_cmd(self.log_file, *args)) if r
-        ]
+        results = [AttrDict(r) for r in json.loads(logged_cmd(self.log_file, *args)) if r]
         self._add_to_cache(results)
         if len(results):
             return results[0]
@@ -246,9 +225,7 @@ class LaconicRegistryClient:
 
     def list_bonds(self):
         args = ["laconic", "-c", self.config_file, "registry", "bond", "list"]
-        results = [
-            AttrDict(r) for r in json.loads(logged_cmd(self.log_file, *args)) if r
-        ]
+        results = [AttrDict(r) for r in json.loads(logged_cmd(self.log_file, *args)) if r]
         self._add_to_cache(results)
         return results
 
@@ -265,9 +242,7 @@ class LaconicRegistryClient:
                 args.append("--%s" % k)
                 args.append(str(v))
 
-        results = [
-            AttrDict(r) for r in json.loads(logged_cmd(self.log_file, *args)) if r
-        ]
+        results = [AttrDict(r) for r in json.loads(logged_cmd(self.log_file, *args)) if r]
 
         # Most recent records first
         results.sort(key=lambda r: r.createTime)
@@ -299,9 +274,7 @@ class LaconicRegistryClient:
 
         args = ["laconic", "-c", self.config_file, "registry", "name", "resolve", name]
 
-        parsed = [
-            AttrDict(r) for r in json.loads(logged_cmd(self.log_file, *args)) if r
-        ]
+        parsed = [AttrDict(r) for r in json.loads(logged_cmd(self.log_file, *args)) if r]
         if parsed:
             self._add_to_cache(parsed)
             return parsed[0]
@@ -331,9 +304,7 @@ class LaconicRegistryClient:
             name_or_id,
         ]
 
-        parsed = [
-            AttrDict(r) for r in json.loads(logged_cmd(self.log_file, *args)) if r
-        ]
+        parsed = [AttrDict(r) for r in json.loads(logged_cmd(self.log_file, *args)) if r]
         if len(parsed):
             self._add_to_cache(parsed)
             return parsed[0]
@@ -518,9 +489,7 @@ def build_container_image(app_record, tag, extra_build_args=None, logger=None):
                 f"url.https://{github_token}:@github.com/.insteadOf",
                 "https://github.com/",
             ]
-            result = subprocess.run(
-                git_config_args, stdout=logger.file, stderr=logger.file
-            )
+            result = subprocess.run(git_config_args, stdout=logger.file, stderr=logger.file)
             result.check_returncode()
         if ref:
             # TODO: Determing branch or hash, and use depth 1 if we can.
@@ -557,9 +526,7 @@ def build_container_image(app_record, tag, extra_build_args=None, logger=None):
             )
             result.check_returncode()
 
-        base_container = determine_base_container(
-            clone_dir, app_record.attributes.app_type
-        )
+        base_container = determine_base_container(clone_dir, app_record.attributes.app_type)
 
         logger.log("Building webapp ...")
         build_command = [
@@ -633,9 +600,7 @@ def publish_deployment(
     if not deploy_record:
         deploy_ver = "0.0.1"
     else:
-        deploy_ver = "0.0.%d" % (
-            int(deploy_record.attributes.version.split(".")[-1]) + 1
-        )
+        deploy_ver = "0.0.%d" % (int(deploy_record.attributes.version.split(".")[-1]) + 1)
 
     if not dns_record:
         dns_ver = "0.0.1"
@@ -680,9 +645,7 @@ def publish_deployment(
     if app_deployment_request:
         new_deployment_record["record"]["request"] = app_deployment_request.id
         if app_deployment_request.attributes.payment:
-            new_deployment_record["record"][
-                "payment"
-            ] = app_deployment_request.attributes.payment
+            new_deployment_record["record"]["payment"] = app_deployment_request.attributes.payment
 
     if webapp_deployer_record:
         new_deployment_record["record"]["deployer"] = webapp_deployer_record.names[0]
@@ -696,9 +659,7 @@ def publish_deployment(
 def hostname_for_deployment_request(app_deployment_request, laconic):
     dns_name = app_deployment_request.attributes.dns
     if not dns_name:
-        app = laconic.get_record(
-            app_deployment_request.attributes.application, require=True
-        )
+        app = laconic.get_record(app_deployment_request.attributes.application, require=True)
         dns_name = generate_hostname_for_app(app)
     elif dns_name.startswith("lrn://"):
         record = laconic.get_record(dns_name, require=True)

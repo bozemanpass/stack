@@ -51,9 +51,7 @@ def command(ctx, dir):
         print(f"Error: deployment directory {dir} does not exist")
         sys.exit(1)
     if not dir_path.is_dir():
-        print(
-            f"Error: supplied deployment directory path {dir} exists but is a file not a directory"
-        )
+        print(f"Error: supplied deployment directory path {dir} exists but is a file not a directory")
         sys.exit(1)
     # Store the deployment context for subcommands
     deployment_context = DeploymentContext()
@@ -104,9 +102,7 @@ def start(ctx, stay_attached, skip_cluster_management, extra_args):
 
 # TODO: remove legacy up command since it's an alias for stop
 @command.command()
-@click.option(
-    "--delete-volumes/--preserve-volumes", default=False, help="delete data volumes"
-)
+@click.option("--delete-volumes/--preserve-volumes", default=False, help="delete data volumes")
 @click.option(
     "--skip-cluster-management/--perform-cluster-management",
     default=False,
@@ -123,9 +119,7 @@ def down(ctx, delete_volumes, skip_cluster_management, extra_args):
 
 # stop is the preferred alias for down
 @command.command()
-@click.option(
-    "--delete-volumes/--preserve-volumes", default=False, help="delete data volumes"
-)
+@click.option("--delete-volumes/--preserve-volumes", default=False, help="delete data volumes")
 @click.option(
     "--skip-cluster-management/--perform-cluster-management",
     default=False,

@@ -71,11 +71,7 @@ def wait_for_ingress_in_kind():
 
 def install_ingress_for_kind():
     api_client = client.ApiClient()
-    ingress_install = os.path.abspath(
-        get_k8s_dir().joinpath(
-            "components", "ingress", "ingress-nginx-kind-deploy.yaml"
-        )
-    )
+    ingress_install = os.path.abspath(get_k8s_dir().joinpath("components", "ingress", "ingress-nginx-kind-deploy.yaml"))
     if opts.o.debug:
         print("Installing nginx ingress controller in kind cluster")
     utils.create_from_yaml(api_client, yaml_file=ingress_install)
@@ -83,18 +79,14 @@ def install_ingress_for_kind():
 
 def load_images_into_kind(kind_cluster_name: str, image_set: Set[str]):
     for image in image_set:
-        result = _run_command(
-            f"kind load docker-image {image} --name {kind_cluster_name}"
-        )
+        result = _run_command(f"kind load docker-image {image} --name {kind_cluster_name}")
         if result.returncode != 0:
             raise DeployerException(f"kind create cluster failed: {result}")
 
 
 def pods_in_deployment(core_api: client.CoreV1Api, deployment_name: str):
     pods = []
-    pod_response = core_api.list_namespaced_pod(
-        namespace="default", label_selector=f"app={deployment_name}"
-    )
+    pod_response = core_api.list_namespaced_pod(namespace="default", label_selector=f"app={deployment_name}")
     if opts.o.debug:
         print(f"pod_response: {pod_response}")
     for pod_info in pod_response.items:
@@ -143,9 +135,7 @@ def container_ports_for_service(service):
         for port in service["ports"]:
             port = str(port)
             if ":" in port:
-                container_ports.append(
-                    client.V1ContainerPort(container_port=int(port.split(":")[-1]))
-                )
+                container_ports.append(client.V1ContainerPort(container_port=int(port.split(":")[-1])))
             else:
                 container_ports.append(client.V1ContainerPort(container_port=int(port)))
     return container_ports
@@ -170,9 +160,7 @@ def volume_mounts_for_service(parsed_pod_files, service):
                             mount_split = mount_string.split(":")
                             volume_name = mount_split[0]
                             mount_path = mount_split[1]
-                            mount_options = (
-                                mount_split[2] if len(mount_split) == 3 else None
-                            )
+                            mount_options = mount_split[2] if len(mount_split) == 3 else None
                             if opts.o.debug:
                                 print(f"volume_name: {volume_name}")
                                 print(f"mount path: {mount_path}")
@@ -194,18 +182,12 @@ def volumes_for_pod_files(parsed_pod_files, spec, app_name):
             volumes = parsed_pod_file["volumes"]
             for volume_name in volumes.keys():
                 if volume_name in spec.get_configmaps():
-                    config_map = client.V1ConfigMapVolumeSource(
-                        name=f"{app_name}-{volume_name}"
-                    )
+                    config_map = client.V1ConfigMapVolumeSource(name=f"{app_name}-{volume_name}")
                     volume = client.V1Volume(name=volume_name, config_map=config_map)
                     result.append(volume)
                 else:
-                    claim = client.V1PersistentVolumeClaimVolumeSource(
-                        claim_name=f"{app_name}-{volume_name}"
-                    )
-                    volume = client.V1Volume(
-                        name=volume_name, persistent_volume_claim=claim
-                    )
+                    claim = client.V1PersistentVolumeClaimVolumeSource(claim_name=f"{app_name}-{volume_name}")
+                    volume = client.V1Volume(name=volume_name, persistent_volume_claim=claim)
                     result.append(volume)
     return result
 
@@ -253,11 +235,7 @@ def _generate_kind_mounts(parsed_pod_files, deployment_dir, deployment_context):
                                     f"  - hostPath: {_make_absolute_host_path(volume_host_path_map[volume_name], deployment_dir)}\n"
                                     f"    containerPath: {get_kind_pv_bind_mount_path(volume_name)}\n"
                                 )
-    return (
-        ""
-        if len(volume_definitions) == 0
-        else ("  extraMounts:\n" f"{''.join(volume_definitions)}")
-    )
+    return "" if len(volume_definitions) == 0 else ("  extraMounts:\n" f"{''.join(volume_definitions)}")
 
 
 # TODO: decide if we need this functionality
@@ -274,28 +252,16 @@ def _generate_kind_port_mappings_from_services(parsed_pod_files):
                     for port_string in ports:
                         # TODO handle the complex cases
                         # Looks like: 80 or something more complicated
-                        port_definitions.append(
-                            f"  - containerPort: {port_string}\n    hostPort: {port_string}\n"
-                        )
-    return (
-        ""
-        if len(port_definitions) == 0
-        else ("  extraPortMappings:\n" f"{''.join(port_definitions)}")
-    )
+                        port_definitions.append(f"  - containerPort: {port_string}\n    hostPort: {port_string}\n")
+    return "" if len(port_definitions) == 0 else ("  extraPortMappings:\n" f"{''.join(port_definitions)}")
 
 
 def _generate_kind_port_mappings(parsed_pod_files):
     port_definitions = []
     # For now we just map port 80 for the nginx ingress controller we install in kind
     port_string = "80"
-    port_definitions.append(
-        f"  - containerPort: {port_string}\n    hostPort: {port_string}\n"
-    )
-    return (
-        ""
-        if len(port_definitions) == 0
-        else ("  extraPortMappings:\n" f"{''.join(port_definitions)}")
-    )
+    port_definitions.append(f"  - containerPort: {port_string}\n    hostPort: {port_string}\n")
+    return "" if len(port_definitions) == 0 else ("  extraPortMappings:\n" f"{''.join(port_definitions)}")
 
 
 # Note: this makes any duplicate definition in b overwrite a
@@ -332,9 +298,7 @@ def envs_from_compose_file(compose_file_envs: Mapping[str, str]) -> Mapping[str,
     return result
 
 
-def envs_from_environment_variables_map(
-    map: Mapping[str, str]
-) -> List[client.V1EnvVar]:
+def envs_from_environment_variables_map(map: Mapping[str, str]) -> List[client.V1EnvVar]:
     result = []
     if isinstance(map, CommentedSeq):
         for item in map:
@@ -370,9 +334,7 @@ def generate_kind_config(deployment_dir: Path, deployment_context):
     pod_files = [p for p in compose_file_dir.iterdir() if p.is_file()]
     parsed_pod_files_map = parsed_pod_files_map_from_file_names(pod_files)
     port_mappings_yml = _generate_kind_port_mappings(parsed_pod_files_map)
-    mounts_yml = _generate_kind_mounts(
-        parsed_pod_files_map, deployment_dir, deployment_context
-    )
+    mounts_yml = _generate_kind_mounts(parsed_pod_files_map, deployment_dir, deployment_context)
     return (
         "kind: Cluster\n"
         "apiVersion: kind.x-k8s.io/v1alpha4\n"

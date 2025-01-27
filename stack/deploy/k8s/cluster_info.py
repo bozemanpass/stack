@@ -67,9 +67,7 @@ def to_k8s_resource_requirements(resources: Resources) -> client.V1ResourceRequi
             ret["storage"] = f"{int(limits.storage / (1000 * 1000))}M"
         return ret
 
-    return client.V1ResourceRequirements(
-        requests=to_dict(resources.reservations), limits=to_dict(resources.limits)
-    )
+    return client.V1ResourceRequirements(requests=to_dict(resources.reservations), limits=to_dict(resources.limits))
 
 
 class ClusterInfo:
@@ -86,17 +84,13 @@ class ClusterInfo:
         self.parsed_pod_yaml_map = parsed_pod_files_map_from_file_names(pod_files)
         # Find the set of images in the pods
         self.image_set = images_for_deployment(pod_files)
-        self.environment_variables = DeployEnvVars(
-            env_var_map_from_file(compose_env_file)
-        )
+        self.environment_variables = DeployEnvVars(env_var_map_from_file(compose_env_file))
         self.app_name = deployment_name
         self.spec = spec
         if opts.o.debug:
             print(f"Env vars: {self.environment_variables.map}")
 
-    def get_ingress(
-        self, use_tls=False, certificate=None, def_cluster_issuer="letsencrypt-prod"
-    ):
+    def get_ingress(self, use_tls=False, certificate=None, def_cluster_issuer="letsencrypt-prod"):
         # No ingress for a deployment that has no http-proxy defined, for now
         http_proxy_info_list = self.spec.get_http_proxy()
         ingress = None
@@ -111,12 +105,8 @@ class ClusterInfo:
             tls = (
                 [
                     client.V1IngressTLS(
-                        hosts=certificate["spec"]["dnsNames"]
-                        if certificate
-                        else [host_name],
-                        secret_name=certificate["spec"]["secretName"]
-                        if certificate
-                        else f"{self.app_name}-tls",
+                        hosts=certificate["spec"]["dnsNames"] if certificate else [host_name],
+                        secret_name=certificate["spec"]["secretName"] if certificate else f"{self.app_name}-tls",
                     )
                 ]
                 if use_tls
@@ -144,29 +134,19 @@ class ClusterInfo:
                         ),
                     )
                 )
-            rules.append(
-                client.V1IngressRule(
-                    host=host_name, http=client.V1HTTPIngressRuleValue(paths=paths)
-                )
-            )
-            spec = client.V1IngressSpec(
-                tls=tls, rules=rules, ingress_class_name="nginx"
-            )
+            rules.append(client.V1IngressRule(host=host_name, http=client.V1HTTPIngressRuleValue(paths=paths)))
+            spec = client.V1IngressSpec(tls=tls, rules=rules, ingress_class_name="nginx")
 
             ingress_annotations = {
                 "kubernetes.io/ingress.class": "nginx",
             }
             if not certificate:
-                ingress_annotations[
-                    "cert-manager.io/cluster-issuer"
-                ] = http_proxy_info.get(
+                ingress_annotations["cert-manager.io/cluster-issuer"] = http_proxy_info.get(
                     constants.cluster_issuer_key, def_cluster_issuer
                 )
 
             ingress = client.V1Ingress(
-                metadata=client.V1ObjectMeta(
-                    name=f"{self.app_name}-ingress", annotations=ingress_annotations
-                ),
+                metadata=client.V1ObjectMeta(name=f"{self.app_name}-ingress", annotations=ingress_annotations),
                 spec=spec,
             )
         return ingress
@@ -189,9 +169,7 @@ class ClusterInfo:
                             node_port = int(parts[0])
                             pod_port = int(parts[1])
                             service = client.V1Service(
-                                metadata=client.V1ObjectMeta(
-                                    name=f"{self.app_name}-nodeport-{pod_port}"
-                                ),
+                                metadata=client.V1ObjectMeta(name=f"{self.app_name}-nodeport-{pod_port}"),
                                 spec=client.V1ServiceSpec(
                                     type="NodePort",
                                     ports=[
@@ -207,9 +185,7 @@ class ClusterInfo:
                             ret.append(service)
                         else:
                             service = client.V1Service(
-                                metadata=client.V1ObjectMeta(
-                                    name=f"{self.app_name}-service"
-                                ),
+                                metadata=client.V1ObjectMeta(name=f"{self.app_name}-service"),
                                 spec=client.V1ServiceSpec(
                                     type="ClusterIP",
                                     ports=[
@@ -260,9 +236,7 @@ class ClusterInfo:
                 volume_name=k8s_volume_name,
             )
             pvc = client.V1PersistentVolumeClaim(
-                metadata=client.V1ObjectMeta(
-                    name=f"{self.app_name}-{volume_name}", labels=labels
-                ),
+                metadata=client.V1ObjectMeta(name=f"{self.app_name}-{volume_name}", labels=labels),
                 spec=spec,
             )
             result.append(pvc)
@@ -279,9 +253,7 @@ class ClusterInfo:
                 continue
 
             if not cfg_map_path.startswith("/"):
-                cfg_map_path = os.path.join(
-                    os.path.dirname(self.spec.file_path), cfg_map_path
-                )
+                cfg_map_path = os.path.join(os.path.dirname(self.spec.file_path), cfg_map_path)
 
             # Read in all the files at a single-level of the directory.  This mimics the behavior
             # of `kubectl create configmap foo --from-file=/path/to/dir`
@@ -289,9 +261,7 @@ class ClusterInfo:
             for f in os.listdir(cfg_map_path):
                 full_path = os.path.join(cfg_map_path, f)
                 if os.path.isfile(full_path):
-                    data[f] = base64.b64encode(open(full_path, "rb").read()).decode(
-                        "ASCII"
-                    )
+                    data[f] = base64.b64encode(open(full_path, "rb").read()).decode("ASCII")
 
             spec = client.V1ConfigMap(
                 metadata=client.V1ObjectMeta(
@@ -315,9 +285,7 @@ class ClusterInfo:
             # Otherwise, we create the PVC and expect the node to allocate the volume for us.
             if not volume_path:
                 if opts.o.debug:
-                    print(
-                        f"{volume_name} does not require an explicit PersistentVolume, since it is not a bind-mount."
-                    )
+                    print(f"{volume_name} does not require an explicit PersistentVolume, since it is not a bind-mount.")
                 continue
 
             if volume_name not in named_volumes:
@@ -326,15 +294,11 @@ class ClusterInfo:
                 continue
 
             if not os.path.isabs(volume_path):
-                print(
-                    f"WARNING: {volume_name}:{volume_path} is not absolute, cannot bind volume."
-                )
+                print(f"WARNING: {volume_name}:{volume_path} is not absolute, cannot bind volume.")
                 continue
 
             if self.spec.is_kind_deployment():
-                host_path = client.V1HostPathVolumeSource(
-                    path=get_kind_pv_bind_mount_path(volume_name)
-                )
+                host_path = client.V1HostPathVolumeSource(path=get_kind_pv_bind_mount_path(volume_name))
             else:
                 host_path = client.V1HostPathVolumeSource(path=volume_path)
             spec = client.V1PersistentVolumeSpec(
@@ -382,15 +346,11 @@ class ClusterInfo:
                 # Re-write the image tag for remote deployment
                 # Note self.app_name has the same value as deployment_id
                 image_to_use = (
-                    remote_tag_for_image_unique(
-                        image, self.spec.get_image_registry(), self.app_name
-                    )
+                    remote_tag_for_image_unique(image, self.spec.get_image_registry(), self.app_name)
                     if self.spec.get_image_registry() is not None
                     else image
                 )
-                volume_mounts = volume_mounts_for_service(
-                    self.parsed_pod_yaml_map, service_name
-                )
+                volume_mounts = volume_mounts_for_service(self.parsed_pod_yaml_map, service_name)
                 container = client.V1Container(
                     name=container_name,
                     image=image_to_use,
@@ -400,18 +360,14 @@ class ClusterInfo:
                     volume_mounts=volume_mounts,
                     security_context=client.V1SecurityContext(
                         privileged=self.spec.get_privileged(),
-                        capabilities=client.V1Capabilities(
-                            add=self.spec.get_capabilities()
-                        )
+                        capabilities=client.V1Capabilities(add=self.spec.get_capabilities())
                         if self.spec.get_capabilities()
                         else None,
                     ),
                     resources=to_k8s_resource_requirements(resources),
                 )
                 containers.append(container)
-        volumes = volumes_for_pod_files(
-            self.parsed_pod_yaml_map, self.spec, self.app_name
-        )
+        volumes = volumes_for_pod_files(self.parsed_pod_yaml_map, self.spec, self.app_name)
         image_pull_secrets = [client.V1LocalObjectReference(name="bpi-image-registry")]
 
         annotations = None
@@ -438,18 +394,12 @@ class ClusterInfo:
                 label_value = rule["value"]
                 affinities.append(
                     client.V1NodeSelectorTerm(
-                        match_expressions=[
-                            client.V1NodeSelectorRequirement(
-                                key=label_name, operator="In", values=[label_value]
-                            )
-                        ]
+                        match_expressions=[client.V1NodeSelectorRequirement(key=label_name, operator="In", values=[label_value])]
                     )
                 )
             affinity = client.V1Affinity(
                 node_affinity=client.V1NodeAffinity(
-                    required_during_scheduling_ignored_during_execution=client.V1NodeSelector(
-                        node_selector_terms=affinities
-                    )
+                    required_during_scheduling_ignored_during_execution=client.V1NodeSelector(node_selector_terms=affinities)
                 )
             )
 

@@ -105,14 +105,10 @@ class Spec:
         return self.obj.get(constants.configmaps_key, {})
 
     def get_container_resources(self):
-        return Resources(
-            self.obj.get(constants.resources_key, {}).get("containers", {})
-        )
+        return Resources(self.obj.get(constants.resources_key, {}).get("containers", {}))
 
     def get_volume_resources(self):
-        return Resources(
-            self.obj.get(constants.resources_key, {}).get(constants.volumes_key, {})
-        )
+        return Resources(self.obj.get(constants.resources_key, {}).get(constants.volumes_key, {}))
 
     def get_http_proxy(self):
         return self.obj.get(constants.network_key, {}).get(constants.http_proxy_key, [])
@@ -133,12 +129,7 @@ class Spec:
         return self.obj.get(constants.labels_key, {})
 
     def get_privileged(self):
-        return (
-            "true"
-            == str(
-                self.obj.get(constants.security_key, {}).get("privileged", "false")
-            ).lower()
-        )
+        return "true" == str(self.obj.get(constants.security_key, {}).get("privileged", "false")).lower()
 
     def get_capabilities(self):
         return self.obj.get(constants.security_key, {}).get("capabilities", [])
