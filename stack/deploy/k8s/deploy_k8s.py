@@ -16,7 +16,6 @@ from datetime import datetime, timezone
 
 from pathlib import Path
 from kubernetes import client, config
-from typing import List
 
 from stack import constants
 from stack.deploy.deployer import Deployer, DeployerConfigGenerator

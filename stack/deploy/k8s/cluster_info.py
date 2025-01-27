@@ -360,9 +360,9 @@ class ClusterInfo:
                     volume_mounts=volume_mounts,
                     security_context=client.V1SecurityContext(
                         privileged=self.spec.get_privileged(),
-                        capabilities=client.V1Capabilities(add=self.spec.get_capabilities())
-                        if self.spec.get_capabilities()
-                        else None,
+                        capabilities=(
+                            client.V1Capabilities(add=self.spec.get_capabilities()) if self.spec.get_capabilities() else None
+                        ),
                     ),
                     resources=to_k8s_resource_requirements(resources),
                 )

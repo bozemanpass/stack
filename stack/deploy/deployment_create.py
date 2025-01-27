@@ -340,7 +340,8 @@ def _parse_config_variables(variable_values: str):
     "--map-ports-to-host",
     required=False,
     help="Map ports to the host as one of: any-variable-random (docker default), "
-    "localhost-same, any-same, localhost-fixed-random, any-fixed-random, k8s-clusterip-same (k8s default), k8s-nodeport-fixed-random",
+    "localhost-same, any-same, localhost-fixed-random, any-fixed-random, "
+    "k8s-clusterip-same (k8s default), k8s-nodeport-fixed-random",
 )
 @click.pass_context
 def init(
