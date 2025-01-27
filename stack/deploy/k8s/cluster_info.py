@@ -185,7 +185,7 @@ class ClusterInfo:
                             ret.append(service)
                         else:
                             service = client.V1Service(
-                                metadata=client.V1ObjectMeta(name=f"{self.app_name}-service"),
+                                metadata=client.V1ObjectMeta(name=f"{self.app_name}-service-{raw_port}"),
                                 spec=client.V1ServiceSpec(
                                     type="ClusterIP",
                                     ports=[
