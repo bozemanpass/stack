@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 
 from pathlib import Path
 from kubernetes import client, config
+from kubernetes.stream import stream
 
 from stack import constants
 from stack.deploy.deployer import Deployer, DeployerConfigGenerator
@@ -434,8 +435,28 @@ class K8sDeployer(Deployer):
         pass
 
     def execute(self, service_name, command, tty, envs):
-        # Call the API to execute a command in a running container
-        pass
+        self.connect_api()
+        pods = pods_in_deployment(self.core_api, self.cluster_info.app_name)
+        if len(pods) > 1:
+            print("Warning: more than one pod in the deployment")
+
+        if len(pods) == 0:
+            print("Warning: pod not running")
+            return
+
+        k8s_pod_name = pods[0]
+        response = stream(
+            self.core_api.connect_get_namespaced_pod_exec,
+            k8s_pod_name,
+            container=service_name,
+            namespace="default",
+            command=command,
+            tty=False,
+            stdout=True,
+            stderr=True,
+            stdin=False,
+        )
+        print(response)
 
     def logs(self, services, tail, follow, stream):
         self.connect_api()
