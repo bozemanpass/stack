@@ -435,7 +435,6 @@ class K8sDeployer(Deployer):
         # Also look into whether it makes sense to get ports for k8s
         pass
 
-
     def execute(self, service_name, command, tty, envs):
         self.connect_api()
         pods = pods_in_deployment(self.core_api, self.cluster_info.app_name)
@@ -457,7 +456,7 @@ class K8sDeployer(Deployer):
             stdin=False,
             stdout=True,
             stderr=True,
-            _preload_content=False
+            _preload_content=False,
         )
         response.run_forever()
         if response.returncode:
@@ -465,7 +464,6 @@ class K8sDeployer(Deployer):
             sys.exit(response.returncode)
 
         print(response.read_stdout())
-
 
     def logs(self, services, tail, follow, stream):
         self.connect_api()
