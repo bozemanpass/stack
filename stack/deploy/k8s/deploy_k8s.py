@@ -11,6 +11,7 @@
 
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http:#www.gnu.org/licenses/>.
+import sys
 
 from datetime import datetime, timezone
 
@@ -434,6 +435,7 @@ class K8sDeployer(Deployer):
         # Also look into whether it makes sense to get ports for k8s
         pass
 
+
     def execute(self, service_name, command, tty, envs):
         self.connect_api()
         pods = pods_in_deployment(self.core_api, self.cluster_info.app_name)
@@ -452,11 +454,18 @@ class K8sDeployer(Deployer):
             namespace="default",
             command=command,
             tty=False,
+            stdin=False,
             stdout=True,
             stderr=True,
-            stdin=False,
+            _preload_content=False
         )
-        print(response)
+        response.run_forever()
+        if response.returncode:
+            print(response.read_all())
+            sys.exit(response.returncode)
+
+        print(response.read_stdout())
+
 
     def logs(self, services, tail, follow, stream):
         self.connect_api()
