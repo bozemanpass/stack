@@ -42,7 +42,6 @@ from stack.deploy.deploy_types import ClusterContext, DeployCommandContext
 from stack.deploy.deployment_context import DeploymentContext
 from stack.deploy.deployment_create import create as deployment_create
 from stack.deploy.deployment_create import init as deployment_init
-from stack.deploy.deployment_create import setup as deployment_setup
 
 
 @click.group()
@@ -507,4 +506,3 @@ def _orchestrate_cluster_config(ctx, cluster_config, deployer, container_exec_en
 
 command.add_command(deployment_init)
 command.add_command(deployment_create)
-command.add_command(deployment_setup)
