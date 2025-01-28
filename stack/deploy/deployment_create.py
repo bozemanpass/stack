@@ -40,6 +40,7 @@ from stack.util import (
     resolve_config_dir,
 )
 from stack.deploy.spec import Spec
+from stack.deploy.deploy_types import LaconicStackSetupCommand
 from stack.deploy.deployer_factory import getDeployerConfigGenerator
 from stack.deploy.deployment_context import DeploymentContext
 
@@ -198,6 +199,21 @@ def call_stack_deploy_init(deploy_command_context):
                     # TODO: remove this restriction
                     print(f"Skipping init() from plugin {python_file_path}. Only one init() is allowed.")
     return ret
+
+
+# TODO: fold this with function above
+def call_stack_deploy_setup(deploy_command_context, parameters: LaconicStackSetupCommand, extra_args):
+    # Link with the python file in the stack
+    # Call a function in it
+    # If no function found, return None
+    python_file_paths = _commands_plugin_paths(deploy_command_context.stack)
+    for python_file_path in python_file_paths:
+        if python_file_path.exists():
+            spec = util.spec_from_file_location("commands", python_file_path)
+            imported_stack = util.module_from_spec(spec)
+            spec.loader.exec_module(imported_stack)
+            if _has_method(imported_stack, "setup"):
+                imported_stack.setup(deploy_command_context, parameters, extra_args)
 
 
 # TODO: fold this with function above
@@ -652,3 +668,55 @@ def create_operation(deployment_command_context, spec_file, deployment_dir, netw
     # TODO: make deployment_dir_path a Path above
     deployer_config_generator.generate(deployment_dir_path)
     call_stack_deploy_create(deployment_context, [network_dir, initial_peers, deployment_command_context])
+
+
+# TODO: this code should be in the stack .py files but
+# we haven't yet figured out how to integrate click across
+# the plugin boundary
+@click.command()
+@click.option("--node-moniker", help="Moniker for this node")
+@click.option("--chain-id", help="The new chain id")
+@click.option("--key-name", help="Name for new node key")
+@click.option("--gentx-files", help="List of comma-delimited gentx filenames from other nodes")
+@click.option(
+    "--gentx-addresses",
+    type=str,
+    help="List of comma-delimited validator addresses for other nodes",
+)
+@click.option("--genesis-file", help="Genesis file for the network")
+@click.option("--initialize-network", is_flag=True, default=False, help="Initialize phase")
+@click.option("--join-network", is_flag=True, default=False, help="Join phase")
+@click.option("--connect-network", is_flag=True, default=False, help="Connect phase")
+@click.option("--create-network", is_flag=True, default=False, help="Create phase")
+@click.option("--network-dir", help="Directory for network files")
+@click.argument("extra_args", nargs=-1)
+@click.pass_context
+def setup(
+    ctx,
+    node_moniker,
+    chain_id,
+    key_name,
+    gentx_files,
+    gentx_addresses,
+    genesis_file,
+    initialize_network,
+    join_network,
+    connect_network,
+    create_network,
+    network_dir,
+    extra_args,
+):
+    parmeters = LaconicStackSetupCommand(
+        chain_id,
+        node_moniker,
+        key_name,
+        initialize_network,
+        join_network,
+        connect_network,
+        create_network,
+        gentx_files,
+        gentx_addresses,
+        genesis_file,
+        network_dir,
+    )
+    call_stack_deploy_setup(ctx.obj, parmeters, extra_args)
