@@ -424,7 +424,7 @@ def _run_command(ctx, stack, cluster_name, command):
     command_file = os.path.join(".", os.path.basename(command))
     command_env = os.environ.copy()
     command_env["BPI_SO_COMPOSE_PROJECT"] = cluster_name
-    command_env["BPI_SO_DEPLOYMENT_DIR"] = stack
+    command_env["BPI_SO_DEPLOYMENT_DIR"] = os.path.abspath(stack)
     if ctx.debug:
         command_env["BPI_SCRIPT_DEBUG"] = "true"
     command_result = subprocess.run(command_file, shell=True, env=command_env, cwd=command_dir)
