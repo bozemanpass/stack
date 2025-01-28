@@ -48,24 +48,24 @@ In addition to the pre-requisites listed in the [README](/README.md), the follow
    $ pip install --editable .
    ```
 
-5. Verify installation:
-   ```
-   (venv) $ stack
-   Usage: stack [OPTIONS] COMMAND [ARGS]...
+   5. Verify installation:
+      ```
+      (venv) $ stack
+      Usage: stack [OPTIONS] COMMAND [ARGS]...
 
-    BPI stack
+       BPI stack
 
-   Options:
-    --quiet
-    --verbose
-    --dry-run
-    -h, --help  Show this message and exit.
+      Options:
+       --quiet
+       --verbose
+       --dry-run
+       -h, --help  Show this message and exit.
 
-   Commands:
-    build-containers    build the set of containers required for a complete...
-    deploy-system       deploy a stack
-    setup-repositories  git clone the set of repositories required to build...
-   ```
+      Commands:
+       build-containers    build the set of containers required for a complete...
+       deploy              deploy a stack
+       setup-repositories  git clone the set of repositories required to build...
+      ```
 
 ## Build a zipapp (single file distributable script)
 
@@ -105,7 +105,6 @@ Use shiv to build a single file Python executable zip archive of stack:
       build-containers    build the set of containers required for a complete...
       build-npms          build the set of npm packages required for a...
       deploy              deploy a stack
-      deploy-system       deploy a stack
       setup-repositories  git clone the set of repositories required to build...
       version             print tool version
    ```

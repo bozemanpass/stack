@@ -30,10 +30,10 @@ $TEST_TARGET_SO build-containers --include bpi/builder-js
 echo "Images in the local registry:"
 docker image ls -a
 # Deploy the test container
-$TEST_TARGET_SO --stack test deploy-system up
+$TEST_TARGET_SO --stack test deploy up
 # TODO: test that we can use the deployed container somehow
 # Clean up
-$TEST_TARGET_SO --stack test deploy-system down
+$TEST_TARGET_SO --stack test deploy down
 # Run same test but not using the stack definition
 # Test building the a stack container
 $TEST_TARGET_SO build-containers --include bpi/test-container
