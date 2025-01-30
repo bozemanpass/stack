@@ -65,6 +65,22 @@ def _get_ports(stack):
     return ports
 
 
+def _get_security_settings(stack):
+    security_settings = {}
+    parsed_stack = get_parsed_stack_config(stack)
+    pods = get_pod_list(parsed_stack)
+    yaml = get_yaml()
+    for pod in pods:
+        pod_file_path = get_pod_file_path(stack, parsed_stack, pod)
+        parsed_pod_file = yaml.load(open(pod_file_path, "r"))
+        if "services" in parsed_pod_file:
+            for svc_name, svc in parsed_pod_file["services"].items():
+                # All we understand for now is 'privileged'
+                if "privileged" in svc:
+                    security_settings[svc_name] = {"privileged": svc["privileged"]}
+    return security_settings
+
+
 def _get_named_volumes(stack):
     # Parse the compose files looking for named volumes
     named_volumes = {"rw": [], "ro": []}
@@ -491,6 +507,10 @@ def init_operation(  # noqa: C901
             spec_file_content["volumes"] = volume_descriptors
         if configmap_descriptors:
             spec_file_content["configmaps"] = configmap_descriptors
+
+    security_settings = _get_security_settings(stack)
+    if security_settings:
+        spec_file_content[constants.security_key] = security_settings
 
     if opts.o.debug:
         print(f"Creating spec file for stack: {stack} with content: {spec_file_content}")

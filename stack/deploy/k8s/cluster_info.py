@@ -359,7 +359,9 @@ class ClusterInfo:
                     security_context=client.V1SecurityContext(
                         privileged=self.spec.get_privileged(container_name),
                         capabilities=(
-                            client.V1Capabilities(add=self.spec.get_capabilities(container_name)) if self.spec.get_capabilities(container_name) else None
+                            client.V1Capabilities(add=self.spec.get_capabilities(container_name))
+                            if self.spec.get_capabilities(container_name)
+                            else None
                         ),
                     ),
                     resources=to_k8s_resource_requirements(resources),
