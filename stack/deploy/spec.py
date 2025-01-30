@@ -128,11 +128,11 @@ class Spec:
     def get_labels(self):
         return self.obj.get(constants.labels_key, {})
 
-    def get_privileged(self):
-        return "true" == str(self.obj.get(constants.security_key, {}).get("privileged", "false")).lower()
+    def get_privileged(self, container_name):
+        return "true" == str(self.obj.get(constants.security_key, {}).get(container_name, {}).get("privileged", "false")).lower()
 
-    def get_capabilities(self):
-        return self.obj.get(constants.security_key, {}).get("capabilities", [])
+    def get_capabilities(self, container_name):
+        return self.obj.get(constants.security_key, {}).get(container_name, {}).get("capabilities", [])
 
     def get_deployment_type(self):
         return self.obj.get(constants.deploy_to_key)
