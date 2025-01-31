@@ -378,13 +378,13 @@ class ClusterInfo:
         if self.spec.get_annotations():
             annotations = {}
             for key, value in self.spec.get_annotations().items():
-                for service_name in services:
-                    annotations[key.replace("{name}", service_name)] = value
+                for container in containers:
+                    annotations[key.replace("{name}", container.name)] = value
 
         if self.spec.get_labels():
             for key, value in self.spec.get_labels().items():
-                for service_name in services:
-                    labels[key.replace("{name}", service_name)] = value
+                for container in containers:
+                    labels[key.replace("{name}", container.name)] = value
 
         if self.spec.get_node_affinities():
             affinities = []
