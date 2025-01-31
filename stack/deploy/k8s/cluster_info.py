@@ -419,7 +419,7 @@ class ClusterInfo:
                 )
 
         # every service gets an automatic alias of $svc_name.local to localhost
-        local_aliases = client.V1HostAlias(hostnames=[f"{service_name}.local" for service_name in services], ip="127.0.0.1")
+        local_aliases = client.V1HostAlias(hostnames=[f"{container.name}.local" for container in containers], ip="127.0.0.1")
 
         template = client.V1PodTemplateSpec(
             metadata=client.V1ObjectMeta(annotations=annotations, labels=labels),
