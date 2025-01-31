@@ -25,7 +25,7 @@ chmod +x ~/.docker/cli-plugins/docker-compose
 ```
 
 Next decide on a directory where you would like to put the stack program. Typically this would be 
-a "user" binary directory such as `~/bin` or perhaps `/usr/local/laconic` or possibly just the current working directory.
+a "user" binary directory such as `~/bin` or perhaps `/usr/local/stack` or possibly just the current working directory.
 
 Now, having selected that directory, download the latest release from [this page](https://github.com/bozemanpass/stack/tags) into it (we're using `~/bin` below for concreteness but edit to suit if you selected a different directory). Also be sure that the destination directory exists and is writable:
 
