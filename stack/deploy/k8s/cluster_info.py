@@ -202,18 +202,20 @@ class ClusterInfo:
         result = []
         spec_volumes = self.spec.get_volumes()
         named_volumes = named_volumes_from_pod_files(self.parsed_pod_yaml_map)
-        resources = self.spec.get_volume_resources()
-        if not resources:
-            resources = DEFAULT_VOLUME_RESOURCES
         if opts.o.debug:
             print(f"Spec Volumes: {spec_volumes}")
             print(f"Named Volumes: {named_volumes}")
-            print(f"Resources: {resources}")
         for volume_name, volume_path in spec_volumes.items():
             if volume_name not in named_volumes:
                 if opts.o.debug:
                     print(f"{volume_name} not in pod files")
                 continue
+            resources = self.spec.get_volume_resources(volume_name)
+            if not resources:
+                resources = DEFAULT_VOLUME_RESOURCES
+
+            if opts.o.debug:
+                print(f"{volume_name} Resources: {resources}")
 
             labels = {
                 "app": self.app_name,
@@ -275,9 +277,6 @@ class ClusterInfo:
         result = []
         spec_volumes = self.spec.get_volumes()
         named_volumes = named_volumes_from_pod_files(self.parsed_pod_yaml_map)
-        resources = self.spec.get_volume_resources()
-        if not resources:
-            resources = DEFAULT_VOLUME_RESOURCES
         for volume_name, volume_path in spec_volumes.items():
             # We only need to create a volume if it is fully qualified HostPath.
             # Otherwise, we create the PVC and expect the node to allocate the volume for us.
@@ -294,6 +293,10 @@ class ClusterInfo:
             if not os.path.isabs(volume_path):
                 print(f"WARNING: {volume_name}:{volume_path} is not absolute, cannot bind volume.")
                 continue
+
+            resources = self.spec.get_volume_resources(volume_name)
+            if not resources:
+                resources = DEFAULT_VOLUME_RESOURCES
 
             if self.spec.is_kind_deployment():
                 host_path = client.V1HostPathVolumeSource(path=get_kind_pv_bind_mount_path(volume_name))
@@ -318,9 +321,6 @@ class ClusterInfo:
     # TODO: put things like image pull policy into an object-scope struct
     def get_deployment(self, image_pull_policy: str = None):
         containers = []
-        resources = self.spec.get_container_resources()
-        if not resources:
-            resources = DEFAULT_CONTAINER_RESOURCES
         for pod_name in self.parsed_pod_yaml_map:
             pod = self.parsed_pod_yaml_map[pod_name]
             services = pod["services"]
@@ -349,6 +349,9 @@ class ClusterInfo:
                     else image
                 )
                 volume_mounts = volume_mounts_for_service(self.parsed_pod_yaml_map, service_name)
+                resources = self.spec.get_container_resources(service_name)
+                if not resources:
+                    resources = DEFAULT_CONTAINER_RESOURCES
                 container = client.V1Container(
                     name=container_name,
                     image=image_to_use,

@@ -104,11 +104,11 @@ class Spec:
     def get_configmaps(self):
         return self.obj.get(constants.configmaps_key, {})
 
-    def get_container_resources(self):
-        return Resources(self.obj.get(constants.resources_key, {}).get("containers", {}))
+    def get_container_resources(self, service_name):
+        return Resources(self.obj.get(constants.resources_key, {}).get("containers", {}).get(service_name, {}))
 
-    def get_volume_resources(self):
-        return Resources(self.obj.get(constants.resources_key, {}).get(constants.volumes_key, {}))
+    def get_volume_resources(self, volume_name):
+        return Resources(self.obj.get(constants.resources_key, {}).get(constants.volumes_key, {}).get(volume_name, {}))
 
     def get_http_proxy(self):
         return self.obj.get(constants.network_key, {}).get(constants.http_proxy_key, [])
