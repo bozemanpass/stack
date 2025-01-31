@@ -421,8 +421,10 @@ class ClusterInfo:
                     )
                 )
 
-        # every service gets an automatic alias of $svc_name.local to localhost
-        local_aliases = client.V1HostAlias(hostnames=[f"{container.name}.local" for container in containers], ip="127.0.0.1")
+        # every service gets aliases of $name and $name.local to localhost
+        container_names = [container.name for container in containers]
+        dotlocal_names = [f"{container.name}.local" for container in containers]
+        localhost_aliases = client.V1HostAlias(hostnames=container_names + dotlocal_names, ip="127.0.0.1")
 
         template = client.V1PodTemplateSpec(
             metadata=client.V1ObjectMeta(annotations=annotations, labels=labels),
@@ -432,7 +434,7 @@ class ClusterInfo:
                 volumes=volumes,
                 affinity=affinity,
                 tolerations=tolerations,
-                host_aliases=[local_aliases],
+                host_aliases=[localhost_aliases],
             ),
         )
         spec = client.V1DeploymentSpec(
