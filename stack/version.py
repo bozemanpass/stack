@@ -31,6 +31,6 @@ def command(ctx):
             # TODO: code better version that skips comment lines
             version_string = version_file.read().splitlines()[1]
     else:
-        version_string = metadata.version("bpi-stack") + "-unknown"
+        version_string = metadata.version("stack") + "-unknown"
 
     print(version_string)
