@@ -80,7 +80,7 @@ def load_subcommands_from_stack(cli, stack_path: str):
                 sys.modules[module_name] = plugin_module
                 spec.loader.exec_module(plugin_module)
                 if hasattr(plugin_module, "command"):
-                    cmd_section = {stack_yaml["name"]}
+                    cmd_section = stack_yaml["name"]
                     cmd_name = filename[:-3]
                     if hasattr(plugin_module, "CMD_NAME"):
                         cmd_name = plugin_module.CMD_NAME
