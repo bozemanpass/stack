@@ -27,15 +27,15 @@ from stack.util import error_exit, get_yaml
 
 
 class StackCLI(click.Group):
-    command_subsections = {}
+    command_group_section_name = {}
 
-    def add_format_subsection(self, name: str):
-        self.command_subsections[name] = name
+    def add_command_group_section(self, name: str):
+        self.command_group_section_name[name] = name
 
     def format_commands(self, ctx: Context, formatter: HelpFormatter) -> None:
         command_sections = {"core": []}
 
-        for sub in self.command_subsections:
+        for sub in self.command_group_section_name:
             command_sections[sub] = []
 
         for subcommand in self.list_commands(ctx):
@@ -44,7 +44,7 @@ class StackCLI(click.Group):
                 continue
 
             section_name = "core"
-            if "-" in subcommand and subcommand.split("-")[0] in self.command_subsections:
+            if "-" in subcommand and subcommand.split("-")[0] in self.command_group_section_name:
                 section_name = subcommand.split("-")[0]
             command_sections[section_name].append((subcommand, cmd))
 
@@ -86,5 +86,5 @@ def load_subcommands_from_stack(cli, stack_path: str):
                         cmd_name = plugin_module.CMD_NAME
                     if hasattr(plugin_module, "CMD_SECTION"):
                         cmd_section = plugin_module.CMD_SECTION
-                    cli.add_format_subsection(cmd_section)
+                    cli.add_command_group_section(cmd_section)
                     cli.add_command(plugin_module.command, f"{cmd_section}-{cmd_name}")
