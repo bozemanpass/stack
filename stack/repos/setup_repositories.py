@@ -17,14 +17,14 @@
 # env vars:
 # BPI_REPO_BASE_DIR defaults to ~/bpi
 
-import os
-import sys
-from decouple import config
-import git
-from git.exc import GitCommandError
-from tqdm import tqdm
 import click
 import importlib.resources
+import os
+import sys
+import git
+
+from git.exc import GitCommandError
+from tqdm import tqdm
 from stack.opts import opts
 from stack.util import (
     get_parsed_stack_config,
@@ -32,6 +32,8 @@ from stack.util import (
     error_exit,
     warn_exit,
 )
+
+from stack.util import get_dev_root_path
 
 
 class GitProgress(git.RemoteProgress):
@@ -212,13 +214,7 @@ def command(ctx, include, exclude, git_ssh, check_only, pull, branches):
     if branches_array and verbose:
         print(f"Branches are: {branches_array}")
 
-    local_stack = ctx.obj.local_stack
-
-    if local_stack:
-        dev_root_path = os.getcwd()[0 : os.getcwd().rindex("stack")]
-        print(f"Local stack dev_root_path (BPI_REPO_BASE_DIR) overridden to: {dev_root_path}")
-    else:
-        dev_root_path = os.path.expanduser(config("BPI_REPO_BASE_DIR", default="~/bpi"))
+    dev_root_path = get_dev_root_path(ctx)
 
     if not quiet:
         print(f"Dev Root is: {dev_root_path}")

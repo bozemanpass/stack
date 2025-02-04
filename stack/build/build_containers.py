@@ -34,6 +34,9 @@ from stack.build.build_types import BuildContext
 from stack.build.publish import publish_image
 from stack.build.build_util import get_containers_in_scope
 
+from stack.util import get_dev_root_path
+
+
 # TODO: find a place for this
 #    epilog="Config provided either in .env or settings.ini or env vars: BPI_REPO_BASE_DIR (defaults to ~/bpi)"
 
@@ -128,17 +131,12 @@ def process_container(build_context: BuildContext) -> bool:
 def command(ctx, include, exclude, force_rebuild, extra_build_args, publish_images, image_registry):
     '''build the set of containers required for a complete stack'''
 
-    local_stack = ctx.obj.local_stack
     stack = ctx.obj.stack
 
     # See: https://stackoverflow.com/questions/25389095/python-get-path-of-root-project-structure
     container_build_dir = Path(__file__).absolute().parent.parent.joinpath("data", "container-build")
 
-    if local_stack:
-        dev_root_path = os.getcwd()[0:os.getcwd().rindex("stack")]
-        print(f'Local stack dev_root_path (BPI_REPO_BASE_DIR) overridden to: {dev_root_path}')
-    else:
-        dev_root_path = os.path.expanduser(config("BPI_REPO_BASE_DIR", default="~/bpi"))
+    dev_root_path = get_dev_root_path(ctx)
 
     if not opts.o.quiet:
         print(f'Dev Root is: {dev_root_path}')

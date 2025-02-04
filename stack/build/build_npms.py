@@ -29,6 +29,8 @@ from python_on_whales import docker, DockerException
 from stack.base import get_stack
 from stack.util import include_exclude_check, get_parsed_stack_config
 
+from stack.util import get_dev_root_path
+
 builder_js_image_name = "bpi/builder-js:local"
 
 
@@ -45,7 +47,6 @@ def command(ctx, include, exclude, force_rebuild, extra_build_args):
     quiet = ctx.obj.quiet
     verbose = ctx.obj.verbose
     dry_run = ctx.obj.dry_run
-    local_stack = ctx.obj.local_stack
     debug = ctx.obj.debug
     stack = ctx.obj.stack
     continue_on_error = ctx.obj.continue_on_error
@@ -65,11 +66,7 @@ def command(ctx, include, exclude, force_rebuild, extra_build_args):
         print("FATAL: BPI_NPM_AUTH_TOKEN is not defined")
         sys.exit(1)
 
-    if local_stack:
-        dev_root_path = os.getcwd()[0:os.getcwd().rindex("stack")]
-        print(f'Local stack dev_root_path (BPI_REPO_BASE_DIR) overridden to: {dev_root_path}')
-    else:
-        dev_root_path = os.path.expanduser(config("BPI_REPO_BASE_DIR", default="~/bpi"))
+    dev_root_path = get_dev_root_path(ctx)
 
     build_root_path = os.path.join(dev_root_path, "build-trees")
 

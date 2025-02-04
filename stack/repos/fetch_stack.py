@@ -19,14 +19,14 @@
 
 
 import click
-import os
 
-from decouple import config
 from git import exc
 
 from stack.opts import opts
 from stack.repos.setup_repositories import process_repo
 from stack.util import error_exit
+
+from stack.util import get_dev_root_path
 
 
 @click.command()
@@ -37,7 +37,7 @@ from stack.util import error_exit
 @click.pass_context
 def command(ctx, stack_locator, git_ssh, check_only, pull):
     """optionally resolve then git clone a repository containing one or more stack definitions"""
-    dev_root_path = os.path.expanduser(config("BPI_REPO_BASE_DIR", default="~/bpi"))
+    dev_root_path = get_dev_root_path(ctx)
     if not opts.o.quiet:
         print(f"Dev Root is: {dev_root_path}")
     try:
