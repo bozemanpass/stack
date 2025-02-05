@@ -15,6 +15,7 @@
 
 import click
 import os
+import string
 import sys
 import importlib.util
 
@@ -79,11 +80,18 @@ def load_subcommands_from_stack(cli, stack_path: str):
                 sys.modules[module_name] = plugin_module
                 spec.loader.exec_module(plugin_module)
                 if hasattr(plugin_module, "command"):
-                    cmd_section = stack_yaml["name"]
-                    cmd_name = filename[:-3]
-                    if hasattr(plugin_module, "CMD_NAME"):
-                        cmd_name = plugin_module.CMD_NAME
-                    if hasattr(plugin_module, "CMD_SECTION"):
-                        cmd_section = plugin_module.CMD_SECTION
+                    cmd_section = safename(stack_yaml["name"])
+                    cmd_name = safename(filename[:-3])
+                    if hasattr(plugin_module, "STACK_CLI_CMD_NAME"):
+                        cmd_name = plugin_module.STACK_CLI_CMD_NAME
+                    if hasattr(plugin_module, "STACK_CLI_CMD_SECTION"):
+                        cmd_section = plugin_module.STACK_CLI_CMD_SECTION
                     cli.add_command_group_section(cmd_section)
                     cli.add_command(plugin_module.command, f"{cmd_section}-{cmd_name}")
+
+
+def safename(v: str):
+    if not v:
+        return None
+    # all punctuation removed except for - and _, whitespace replaced by -, letters converted to lower case
+    return "-".join(v.translate(str.maketrans("", "", string.punctuation.replace("-", "").replace("_", ""))).split()).lower()

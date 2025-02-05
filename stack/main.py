@@ -74,8 +74,8 @@ if "--use-builtin-stack" not in sys.argv:
     for i in range(len(sys.argv)):
         arg = sys.argv[i]
         if arg == "--stack":
-            if i+1 < len(sys.argv):
-                stack_path = sys.argv[i+1]
+            if i + 1 < len(sys.argv):
+                stack_path = sys.argv[i + 1]
                 break
     if stack_path:
         load_subcommands_from_stack(cli, stack_path)
