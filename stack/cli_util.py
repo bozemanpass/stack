@@ -80,8 +80,8 @@ def load_subcommands_from_stack(cli, stack_path: str):
                 sys.modules[module_name] = plugin_module
                 spec.loader.exec_module(plugin_module)
                 if hasattr(plugin_module, "command"):
-                    cmd_section = safename(stack_yaml["name"])
-                    cmd_name = safename(filename[:-3])
+                    cmd_section = make_safe_name(stack_yaml["name"])
+                    cmd_name = make_safe_name(filename[:-3])
                     if hasattr(plugin_module, "STACK_CLI_CMD_NAME"):
                         cmd_name = plugin_module.STACK_CLI_CMD_NAME
                     if hasattr(plugin_module, "STACK_CLI_CMD_SECTION"):
@@ -90,7 +90,7 @@ def load_subcommands_from_stack(cli, stack_path: str):
                     cli.add_command(plugin_module.command, f"{cmd_section}-{cmd_name}")
 
 
-def safename(v: str):
+def make_safe_name(v: str):
     if not v:
         return None
     # all punctuation removed except for - and _, whitespace replaced by -, letters converted to lower case
