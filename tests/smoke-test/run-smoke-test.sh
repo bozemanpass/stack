@@ -3,6 +3,7 @@ set -e
 if [ -n "$BPI_SCRIPT_DEBUG" ]; then
   set -x
 fi
+export STACK_USE_BUILTIN_STACK=true
 # Dump environment variables for debugging
 echo "Environment variables:"
 env
@@ -22,18 +23,18 @@ mkdir -p $BPI_REPO_BASE_DIR
 # Pull an example small public repo to test we can pull a repo
 $TEST_TARGET_SO setup-repositories --include cerc-io/registry-sdk
 # Test pulling a stack
-$TEST_TARGET_SO --stack test --use-builtin-stack setup-repositories
+$TEST_TARGET_SO --stack test setup-repositories
 # Test building the a stack container
-$TEST_TARGET_SO --stack test --use-builtin-stack build-containers
+$TEST_TARGET_SO --stack test build-containers
 # Build one example containers
 $TEST_TARGET_SO build-containers --include bpi/builder-js
 echo "Images in the local registry:"
 docker image ls -a
 # Deploy the test container
-$TEST_TARGET_SO --stack test --use-builtin-stack deploy up
+$TEST_TARGET_SO --stack test deploy up
 # TODO: test that we can use the deployed container somehow
 # Clean up
-$TEST_TARGET_SO --stack test --use-builtin-stack deploy down
+$TEST_TARGET_SO --stack test deploy down
 # Run same test but not using the stack definition
 # Test building the a stack container
 $TEST_TARGET_SO build-containers --include bpi/test-container

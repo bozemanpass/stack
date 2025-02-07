@@ -51,6 +51,8 @@ delete_cluster_exit () {
     exit 1
 }
 
+export STACK_USE_BUILTIN_STACK=true
+
 # Note: eventually this test should be folded into ../deploy/
 # but keeping it separate for now for convenience
 TEST_TARGET_SO=$( ls -t1 ./package/stack* | head -1 )
@@ -63,12 +65,12 @@ echo "Version reported is: ${reported_version_string}"
 echo "Cloning repositories into: $BPI_REPO_BASE_DIR"
 rm -rf $BPI_REPO_BASE_DIR
 mkdir -p $BPI_REPO_BASE_DIR
-$TEST_TARGET_SO --stack test --use-builtin-stack setup-repositories
-$TEST_TARGET_SO --stack test --use-builtin-stack build-containers
+$TEST_TARGET_SO --stack test setup-repositories
+$TEST_TARGET_SO --stack test build-containers
 # Test basic stack deploy to k8s
 test_deployment_dir=$BPI_REPO_BASE_DIR/test-deployment-dir
 test_deployment_spec=$BPI_REPO_BASE_DIR/test-deployment-spec.yml
-$TEST_TARGET_SO --stack test --use-builtin-stack deploy --deploy-to k8s-kind init --output $test_deployment_spec --config BPI_TEST_PARAM_1=PASSED
+$TEST_TARGET_SO --stack test deploy --deploy-to k8s-kind init --output $test_deployment_spec --config BPI_TEST_PARAM_1=PASSED
 # Check the file now exists
 if [ ! -f "$test_deployment_spec" ]; then
     echo "deploy init test: spec file not present"
@@ -80,7 +82,7 @@ echo "deploy init test: passed"
 # Switch to a full path for bind mount.
 sed -i "s|^\(\s*test-data-bind:$\)$|\1 ${test_deployment_dir}/data/test-data-bind|" $test_deployment_spec
 
-$TEST_TARGET_SO --stack test --use-builtin-stack deploy create --spec-file $test_deployment_spec --deployment-dir $test_deployment_dir
+$TEST_TARGET_SO --stack test deploy create --spec-file $test_deployment_spec --deployment-dir $test_deployment_dir
 # Check the deployment dir exists
 if [ ! -d "$test_deployment_dir" ]; then
     echo "deploy create test: deployment directory not present"

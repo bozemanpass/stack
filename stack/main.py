@@ -15,6 +15,7 @@
 # along with this program.  If not, see <http:#www.gnu.org/licenses/>.
 
 import click
+import os
 import sys
 
 from stack.cli_util import StackCLI, load_subcommands_from_stack
@@ -34,19 +35,20 @@ from stack.util import stack_is_external, error_exit
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
+STACK_USE_BUILTIN_STACK = "true" == os.environ.get("STACK_USE_BUILTIN_STACK", "false")
+
 
 @click.group(context_settings=CONTEXT_SETTINGS, cls=StackCLI)
 @click.option("--stack", help="path to the stack to build/deploy")
-@click.option("--use-builtin-stack", is_flag=True, help="the stack is internal", hidden=True)
 @click.option("--quiet", is_flag=True, default=False)
 @click.option("--verbose", is_flag=True, default=False)
 @click.option("--dry-run", is_flag=True, default=False)
 @click.option("--debug", is_flag=True, default=False)
 @click.option("--continue-on-error", is_flag=True, default=False)
 @click.pass_context
-def cli(ctx, stack, use_builtin_stack, quiet, verbose, dry_run, debug, continue_on_error):
+def cli(ctx, stack, quiet, verbose, dry_run, debug, continue_on_error):
     """BPI stack"""
-    if stack and not stack_is_external(stack) and not use_builtin_stack:
+    if stack and not stack_is_external(stack) and not STACK_USE_BUILTIN_STACK:
         error_exit(f"Stack {stack} does not exist")
 
     command_options = CommandOptions(stack, quiet, verbose, dry_run, debug, continue_on_error)
@@ -69,7 +71,7 @@ cli.add_command(update.command, "update")
 
 
 # We only try to load external commands from an external stack.
-if "--use-builtin-stack" not in sys.argv:
+if not STACK_USE_BUILTIN_STACK:
     stack_path = None
     for i in range(len(sys.argv)):
         arg = sys.argv[i]
