@@ -70,13 +70,13 @@ echo "Version reported is: ${reported_version_string}"
 echo "Cloning repositories into: $BPI_REPO_BASE_DIR"
 rm -rf $BPI_REPO_BASE_DIR
 mkdir -p $BPI_REPO_BASE_DIR
-$TEST_TARGET_SO --stack ${stack} setup-repositories
-$TEST_TARGET_SO --stack ${stack} build-containers
+$TEST_TARGET_SO --stack ${stack} --use-builtin-stack setup-repositories
+$TEST_TARGET_SO --stack ${stack} --use-builtin-stack build-containers
 # Test basic stack deploy to k8s
 test_deployment_dir=$BPI_REPO_BASE_DIR/${deployment_dir}
 test_deployment_spec=$BPI_REPO_BASE_DIR/${spec_file}
 
-$TEST_TARGET_SO --stack ${stack} deploy --deploy-to k8s-kind init --output $test_deployment_spec
+$TEST_TARGET_SO --stack ${stack} --use-builtin-stack deploy --deploy-to k8s-kind init --output $test_deployment_spec
 # Check the file now exists
 if [ ! -f "$test_deployment_spec" ]; then
     echo "deploy init test: spec file not present"
@@ -88,7 +88,7 @@ echo "deploy init test: passed"
 # Switch to a full path for the data dir so it gets provisioned as a host bind mounted volume and preserved beyond cluster lifetime
 sed -i "s|^\(\s*db-data:$\)$|\1 ${test_deployment_dir}/data/db-data|" $test_deployment_spec
 
-$TEST_TARGET_SO --stack ${stack} deploy create --spec-file $test_deployment_spec --deployment-dir $test_deployment_dir
+$TEST_TARGET_SO --stack ${stack} --use-builtin-stack deploy create --spec-file $test_deployment_spec --deployment-dir $test_deployment_dir
 # Check the deployment dir exists
 if [ ! -d "$test_deployment_dir" ]; then
     echo "deploy create test: deployment directory not present"
