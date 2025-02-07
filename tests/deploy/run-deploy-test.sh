@@ -12,6 +12,8 @@ delete_cluster_exit () {
     exit 1
 }
 
+export STACK_USE_BUILTIN_STACK=true
+
 # Test basic stack deploy
 echo "Running stack deploy test"
 # Bit of a hack, test the most recent package

@@ -56,6 +56,8 @@ delete_cluster_exit () {
     exit 1
 }
 
+export STACK_USE_BUILTIN_STACK=true
+
 # Set a non-default repo dir
 export BPI_REPO_BASE_DIR=~/stack-test/repo-base-dir
 echo "Testing this package: $TEST_TARGET_SO"

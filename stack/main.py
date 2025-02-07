@@ -15,7 +15,10 @@
 # along with this program.  If not, see <http:#www.gnu.org/licenses/>.
 
 import click
+import os
+import sys
 
+from stack.cli_util import StackCLI, load_subcommands_from_stack
 from stack.command_types import CommandOptions
 from stack.repos import setup_repositories
 from stack.repos import fetch_stack
@@ -28,23 +31,27 @@ from stack import version
 from stack.deploy import deployment
 from stack import opts
 from stack import update
+from stack.util import stack_is_external, error_exit
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
+STACK_USE_BUILTIN_STACK = "true" == os.environ.get("STACK_USE_BUILTIN_STACK", "false")
 
-@click.group(context_settings=CONTEXT_SETTINGS)
-@click.option("--stack", help="specify a stack to build/deploy")
+
+@click.group(context_settings=CONTEXT_SETTINGS, cls=StackCLI)
+@click.option("--stack", help="path to the stack to build/deploy")
 @click.option("--quiet", is_flag=True, default=False)
 @click.option("--verbose", is_flag=True, default=False)
 @click.option("--dry-run", is_flag=True, default=False)
-@click.option("--local-stack", is_flag=True, default=False)
 @click.option("--debug", is_flag=True, default=False)
 @click.option("--continue-on-error", is_flag=True, default=False)
-# See: https://click.palletsprojects.com/en/8.1.x/complex/#building-a-git-clone
 @click.pass_context
-def cli(ctx, stack, quiet, verbose, dry_run, local_stack, debug, continue_on_error):
+def cli(ctx, stack, quiet, verbose, dry_run, debug, continue_on_error):
     """BPI stack"""
-    command_options = CommandOptions(stack, quiet, verbose, dry_run, local_stack, debug, continue_on_error)
+    if stack and not stack_is_external(stack) and not STACK_USE_BUILTIN_STACK:
+        error_exit(f"Stack {stack} does not exist")
+
+    command_options = CommandOptions(stack, quiet, verbose, dry_run, debug, continue_on_error)
     opts.opts.o = command_options
     ctx.obj = command_options
 
@@ -61,3 +68,16 @@ cli.add_command(deploy.command, "deploy")
 cli.add_command(deployment.command, "deployment")
 cli.add_command(version.command, "version")
 cli.add_command(update.command, "update")
+
+
+# We only try to load external commands from an external stack.
+if not STACK_USE_BUILTIN_STACK:
+    stack_path = None
+    for i in range(len(sys.argv)):
+        arg = sys.argv[i]
+        if arg == "--stack":
+            if i + 1 < len(sys.argv):
+                stack_path = sys.argv[i + 1]
+                break
+    if stack_path:
+        load_subcommands_from_stack(cli, stack_path)

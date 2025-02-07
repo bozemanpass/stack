@@ -51,6 +51,8 @@ delete_cluster_exit () {
     exit 1
 }
 
+export STACK_USE_BUILTIN_STACK=true
+
 # Note: eventually this test should be folded into ../deploy/
 # but keeping it separate for now for convenience
 TEST_TARGET_SO=$( ls -t1 ./package/stack* | head -1 )

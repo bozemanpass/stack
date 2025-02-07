@@ -31,6 +31,8 @@ from stack.build import build_containers
 from stack.deploy.webapp.util import determine_base_container, TimedLogger
 from stack.build.build_types import BuildContext
 
+from stack.util import get_dev_root_path
+
 
 @click.command()
 @click.option('--base-container')
@@ -46,17 +48,12 @@ def command(ctx, base_container, source_repo, force_rebuild, extra_build_args, t
     quiet = ctx.obj.quiet
     debug = ctx.obj.debug
     verbose = ctx.obj.verbose
-    local_stack = ctx.obj.local_stack
     stack = ctx.obj.stack
 
     # See: https://stackoverflow.com/questions/25389095/python-get-path-of-root-project-structure
     container_build_dir = Path(__file__).absolute().parent.parent.joinpath("data", "container-build")
 
-    if local_stack:
-        dev_root_path = os.getcwd()[0:os.getcwd().rindex("stack")]
-        logger.log(f'Local stack dev_root_path (BPI_REPO_BASE_DIR) overridden to: {dev_root_path}')
-    else:
-        dev_root_path = os.path.expanduser(config("BPI_REPO_BASE_DIR", default="~/bpi"))
+    dev_root_path = get_dev_root_path(ctx)
 
     if verbose:
         logger.log(f'Dev Root is: {dev_root_path}')

@@ -22,6 +22,5 @@ class CommandOptions:
     quiet: bool = False
     verbose: bool = False
     dry_run: bool = False
-    local_stack: bool = False
     debug: bool = False
     continue_on_error: bool = False

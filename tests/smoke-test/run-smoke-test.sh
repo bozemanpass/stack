@@ -3,6 +3,7 @@ set -e
 if [ -n "$BPI_SCRIPT_DEBUG" ]; then
   set -x
 fi
+export STACK_USE_BUILTIN_STACK=true
 # Dump environment variables for debugging
 echo "Environment variables:"
 env

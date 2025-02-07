@@ -46,12 +46,7 @@ def get_stack_path(stack):
 
 
 def get_dev_root_path(ctx):
-    if ctx and ctx.local_stack:
-        # TODO: This code probably doesn't work
-        dev_root_path = os.getcwd()[0 : os.getcwd().rindex("stack")]
-        print(f"Local stack dev_root_path (BPI_REPO_BASE_DIR) overridden to: {dev_root_path}")
-    else:
-        dev_root_path = os.path.expanduser(config("BPI_REPO_BASE_DIR", default="~/bpi"))
+    dev_root_path = os.path.expanduser(config("BPI_REPO_BASE_DIR", default="~/bpi"))
     return dev_root_path
 
 

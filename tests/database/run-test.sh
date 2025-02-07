@@ -13,6 +13,8 @@ else
     TEST_TARGET_SO=$( ls -t1 ./package/stack* | head -1 )
 fi
 
+export STACK_USE_BUILTIN_STACK=true
+
 stack="test-database"
 spec_file=${stack}-spec.yml
 deployment_dir=${stack}-deployment
