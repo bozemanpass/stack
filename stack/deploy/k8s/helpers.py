@@ -175,6 +175,31 @@ def volume_mounts_for_service(parsed_pod_files, service):
     return result
 
 
+def volumes_for_service(parsed_pod_files, service, spec, app_name):
+    result = []
+    # Find the service
+    for pod in parsed_pod_files:
+        parsed_pod_file = parsed_pod_files[pod]
+        if "services" in parsed_pod_file:
+            services = parsed_pod_file["services"]
+            for service_name in services:
+                if service_name == service:
+                    service_obj = services[service_name]
+                    if "volumes" in service_obj:
+                        volumes = service_obj["volumes"]
+                        for mount_string in volumes:
+                            volume_name = mount_string.split(":")[0]
+                            if volume_name in spec.get_configmaps():
+                                config_map = client.V1ConfigMapVolumeSource(name=f"{app_name}-{volume_name}")
+                                volume = client.V1Volume(name=volume_name, config_map=config_map)
+                                result.append(volume)
+                            else:
+                                claim = client.V1PersistentVolumeClaimVolumeSource(claim_name=f"{app_name}-{volume_name}")
+                                volume = client.V1Volume(name=volume_name, persistent_volume_claim=claim)
+                                result.append(volume)
+    return result
+
+
 def volumes_for_pod_files(parsed_pod_files, spec, app_name):
     result = []
     for pod in parsed_pod_files:

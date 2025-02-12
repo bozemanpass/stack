@@ -166,20 +166,21 @@ class K8sDeployer(Deployer):
                     print("ConfigMap created:")
                     print(f"{cfg_rsp}")
 
-    def _create_deployment(self):
+    def _create_deployments(self):
         # Process compose files into a Deployment
-        deployment = self.cluster_info.get_deployment(image_pull_policy=None if self.is_kind() else "Always")
-        # Create the k8s objects
-        if opts.o.debug:
-            print(f"Sending this deployment: {deployment}")
-        if not opts.o.dry_run:
-            deployment_resp = self.apps_api.create_namespaced_deployment(body=deployment, namespace=self.k8s_namespace)
+        deployments = self.cluster_info.get_deployments(image_pull_policy=None if self.is_kind() else "Always")
+        for deployment in deployments:
+            # Create the k8s objects
             if opts.o.debug:
-                print("Deployment created:")
-                print(
-                    f"{deployment_resp.metadata.namespace} {deployment_resp.metadata.name} \
-                    {deployment_resp.metadata.generation} {deployment_resp.spec.template.spec.containers[0].image}"
-                )
+                print(f"Sending this deployment: {deployment}")
+            if not opts.o.dry_run:
+                deployment_resp = self.apps_api.create_namespaced_deployment(body=deployment, namespace=self.k8s_namespace)
+                if opts.o.debug:
+                    print("Deployment created:")
+                    print(
+                        f"{deployment_resp.metadata.namespace} {deployment_resp.metadata.name} \
+                        {deployment_resp.metadata.generation} {deployment_resp.spec.template.spec.containers[0].image}"
+                    )
 
         services: client.V1Service = self.cluster_info.get_services()
         if opts.o.debug:
@@ -247,7 +248,7 @@ class K8sDeployer(Deployer):
             print("Dry run mode enabled, skipping k8s API connect")
 
         self._create_volume_data()
-        self._create_deployment()
+        self._create_deployments()
 
         http_proxy_info = self.cluster_info.spec.get_http_proxy()
         # Note: at present we don't support tls for kind (and enabling tls causes errors)
@@ -317,13 +318,14 @@ class K8sDeployer(Deployer):
             except client.exceptions.ApiException as e:
                 _check_delete_exception(e)
 
-        deployment = self.cluster_info.get_deployment()
-        if opts.o.debug:
-            print(f"Deleting this deployment: {deployment}")
-        try:
-            self.apps_api.delete_namespaced_deployment(name=deployment.metadata.name, namespace=self.k8s_namespace)
-        except client.exceptions.ApiException as e:
-            _check_delete_exception(e)
+        deployments = self.cluster_info.get_deployments()
+        for deployment in deployments:
+            if opts.o.debug:
+                print(f"Deleting this deployment: {deployment}")
+            try:
+                self.apps_api.delete_namespaced_deployment(name=deployment.metadata.name, namespace=self.k8s_namespace)
+            except client.exceptions.ApiException as e:
+                _check_delete_exception(e)
 
         services: client.V1Service = self.cluster_info.get_services()
         for svc in services:
@@ -402,7 +404,7 @@ class K8sDeployer(Deployer):
             if p.metadata.deletion_timestamp:
                 print(f"\t{p.metadata.namespace}/{p.metadata.name}: Terminating ({p.metadata.deletion_timestamp})")
             else:
-                print(f"\t{p.metadata.namespace}/{p.metadata.name}: Running ({p.metadata.creation_timestamp})")
+                print(f"\t{p.metadata.namespace}/{p.metadata.name}: {p.status.phase} ({p.metadata.creation_timestamp})")
 
     def ps(self):
         self.connect_api()
@@ -493,25 +495,26 @@ class K8sDeployer(Deployer):
 
     def update(self):
         self.connect_api()
-        ref_deployment = self.cluster_info.get_deployment()
+        ref_deployments = self.cluster_info.get_deployments()
 
-        deployment = self.apps_api.read_namespaced_deployment(name=ref_deployment.metadata.name, namespace=self.k8s_namespace)
+        for ref_deployment in ref_deployments:
+            deployment = self.apps_api.read_namespaced_deployment(name=ref_deployment.metadata.name, namespace=self.k8s_namespace)
 
-        new_env = ref_deployment.spec.template.spec.containers[0].env
-        for container in deployment.spec.template.spec.containers:
-            old_env = container.env
-            if old_env != new_env:
-                container.env = new_env
+            new_env = ref_deployment.spec.template.spec.containers[0].env
+            for container in deployment.spec.template.spec.containers:
+                old_env = container.env
+                if old_env != new_env:
+                    container.env = new_env
 
-        deployment.spec.template.metadata.annotations = {
-            "kubectl.kubernetes.io/restartedAt": datetime.utcnow().replace(tzinfo=timezone.utc).isoformat()
-        }
+            deployment.spec.template.metadata.annotations = {
+                "kubectl.kubernetes.io/restartedAt": datetime.utcnow().replace(tzinfo=timezone.utc).isoformat()
+            }
 
-        self.apps_api.patch_namespaced_deployment(
-            name=ref_deployment.metadata.name,
-            namespace=self.k8s_namespace,
-            body=deployment,
-        )
+            self.apps_api.patch_namespaced_deployment(
+                name=ref_deployment.metadata.name,
+                namespace=self.k8s_namespace,
+                body=deployment,
+            )
 
     def run(
         self,

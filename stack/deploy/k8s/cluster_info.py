@@ -26,7 +26,7 @@ from stack.util import env_var_map_from_file
 from stack.deploy.k8s.helpers import (
     named_volumes_from_pod_files,
     volume_mounts_for_service,
-    volumes_for_pod_files,
+    volumes_for_service,
     container_ports_for_service,
 )
 from stack.deploy.k8s.helpers import get_kind_pv_bind_mount_path
@@ -119,15 +119,15 @@ class ClusterInfo:
                 if opts.o.debug:
                     print(f"proxy config: {path} -> {proxy_to}")
                 # proxy_to has the form <container>:<port>
-                proxy_to_port = int(proxy_to.split(":")[1])
+                proxy_to_svc, proxy_to_port = proxy_to.split(":")
                 paths.append(
                     client.V1HTTPIngressPath(
                         path_type="Prefix",
                         path=path,
                         backend=client.V1IngressBackend(
                             service=client.V1IngressServiceBackend(
-                                name=f"{self.app_name}-service-{proxy_to_port}",
-                                port=client.V1ServiceBackendPort(number=proxy_to_port),
+                                name=f"{self.app_name}-service-{proxy_to_svc}-{proxy_to_port}",
+                                port=client.V1ServiceBackendPort(number=int(proxy_to_port)),
                             )
                         ),
                     )
@@ -183,7 +183,7 @@ class ClusterInfo:
                             ret.append(service)
                         else:
                             service = client.V1Service(
-                                metadata=client.V1ObjectMeta(name=f"{self.app_name}-service-{raw_port}"),
+                                metadata=client.V1ObjectMeta(name=f"{self.app_name}-service-{service_name}-{raw_port}"),
                                 spec=client.V1ServiceSpec(
                                     type="ClusterIP",
                                     ports=[
@@ -319,8 +319,9 @@ class ClusterInfo:
         return result
 
     # TODO: put things like image pull policy into an object-scope struct
-    def get_deployment(self, image_pull_policy: str = None):
-        containers = []
+    def get_deployments(self, image_pull_policy: str = None):
+        deployments = []
+
         for pod_name in self.parsed_pod_yaml_map:
             pod = self.parsed_pod_yaml_map[pod_name]
             services = pod["services"]
@@ -369,84 +370,91 @@ class ClusterInfo:
                     ),
                     resources=to_k8s_resource_requirements(resources),
                 )
-                containers.append(container)
-        volumes = volumes_for_pod_files(self.parsed_pod_yaml_map, self.spec, self.app_name)
-        image_pull_secrets = [client.V1LocalObjectReference(name="bpi-image-registry")]
+                volumes = volumes_for_service(self.parsed_pod_yaml_map, service_name, self.spec, self.app_name)
+                image_pull_secrets = [client.V1LocalObjectReference(name="bpi-image-registry")]
 
-        annotations = None
-        labels = {"app": self.app_name}
-        affinity = None
-        tolerations = None
+                annotations = None
+                labels = {"app": self.app_name}
+                affinity = None
+                tolerations = None
 
-        if self.spec.get_annotations():
-            annotations = {}
-            for key, value in self.spec.get_annotations().items():
-                for container in containers:
-                    annotations[key.replace("{name}", container.name)] = value
+                # TODO: Make these container-specific in the spec
+                if self.spec.get_annotations():
+                    annotations = {}
+                    for key, value in self.spec.get_annotations().items():
+                        annotations[key.replace("{name}", container.name)] = value
 
-        if self.spec.get_labels():
-            for key, value in self.spec.get_labels().items():
-                for container in containers:
-                    labels[key.replace("{name}", container.name)] = value
+                # TODO: Make these container-specific in the spec
+                if self.spec.get_labels():
+                    for key, value in self.spec.get_labels().items():
+                        labels[key.replace("{name}", container.name)] = value
 
-        if self.spec.get_node_affinities():
-            affinities = []
-            for rule in self.spec.get_node_affinities():
-                # TODO add some input validation here
-                label_name = rule["label"]
-                label_value = rule["value"]
-                affinities.append(
-                    client.V1NodeSelectorTerm(
-                        match_expressions=[client.V1NodeSelectorRequirement(key=label_name, operator="In", values=[label_value])]
+                # TODO: Make these container-specific in the spec
+                if self.spec.get_node_affinities():
+                    affinities = []
+                    for rule in self.spec.get_node_affinities():
+                        # TODO add some input validation here
+                        label_name = rule["label"]
+                        label_value = rule["value"]
+                        affinities.append(
+                            client.V1NodeSelectorTerm(
+                                match_expressions=[
+                                    client.V1NodeSelectorRequirement(key=label_name, operator="In", values=[label_value])
+                                ]
+                            )
+                        )
+                    affinity = client.V1Affinity(
+                        node_affinity=client.V1NodeAffinity(
+                            required_during_scheduling_ignored_during_execution=client.V1NodeSelector(
+                                node_selector_terms=affinities
+                            )
+                        )
                     )
+
+                # TODO: Make these container-specific in the spec
+                if self.spec.get_node_tolerations():
+                    tolerations = []
+                    for toleration in self.spec.get_node_tolerations():
+                        # TODO add some input validation here
+                        toleration_key = toleration["key"]
+                        toleration_value = toleration["value"]
+                        tolerations.append(
+                            client.V1Toleration(
+                                effect="NoSchedule",
+                                key=toleration_key,
+                                operator="Equal",
+                                value=toleration_value,
+                            )
+                        )
+
+                # every service gets aliases of $name and $name.local to localhost
+                localhost_aliases = client.V1HostAlias(hostnames=[container.name, f"{container.name}.local"], ip="127.0.0.1")
+
+                template = client.V1PodTemplateSpec(
+                    metadata=client.V1ObjectMeta(annotations=annotations, labels=labels),
+                    spec=client.V1PodSpec(
+                        containers=[container],
+                        image_pull_secrets=image_pull_secrets,
+                        volumes=volumes,
+                        affinity=affinity,
+                        tolerations=tolerations,
+                        host_aliases=[localhost_aliases],
+                    ),
                 )
-            affinity = client.V1Affinity(
-                node_affinity=client.V1NodeAffinity(
-                    required_during_scheduling_ignored_during_execution=client.V1NodeSelector(node_selector_terms=affinities)
-                )
-            )
 
-        if self.spec.get_node_tolerations():
-            tolerations = []
-            for toleration in self.spec.get_node_tolerations():
-                # TODO add some input validation here
-                toleration_key = toleration["key"]
-                toleration_value = toleration["value"]
-                tolerations.append(
-                    client.V1Toleration(
-                        effect="NoSchedule",
-                        key=toleration_key,
-                        operator="Equal",
-                        value=toleration_value,
-                    )
+                spec = client.V1DeploymentSpec(
+                    replicas=self.spec.get_replicas(),
+                    template=template,
+                    selector={"matchLabels": {"app": self.app_name}},
                 )
 
-        # every service gets aliases of $name and $name.local to localhost
-        container_names = [container.name for container in containers]
-        dotlocal_names = [f"{container.name}.local" for container in containers]
-        localhost_aliases = client.V1HostAlias(hostnames=container_names + dotlocal_names, ip="127.0.0.1")
+                deployment = client.V1Deployment(
+                    api_version="apps/v1",
+                    kind="Deployment",
+                    metadata=client.V1ObjectMeta(name=f"{self.app_name}-deployment-{service_name}"),
+                    spec=spec,
+                )
 
-        template = client.V1PodTemplateSpec(
-            metadata=client.V1ObjectMeta(annotations=annotations, labels=labels),
-            spec=client.V1PodSpec(
-                containers=containers,
-                image_pull_secrets=image_pull_secrets,
-                volumes=volumes,
-                affinity=affinity,
-                tolerations=tolerations,
-                host_aliases=[localhost_aliases],
-            ),
-        )
-        spec = client.V1DeploymentSpec(
-            replicas=self.spec.get_replicas(),
-            template=template,
-            selector={"matchLabels": {"app": self.app_name}},
-        )
+                deployments.append(deployment)
 
-        deployment = client.V1Deployment(
-            api_version="apps/v1",
-            kind="Deployment",
-            metadata=client.V1ObjectMeta(name=f"{self.app_name}-deployment"),
-            spec=spec,
-        )
-        return deployment
+        return deployments
