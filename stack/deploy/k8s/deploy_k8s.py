@@ -34,7 +34,7 @@ from stack.deploy.k8s.helpers import (
     containers_in_pod,
     log_stream_from_string,
 )
-from stack.deploy.k8s.helpers import generate_kind_config
+from stack.deploy.k8s.helpers import generate_kind_config, DEFAULT_K8S_NAMESPACE
 from stack.deploy.k8s.cluster_info import ClusterInfo
 from stack.opts import opts
 from stack.deploy.deployment_context import DeploymentContext
@@ -61,7 +61,7 @@ class K8sDeployer(Deployer):
     core_api: client.CoreV1Api
     apps_api: client.AppsV1Api
     networking_api: client.NetworkingV1Api
-    k8s_namespace: str = "default"
+    k8s_namespace: str = DEFAULT_K8S_NAMESPACE
     kind_cluster_name: str
     skip_cluster_management: bool
     cluster_info: ClusterInfo
@@ -456,7 +456,7 @@ class K8sDeployer(Deployer):
             self.core_api.connect_get_namespaced_pod_exec,
             k8s_pod_name,
             container=service_name,
-            namespace="default",
+            namespace=self.k8s_namespace,
             command=command,
             tty=False,
             stdin=False,
@@ -483,7 +483,9 @@ class K8sDeployer(Deployer):
             try:
                 log_data = ""
                 for container in containers:
-                    container_log = self.core_api.read_namespaced_pod_log(k8s_pod_name, namespace="default", container=container)
+                    container_log = self.core_api.read_namespaced_pod_log(
+                        k8s_pod_name, namespace=self.k8s_namespace, container=container
+                    )
                     container_log_lines = container_log.splitlines()
                     for line in container_log_lines:
                         log_data += f"{container}: {line}\n"

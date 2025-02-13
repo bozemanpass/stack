@@ -40,8 +40,11 @@ from stack.deploy.deploy_util import (
     images_for_deployment,
 )
 from stack.deploy.deploy_types import DeployEnvVars
+from stack.deploy.k8s.helpers import env_var_name_for_service
 from stack.deploy.spec import Spec, Resources, ResourceLimits
 from stack.deploy.images import remote_tag_for_image_unique
+
+from stack.stack.deploy.k8s.helpers import DEFAULT_K8S_NAMESPACE
 
 DEFAULT_VOLUME_RESOURCES = Resources({"reservations": {"storage": "2Gi"}})
 
@@ -71,6 +74,7 @@ def to_k8s_resource_requirements(resources: Resources) -> client.V1ResourceRequi
 
 
 class ClusterInfo:
+    k8s_namespace: str = DEFAULT_K8S_NAMESPACE
     parsed_pod_yaml_map: Any
     image_set: Set[str] = set()
     app_name: str
@@ -82,7 +86,6 @@ class ClusterInfo:
         pass
 
     def int(self, pod_files: List[str], compose_env_file, deployment_name, spec: Spec):
-        self.namespace = "default"
         self.parsed_pod_yaml_map = parsed_pod_files_map_from_file_names(pod_files)
         # Find the set of images in the pods
         self.image_set = images_for_deployment(pod_files)
@@ -93,8 +96,8 @@ class ClusterInfo:
         services = self.get_services()
         for svc in services:
             if "ClusterIP" == svc.spec.type:
-                self.environment_variables.map[f"STACK_SVC_{svc.metadata.labels['service'].upper()}"] = (
-                    f"{svc.metadata.name}.{self.namespace}.svc.cluster.local"
+                self.environment_variables.map[env_var_name_for_service(svc)] = (
+                    f"{svc.metadata.name}.{self.k8s_namespace}.svc.cluster.local"
                 )
 
         if opts.o.debug:

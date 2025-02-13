@@ -30,6 +30,9 @@ from stack.deploy.deploy_util import parsed_pod_files_map_from_file_names
 from stack.deploy.deployer import DeployerException
 
 
+DEFAULT_K8S_NAMESPACE = "default"
+
+
 def _run_command(command: str):
     if opts.o.debug:
         print(f"Running: {command}")
@@ -87,7 +90,7 @@ def load_images_into_kind(kind_cluster_name: str, image_set: Set[str]):
 
 def pods_in_deployment(core_api: client.CoreV1Api, deployment_name: str):
     pods = []
-    pod_response = core_api.list_namespaced_pod(namespace="default", label_selector=f"app={deployment_name}")
+    pod_response = core_api.list_namespaced_pod(namespace=DEFAULT_K8S_NAMESPACE, label_selector=f"app={deployment_name}")
     if opts.o.debug:
         print(f"pod_response: {pod_response}")
     for pod_info in pod_response.items:
@@ -98,7 +101,7 @@ def pods_in_deployment(core_api: client.CoreV1Api, deployment_name: str):
 
 def containers_in_pod(core_api: client.CoreV1Api, pod_name: str):
     containers = []
-    pod_response = core_api.read_namespaced_pod(pod_name, namespace="default")
+    pod_response = core_api.read_namespaced_pod(pod_name, namespace=DEFAULT_K8S_NAMESPACE)
     if opts.o.debug:
         print(f"pod_response: {pod_response}")
     pod_containers = pod_response.spec.containers
@@ -334,6 +337,10 @@ def envs_from_environment_variables_map(map: Mapping[str, str]) -> List[client.V
         for env_var, env_val in map.items():
             result.append(client.V1EnvVar(env_var, env_val))
     return result
+
+
+def env_var_name_for_service(svc):
+    return f"STACK_SVC_{svc.metadata.labels['service'].upper()}".replace("-", "_")
 
 
 # This needs to know:
