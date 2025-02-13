@@ -96,7 +96,7 @@ class ClusterInfo:
         services = self.get_services()
         for svc in services:
             if "ClusterIP" == svc.spec.type:
-                self.environment_variables.map[env_var_name_for_service(svc)] = (
+                self.environment_variables.map[env_var_name_for_service(svc, svc.port)] = (
                     f"{svc.metadata.name}.{self.k8s_namespace}.svc.cluster.local"
                 )
 
@@ -139,7 +139,7 @@ class ClusterInfo:
                         path=path,
                         backend=client.V1IngressBackend(
                             service=client.V1IngressServiceBackend(
-                                name=f"{self.app_name}-service-{proxy_to_svc}-{proxy_to_port}",
+                                name=f"{self.app_name}-svc-{proxy_to_svc}-{proxy_to_port}",
                                 port=client.V1ServiceBackendPort(number=int(proxy_to_port)),
                             )
                         ),
@@ -200,7 +200,7 @@ class ClusterInfo:
                         else:
                             service = client.V1Service(
                                 metadata=client.V1ObjectMeta(
-                                    name=f"{self.app_name}-service-{service_name}-{raw_port}",
+                                    name=f"{self.app_name}-svc-{service_name}-{raw_port}",
                                     labels={"app": self.app_name, "service": service_name},
                                 ),
                                 spec=client.V1ServiceSpec(
@@ -470,7 +470,7 @@ class ClusterInfo:
                 deployment = client.V1Deployment(
                     api_version="apps/v1",
                     kind="Deployment",
-                    metadata=client.V1ObjectMeta(name=f"{self.app_name}-deployment-{service_name}"),
+                    metadata=client.V1ObjectMeta(name=f"{self.app_name}-deploy-{service_name}"),
                     spec=spec,
                 )
 
