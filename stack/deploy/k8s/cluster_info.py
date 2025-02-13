@@ -93,11 +93,12 @@ class ClusterInfo:
         services = self.get_services()
         for svc in services:
             if "ClusterIP" == svc.spec.type:
-                self.environment_variables.map[f"STACK_SVC_{svc.metadata.labels['service'].upper()}"] = f"{svc.metadata.name}.{self.namespace}.svc.cluster.local"
+                self.environment_variables.map[f"STACK_SVC_{svc.metadata.labels['service'].upper()}"] = (
+                    f"{svc.metadata.name}.{self.namespace}.svc.cluster.local"
+                )
 
         if opts.o.debug:
             print(f"Env vars: {self.environment_variables.map}")
-
 
     def get_ingress(self, use_tls=False, certificate=None, def_cluster_issuer="letsencrypt-prod"):
         # No ingress for a deployment that has no http-proxy defined, for now
@@ -178,7 +179,7 @@ class ClusterInfo:
                             service = client.V1Service(
                                 metadata=client.V1ObjectMeta(
                                     name=f"{self.app_name}-nodeport-{pod_port}",
-                                    labels={"app": self.app_name, "service": service_name}
+                                    labels={"app": self.app_name, "service": service_name},
                                 ),
                                 spec=client.V1ServiceSpec(
                                     type="NodePort",
@@ -197,7 +198,7 @@ class ClusterInfo:
                             service = client.V1Service(
                                 metadata=client.V1ObjectMeta(
                                     name=f"{self.app_name}-service-{service_name}-{raw_port}",
-                                    labels={"app": self.app_name, "service": service_name}
+                                    labels={"app": self.app_name, "service": service_name},
                                 ),
                                 spec=client.V1ServiceSpec(
                                     type="ClusterIP",
