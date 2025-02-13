@@ -339,8 +339,8 @@ def envs_from_environment_variables_map(map: Mapping[str, str]) -> List[client.V
     return result
 
 
-def env_var_name_for_service(svc, port):
-    return f"STACK_SVC_{svc.metadata.labels['service'].upper()}_{port}".replace("-", "_")
+def env_var_name_for_service(svc):
+    return f"STACK_SVC_{svc.metadata.labels['service'].upper()}".replace("-", "_")
 
 
 # This needs to know:
