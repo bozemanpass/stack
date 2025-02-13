@@ -74,6 +74,7 @@ class ClusterInfo:
     parsed_pod_yaml_map: Any
     image_set: Set[str] = set()
     app_name: str
+    namespace: str
     environment_variables: DeployEnvVars
     spec: Spec
 
@@ -81,14 +82,22 @@ class ClusterInfo:
         pass
 
     def int(self, pod_files: List[str], compose_env_file, deployment_name, spec: Spec):
+        self.namespace = "default"
         self.parsed_pod_yaml_map = parsed_pod_files_map_from_file_names(pod_files)
         # Find the set of images in the pods
         self.image_set = images_for_deployment(pod_files)
         self.environment_variables = DeployEnvVars(env_var_map_from_file(compose_env_file))
         self.app_name = deployment_name
         self.spec = spec
+
+        services = self.get_services()
+        for svc in services:
+            if "ClusterIP" == svc.spec.type:
+                self.environment_variables[f"STACK_SVC_{svc.metadata.labels['service'].upper()}"] = f"{svc.metadata['name']}.{self.namespace}.svc.cluster.local"
+
         if opts.o.debug:
             print(f"Env vars: {self.environment_variables.map}")
+
 
     def get_ingress(self, use_tls=False, certificate=None, def_cluster_issuer="letsencrypt-prod"):
         # No ingress for a deployment that has no http-proxy defined, for now
@@ -167,7 +176,10 @@ class ClusterInfo:
                             node_port = int(parts[0])
                             pod_port = int(parts[1])
                             service = client.V1Service(
-                                metadata=client.V1ObjectMeta(name=f"{self.app_name}-nodeport-{pod_port}"),
+                                metadata=client.V1ObjectMeta(
+                                    name=f"{self.app_name}-nodeport-{pod_port}",
+                                    labels={"app": self.app_name, "service": service_name}
+                                ),
                                 spec=client.V1ServiceSpec(
                                     type="NodePort",
                                     ports=[
@@ -183,7 +195,10 @@ class ClusterInfo:
                             ret.append(service)
                         else:
                             service = client.V1Service(
-                                metadata=client.V1ObjectMeta(name=f"{self.app_name}-service-{service_name}-{raw_port}"),
+                                metadata=client.V1ObjectMeta(
+                                    name=f"{self.app_name}-service-{service_name}-{raw_port}",
+                                    labels={"app": self.app_name, "service": service_name}
+                                ),
                                 spec=client.V1ServiceSpec(
                                     type="ClusterIP",
                                     ports=[
