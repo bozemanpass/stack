@@ -24,7 +24,7 @@ from stack.deploy.compose.deploy_docker import (
 
 def getDeployerConfigGenerator(type: str, deployment_context):
     if type == "compose" or type is None:
-        return DockerDeployerConfigGenerator(type)
+        return DockerDeployerConfigGenerator(type, deployment_context)
     elif type == constants.k8s_deploy_type or type == constants.k8s_kind_deploy_type:
         return K8sDeployerConfigGenerator(type, deployment_context)
     else:

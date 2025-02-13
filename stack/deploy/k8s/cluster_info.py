@@ -44,7 +44,7 @@ from stack.deploy.k8s.helpers import env_var_name_for_service
 from stack.deploy.spec import Spec, Resources, ResourceLimits
 from stack.deploy.images import remote_tag_for_image_unique
 
-from stack.stack.deploy.k8s.helpers import DEFAULT_K8S_NAMESPACE
+from stack.deploy.k8s.helpers import DEFAULT_K8S_NAMESPACE
 
 DEFAULT_VOLUME_RESOURCES = Resources({"reservations": {"storage": "2Gi"}})
 
