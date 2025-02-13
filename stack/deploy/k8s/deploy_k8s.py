@@ -20,6 +20,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from kubernetes import client, config
 from kubernetes.stream import stream
+from numpy.distutils.misc_util import all_strings
 
 from stack import constants
 from stack.deploy.deployer import Deployer, DeployerConfigGenerator
@@ -442,14 +443,16 @@ class K8sDeployer(Deployer):
     def execute(self, service_name, command, tty, envs):
         self.connect_api()
         pods = pods_in_deployment(self.core_api, self.cluster_info.app_name)
-        if len(pods) > 1:
-            print("Warning: more than one pod in the deployment")
+        k8s_pod_name = None
+        for pod in pods:
+            if f"{self.cluster_info.app_name}-deployment-{service_name}" in pod:
+                k8s_pod_name = pod
+                break
 
-        if len(pods) == 0:
+        if not k8s_pod_name:
             print("Warning: pod not running")
             return
 
-        k8s_pod_name = pods[0]
         response = stream(
             self.core_api.connect_get_namespaced_pod_exec,
             k8s_pod_name,
@@ -472,12 +475,10 @@ class K8sDeployer(Deployer):
     def logs(self, services, tail, follow, stream):
         self.connect_api()
         pods = pods_in_deployment(self.core_api, self.cluster_info.app_name)
-        if len(pods) > 1:
-            print("Warning: more than one pod in the deployment")
         if len(pods) == 0:
             log_data = "******* Pods not running ********\n"
-        else:
-            k8s_pod_name = pods[0]
+        all_logs = []
+        for k8s_pod_name in pods:
             containers = containers_in_pod(self.core_api, k8s_pod_name)
             # If the pod is not yet started, the logs request below will throw an exception
             try:
@@ -491,7 +492,8 @@ class K8sDeployer(Deployer):
                 if opts.o.debug:
                     print(f"Error from read_namespaced_pod_log: {e}")
                 log_data = "******* No logs available ********\n"
-        return log_stream_from_string(log_data)
+            all_logs.append(log_data)
+        return log_stream_from_string("\n".join(all_logs))
 
     def update(self):
         self.connect_api()
