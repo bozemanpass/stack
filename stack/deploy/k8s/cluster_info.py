@@ -93,7 +93,7 @@ class ClusterInfo:
         services = self.get_services()
         for svc in services:
             if "ClusterIP" == svc.spec.type:
-                self.environment_variables[f"STACK_SVC_{svc.metadata.labels['service'].upper()}"] = f"{svc.metadata['name']}.{self.namespace}.svc.cluster.local"
+                self.environment_variables.map[f"STACK_SVC_{svc.metadata.labels['service'].upper()}"] = f"{svc.metadata.name}.{self.namespace}.svc.cluster.local"
 
         if opts.o.debug:
             print(f"Env vars: {self.environment_variables.map}")
