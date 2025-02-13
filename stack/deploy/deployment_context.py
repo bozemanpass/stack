@@ -13,6 +13,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http:#www.gnu.org/licenses/>.
 
+import glob
 import hashlib
 import os
 from pathlib import Path
@@ -43,6 +44,9 @@ class DeploymentContext:
 
     def get_compose_dir(self):
         return self.deployment_dir.joinpath(constants.compose_dir_name)
+
+    def get_compose_files(self):
+        return glob.glob(f"{self.get_compose_dir()}/docker-compose-*.yml")
 
     def get_cluster_id(self):
         return self.id

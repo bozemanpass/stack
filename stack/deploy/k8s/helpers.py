@@ -18,7 +18,7 @@ import os
 import subprocess
 import re
 
-from expandvars import expandvars
+from expandvars import expand
 from kubernetes import client, utils, watch
 from pathlib import Path
 from ruamel.yaml.comments import CommentedSeq
@@ -28,6 +28,9 @@ from stack.util import get_k8s_dir, error_exit
 from stack.opts import opts
 from stack.deploy.deploy_util import parsed_pod_files_map_from_file_names
 from stack.deploy.deployer import DeployerException
+
+
+DEFAULT_K8S_NAMESPACE = "default"
 
 
 def _run_command(command: str):
@@ -87,7 +90,7 @@ def load_images_into_kind(kind_cluster_name: str, image_set: Set[str]):
 
 def pods_in_deployment(core_api: client.CoreV1Api, deployment_name: str):
     pods = []
-    pod_response = core_api.list_namespaced_pod(namespace="default", label_selector=f"app={deployment_name}")
+    pod_response = core_api.list_namespaced_pod(namespace=DEFAULT_K8S_NAMESPACE, label_selector=f"app={deployment_name}")
     if opts.o.debug:
         print(f"pod_response: {pod_response}")
     for pod_info in pod_response.items:
@@ -98,7 +101,7 @@ def pods_in_deployment(core_api: client.CoreV1Api, deployment_name: str):
 
 def containers_in_pod(core_api: client.CoreV1Api, pod_name: str):
     containers = []
-    pod_response = core_api.read_namespaced_pod(pod_name, namespace="default")
+    pod_response = core_api.read_namespaced_pod(pod_name, namespace=DEFAULT_K8S_NAMESPACE)
     if opts.o.debug:
         print(f"pod_response: {pod_response}")
     pod_containers = pod_response.spec.containers
@@ -172,6 +175,31 @@ def volume_mounts_for_service(parsed_pod_files, service):
                                 read_only="ro" == mount_options,
                             )
                             result.append(volume_device)
+    return result
+
+
+def volumes_for_service(parsed_pod_files, service, spec, app_name):
+    result = []
+    # Find the service
+    for pod in parsed_pod_files:
+        parsed_pod_file = parsed_pod_files[pod]
+        if "services" in parsed_pod_file:
+            services = parsed_pod_file["services"]
+            for service_name in services:
+                if service_name == service:
+                    service_obj = services[service_name]
+                    if "volumes" in service_obj:
+                        volumes = service_obj["volumes"]
+                        for mount_string in volumes:
+                            volume_name = mount_string.split(":")[0]
+                            if volume_name in spec.get_configmaps():
+                                config_map = client.V1ConfigMapVolumeSource(name=f"{app_name}-{volume_name}")
+                                volume = client.V1Volume(name=volume_name, config_map=config_map)
+                                result.append(volume)
+                            else:
+                                claim = client.V1PersistentVolumeClaimVolumeSource(claim_name=f"{app_name}-{volume_name}")
+                                volume = client.V1Volume(name=volume_name, persistent_volume_claim=claim)
+                                result.append(volume)
     return result
 
 
@@ -271,7 +299,7 @@ def merge_envs(a: Mapping[str, str], b: Mapping[str, str]) -> Mapping[str, str]:
     return result
 
 
-def _expand_shell_vars(raw_val: str) -> str:
+def _expand_shell_vars(raw_val: str, environ=os.environ) -> str:
     # could be: <string> or ${<env-var-name>} or ${<env-var-name>:-<default-value>}
     # TODO: implement support for variable substitution and default values
     # if raw_val is like ${<something>} print a warning and substitute an empty string
@@ -279,22 +307,22 @@ def _expand_shell_vars(raw_val: str) -> str:
     raw_val = str(raw_val)
     match = re.search(r"^\$\{(.*)\}$", raw_val)
     if match:
-        return expandvars(raw_val)
+        return expand(raw_val, environ=environ)
     else:
         return raw_val
 
 
 # TODO: handle the case where the same env var is defined in multiple places
-def envs_from_compose_file(compose_file_envs: Mapping[str, str]) -> Mapping[str, str]:
+def envs_from_compose_file(compose_file_envs: Mapping[str, str], environ=os.environ) -> Mapping[str, str]:
     result = {}
     if isinstance(compose_file_envs, CommentedSeq):
         for item in compose_file_envs:
             env_var, env_val = item.split("=", 2)
-            expanded_env_val = _expand_shell_vars(env_val)
+            expanded_env_val = _expand_shell_vars(env_val, environ)
             result.update({env_var: expanded_env_val})
     else:
         for env_var, env_val in compose_file_envs.items():
-            expanded_env_val = _expand_shell_vars(env_val)
+            expanded_env_val = _expand_shell_vars(env_val, environ)
             result.update({env_var: expanded_env_val})
     return result
 
@@ -309,6 +337,10 @@ def envs_from_environment_variables_map(map: Mapping[str, str]) -> List[client.V
         for env_var, env_val in map.items():
             result.append(client.V1EnvVar(env_var, env_val))
     return result
+
+
+def env_var_name_for_service(svc):
+    return f"STACK_SVC_{svc.metadata.labels['service'].upper()}".replace("-", "_")
 
 
 # This needs to know:

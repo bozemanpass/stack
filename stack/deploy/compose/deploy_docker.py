@@ -19,6 +19,7 @@ from python_on_whales import DockerClient, DockerException
 from stack.deploy.deployer import Deployer, DeployerException, DeployerConfigGenerator
 from stack.deploy.deployment_context import DeploymentContext
 from stack.opts import opts
+from stack.util import get_yaml
 
 
 class DockerDeployer(Deployer):
@@ -104,10 +105,16 @@ class DockerDeployer(Deployer):
         user=None,
         volumes=None,
         entrypoint=None,
-        env={},
-        ports=[],
+        env=None,
+        ports=None,
         detach=False,
     ):
+        if not env:
+            env = {}
+
+        if not ports:
+            ports = []
+
         if not opts.o.dry_run:
             try:
                 return self.docker.run(
@@ -125,10 +132,28 @@ class DockerDeployer(Deployer):
                 raise DeployerException(e)
 
 
+def env_var_name_for_service(svc_name):
+    return f"STACK_SVC_{svc_name.upper()}".replace("-", "_")
+
+
 class DockerDeployerConfigGenerator(DeployerConfigGenerator):
-    def __init__(self, type: str) -> None:
+    def __init__(self, type: str, deployment_context: DeploymentContext) -> None:
         super().__init__()
+        self.deployment_context = deployment_context
 
     # Nothing needed at present for the docker deployer
     def generate(self, deployment_dir: Path):
-        pass
+        yaml = get_yaml()
+        compose_files = self.deployment_context.get_compose_files()
+
+        all_service_names = []
+        for f in compose_files:
+            compose = yaml.load(open(f, "r"))
+            if "services" in compose:
+                services = compose["services"]
+                for svc in services:
+                    all_service_names.append(svc)
+
+        with open(self.deployment_context.get_env_file(), "ta") as env_file:
+            for svc_name in all_service_names:
+                print(f'{env_var_name_for_service(svc_name)}="{svc_name}"', file=env_file)
