@@ -18,7 +18,7 @@ import os
 import subprocess
 import re
 
-from expandvars import expandvars
+from expandvars import expand
 from kubernetes import client, utils, watch
 from pathlib import Path
 from ruamel.yaml.comments import CommentedSeq
@@ -296,7 +296,7 @@ def merge_envs(a: Mapping[str, str], b: Mapping[str, str]) -> Mapping[str, str]:
     return result
 
 
-def _expand_shell_vars(raw_val: str) -> str:
+def _expand_shell_vars(raw_val: str, environ=os.environ) -> str:
     # could be: <string> or ${<env-var-name>} or ${<env-var-name>:-<default-value>}
     # TODO: implement support for variable substitution and default values
     # if raw_val is like ${<something>} print a warning and substitute an empty string
@@ -304,22 +304,22 @@ def _expand_shell_vars(raw_val: str) -> str:
     raw_val = str(raw_val)
     match = re.search(r"^\$\{(.*)\}$", raw_val)
     if match:
-        return expandvars(raw_val)
+        return expand(raw_val, environ=environ)
     else:
         return raw_val
 
 
 # TODO: handle the case where the same env var is defined in multiple places
-def envs_from_compose_file(compose_file_envs: Mapping[str, str]) -> Mapping[str, str]:
+def envs_from_compose_file(compose_file_envs: Mapping[str, str], environ=os.environ) -> Mapping[str, str]:
     result = {}
     if isinstance(compose_file_envs, CommentedSeq):
         for item in compose_file_envs:
             env_var, env_val = item.split("=", 2)
-            expanded_env_val = _expand_shell_vars(env_val)
+            expanded_env_val = _expand_shell_vars(env_val, environ)
             result.update({env_var: expanded_env_val})
     else:
         for env_var, env_val in compose_file_envs.items():
-            expanded_env_val = _expand_shell_vars(env_val)
+            expanded_env_val = _expand_shell_vars(env_val, environ)
             result.update({env_var: expanded_env_val})
     return result
 

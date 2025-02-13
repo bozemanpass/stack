@@ -333,7 +333,7 @@ class ClusterInfo:
 
                 merged_envs = (
                     merge_envs(
-                        envs_from_compose_file(service_info["environment"]),
+                        envs_from_compose_file(service_info["environment"], self.environment_variables.map),
                         self.environment_variables.map,
                     )
                     if "environment" in service_info
