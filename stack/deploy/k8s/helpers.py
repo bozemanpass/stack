@@ -305,7 +305,7 @@ def _expand_shell_vars(raw_val: str, environ=os.environ) -> str:
     # if raw_val is like ${<something>} print a warning and substitute an empty string
     # otherwise return raw_val
     raw_val = str(raw_val)
-    match = re.search(r"^\$\{(.*)\}", raw_val)
+    match = re.search(r"\$\{(.*)\}", raw_val)
     if match:
         return expand(raw_val, environ=environ)
     else:
