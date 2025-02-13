@@ -97,7 +97,7 @@ class ClusterInfo:
         for svc in services:
             if "ClusterIP" == svc.spec.type:
                 self.environment_variables.map[env_var_name_for_service(svc, svc.port)] = (
-                    f"{svc.metadata.name}.{self.k8s_namespace}.svc.cluster.local"
+                    f"{svc.metadata.name}.{self.k8s_namespace}.svc.cluster.local:{svc.port}"
                 )
 
         if opts.o.debug:
