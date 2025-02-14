@@ -97,9 +97,7 @@ class ClusterInfo:
         service_env = {}
         for svc in self.get_services():
             if "ClusterIP" == svc.spec.type:
-                service_env[env_var_name_for_service(svc)] = (
-                    f"{svc.metadata.name}.{self.k8s_namespace}.svc.cluster.local"
-                )
+                service_env[env_var_name_for_service(svc)] = f"{svc.metadata.name}.{self.k8s_namespace}.svc.cluster.local"
 
         # Load the static ENV (raw)
         env_vars_from_file = env_var_map_from_file(compose_env_file, expand=False)

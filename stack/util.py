@@ -22,7 +22,6 @@ from pathlib import Path
 from dotenv import dotenv_values
 from typing import Mapping, Set, List
 from stack.constants import stack_file_name, deployment_file_name
-from torch.ao.nn.quantized.functional import interpolate
 
 
 def include_exclude_check(s, include, exclude):
