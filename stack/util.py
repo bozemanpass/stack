@@ -22,6 +22,7 @@ from pathlib import Path
 from dotenv import dotenv_values
 from typing import Mapping, Set, List
 from stack.constants import stack_file_name, deployment_file_name
+from torch.ao.nn.quantized.functional import interpolate
 
 
 def include_exclude_check(s, include, exclude):
@@ -236,5 +237,5 @@ def warn_exit(s):
     sys.exit(0)
 
 
-def env_var_map_from_file(file: Path) -> Mapping[str, str]:
-    return dotenv_values(file)
+def env_var_map_from_file(file: Path, expand=True) -> Mapping[str, str]:
+    return dotenv_values(file, interpolate=expand)

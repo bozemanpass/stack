@@ -447,7 +447,7 @@ def init_operation(  # noqa: C901
         config_file_path = Path(config_file)
         if not config_file_path.exists():
             error_exit(f"config file: {config_file} does not exist")
-        config_file_variables = env_var_map_from_file(config_file_path)
+        config_file_variables = env_var_map_from_file(config_file_path, expand=False)
         if config_file_variables:
             orig_config = spec_file_content.get("config", {})
             new_config = config_file_variables

@@ -89,16 +89,25 @@ class ClusterInfo:
         self.parsed_pod_yaml_map = parsed_pod_files_map_from_file_names(pod_files)
         # Find the set of images in the pods
         self.image_set = images_for_deployment(pod_files)
-        self.environment_variables = DeployEnvVars(env_var_map_from_file(compose_env_file))
+        self.environment_variables = DeployEnvVars({})
         self.app_name = deployment_name
         self.spec = spec
 
-        services = self.get_services()
-        for svc in services:
+        # Set the dynamic service ENV
+        service_env = {}
+        for svc in self.get_services():
             if "ClusterIP" == svc.spec.type:
-                self.environment_variables.map[env_var_name_for_service(svc)] = (
+                service_env[env_var_name_for_service(svc)] = (
                     f"{svc.metadata.name}.{self.k8s_namespace}.svc.cluster.local"
                 )
+
+        # Load the static ENV (raw)
+        env_vars_from_file = env_var_map_from_file(compose_env_file, expand=False)
+
+        self.environment_variables = DeployEnvVars(
+            # Now expand the static ENV using the dynamic ENV
+            merge_envs(envs_from_compose_file(env_vars_from_file, service_env), service_env)
+        )
 
         if opts.o.debug:
             print(f"Env vars: {self.environment_variables.map}")
