@@ -189,7 +189,8 @@ class ClusterInfo:
                         spec=client.V1ServiceSpec(
                             type="ClusterIP",
                             ports=svc_ports,
-                            selector={"app": self.app_name},
+                            # TODO: For balancing, we should use some sort of shared tag among pods of the same type
+                            selector={"app": self.app_name, "service": service_name},
                         ),
                     )
                     ret.append(service)
@@ -371,7 +372,8 @@ class ClusterInfo:
                 image_pull_secrets = [client.V1LocalObjectReference(name="bpi-image-registry")]
 
                 annotations = None
-                labels = {"app": self.app_name}
+                # TODO: For balancing, we should use some sort of shared tag among pods of the same type
+                labels = {"app": self.app_name, "service": service_name}
                 affinity = None
                 tolerations = None
 
