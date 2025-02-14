@@ -236,5 +236,5 @@ def warn_exit(s):
     sys.exit(0)
 
 
-def env_var_map_from_file(file: Path) -> Mapping[str, str]:
-    return dotenv_values(file)
+def env_var_map_from_file(file: Path, expand=True) -> Mapping[str, str]:
+    return dotenv_values(file, interpolate=expand)

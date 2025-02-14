@@ -444,7 +444,7 @@ class K8sDeployer(Deployer):
         pods = pods_in_deployment(self.core_api, self.cluster_info.app_name)
         k8s_pod_name = None
         for pod in pods:
-            if f"{self.cluster_info.app_name}-deployment-{service_name}" in pod:
+            if f"{self.cluster_info.app_name}-deploy-{service_name}" in pod:
                 k8s_pod_name = pod
                 break
 

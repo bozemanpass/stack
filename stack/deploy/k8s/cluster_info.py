@@ -89,16 +89,23 @@ class ClusterInfo:
         self.parsed_pod_yaml_map = parsed_pod_files_map_from_file_names(pod_files)
         # Find the set of images in the pods
         self.image_set = images_for_deployment(pod_files)
-        self.environment_variables = DeployEnvVars(env_var_map_from_file(compose_env_file))
+        self.environment_variables = DeployEnvVars({})
         self.app_name = deployment_name
         self.spec = spec
 
-        services = self.get_services()
-        for svc in services:
+        # Set the dynamic service ENV
+        service_env = {}
+        for svc in self.get_services():
             if "ClusterIP" == svc.spec.type:
-                self.environment_variables.map[env_var_name_for_service(svc)] = (
-                    f"{svc.metadata.name}.{self.k8s_namespace}.svc.cluster.local"
-                )
+                service_env[env_var_name_for_service(svc)] = f"{svc.metadata.name}.{self.k8s_namespace}.svc.cluster.local"
+
+        # Load the static ENV (raw)
+        env_vars_from_file = env_var_map_from_file(compose_env_file, expand=False)
+
+        self.environment_variables = DeployEnvVars(
+            # Now expand the static ENV using the dynamic ENV
+            merge_envs(envs_from_compose_file(env_vars_from_file, service_env), service_env)
+        )
 
         if opts.o.debug:
             print(f"Env vars: {self.environment_variables.map}")
@@ -139,7 +146,7 @@ class ClusterInfo:
                         path=path,
                         backend=client.V1IngressBackend(
                             service=client.V1IngressServiceBackend(
-                                name=f"{self.app_name}-service-{proxy_to_svc}-{proxy_to_port}",
+                                name=f"{self.app_name}-svc-{proxy_to_svc}",
                                 port=client.V1ServiceBackendPort(number=int(proxy_to_port)),
                             )
                         ),
@@ -170,51 +177,22 @@ class ClusterInfo:
             for service_name in services:
                 service_info = services[service_name]
                 if "ports" in service_info:
-                    for raw_port in [str(p) for p in service_info["ports"]]:
-                        if opts.o.debug:
-                            print(f"service port: {service_name}:{raw_port}")
-                        if ":" in raw_port:
-                            parts = raw_port.split(":")
-                            if len(parts) != 2:
-                                raise Exception(f"Invalid port definition: {raw_port}")
-                            node_port = int(parts[0])
-                            pod_port = int(parts[1])
-                            service = client.V1Service(
-                                metadata=client.V1ObjectMeta(
-                                    name=f"{self.app_name}-nodeport-{pod_port}",
-                                    labels={"app": self.app_name, "service": service_name},
-                                ),
-                                spec=client.V1ServiceSpec(
-                                    type="NodePort",
-                                    ports=[
-                                        client.V1ServicePort(
-                                            port=pod_port,
-                                            target_port=pod_port,
-                                            node_port=node_port,
-                                        )
-                                    ],
-                                    selector={"app": self.app_name},
-                                ),
-                            )
-                            ret.append(service)
-                        else:
-                            service = client.V1Service(
-                                metadata=client.V1ObjectMeta(
-                                    name=f"{self.app_name}-service-{service_name}-{raw_port}",
-                                    labels={"app": self.app_name, "service": service_name},
-                                ),
-                                spec=client.V1ServiceSpec(
-                                    type="ClusterIP",
-                                    ports=[
-                                        client.V1ServicePort(
-                                            port=int(raw_port),
-                                            target_port=int(raw_port),
-                                        )
-                                    ],
-                                    selector={"app": self.app_name},
-                                ),
-                            )
-                            ret.append(service)
+                    svc_ports = [
+                        client.V1ServicePort(port=int(p), target_port=int(p), name=f"{service_name}-{p}")
+                        for p in service_info["ports"]
+                    ]
+                    service = client.V1Service(
+                        metadata=client.V1ObjectMeta(
+                            name=f"{self.app_name}-svc-{service_name}",
+                            labels={"app": self.app_name, "service": service_name},
+                        ),
+                        spec=client.V1ServiceSpec(
+                            type="ClusterIP",
+                            ports=svc_ports,
+                            selector={"app": self.app_name},
+                        ),
+                    )
+                    ret.append(service)
         return ret
 
     def get_pvcs(self):
@@ -470,7 +448,7 @@ class ClusterInfo:
                 deployment = client.V1Deployment(
                     api_version="apps/v1",
                     kind="Deployment",
-                    metadata=client.V1ObjectMeta(name=f"{self.app_name}-deployment-{service_name}"),
+                    metadata=client.V1ObjectMeta(name=f"{self.app_name}-deploy-{service_name}"),
                     spec=spec,
                 )
 

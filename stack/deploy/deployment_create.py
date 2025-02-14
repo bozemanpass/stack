@@ -279,7 +279,6 @@ def _get_mapped_ports(stack: str, map_recipe: str):
         "localhost-fixed-random",
         "any-fixed-random",
         "k8s-clusterip-same",
-        "k8s-nodeport-fixed-random",
     ]
     ports = _get_ports(stack)
     if ports:
@@ -311,8 +310,6 @@ def _get_mapped_ports(stack: str, map_recipe: str):
                             ports_array[x] = f"0.0.0.0:{random_port}:{orig_port}"
                         elif map_recipe == "k8s-clusterip-same":
                             ports_array[x] = f"{bare_orig_port}"
-                        elif map_recipe == "k8s-nodeport-fixed-random":
-                            ports_array[x] = f"{random_port}:{bare_orig_port}"
                         else:
                             print("Error: bad map_recipe")
             else:
@@ -358,7 +355,7 @@ def _parse_config_variables(variable_values: str):
     required=False,
     help="Map ports to the host as one of: any-variable-random (docker default), "
     "localhost-same, any-same, localhost-fixed-random, any-fixed-random, "
-    "k8s-clusterip-same (k8s default), k8s-nodeport-fixed-random",
+    "k8s-clusterip-same (k8s default)",
 )
 @click.pass_context
 def init(
@@ -450,7 +447,7 @@ def init_operation(  # noqa: C901
         config_file_path = Path(config_file)
         if not config_file_path.exists():
             error_exit(f"config file: {config_file} does not exist")
-        config_file_variables = env_var_map_from_file(config_file_path)
+        config_file_variables = env_var_map_from_file(config_file_path, expand=False)
         if config_file_variables:
             orig_config = spec_file_content.get("config", {})
             new_config = config_file_variables
