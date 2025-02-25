@@ -35,6 +35,8 @@ from stack.util import (
 
 from stack.util import get_dev_root_path
 
+from stack.build.build_util import get_containers_in_scope
+
 
 class GitProgress(git.RemoteProgress):
     def __init__(self):
@@ -96,6 +98,12 @@ def _get_repo_current_branch_or_tag(full_filesystem_repo_path):
             # If there is no matching branch or tag checked out, just use the current SHA
             current_repo_branch_or_tag = git.Repo(full_filesystem_repo_path).commit("HEAD").hexsha
     return current_repo_branch_or_tag, is_branch
+
+
+def fs_path_for_repo(fully_qualified_repo, dev_root_path):
+    repo_host, repo_path, repo_branch = host_and_path_for_repo(fully_qualified_repo)
+    repoName = repo_path.split("/")[-1]
+    return os.path.join(dev_root_path, repoName)
 
 
 # TODO: fix the messy arg list here
@@ -233,16 +241,23 @@ def command(ctx, include, exclude, git_ssh, check_only, pull, branches):
     repos_in_scope = []
     if stack:
         stack_config = get_parsed_stack_config(stack)
-        if "repos" not in stack_config or stack_config["repos"] is None:
-            warn_exit(f"stack {stack} does not define any repositories")
         repos_in_scope = stack_config["repos"]
     else:
         repos_in_scope = all_repos
+
+    # containers can reference an external repo
+    containers_in_scope = get_containers_in_scope(stack)
+    for c in containers_in_scope:
+        if c.ref and c.ref not in repos_in_scope:
+            repos_in_scope.append(c.ref)
 
     if verbose:
         print(f"Repos: {repos_in_scope}")
         if stack:
             print(f"Stack: {stack}")
+
+    if not repos_in_scope:
+        warn_exit(f"stack {stack} does not define any repositories")
 
     repos = []
     for repo in repos_in_scope:

@@ -1,4 +1,4 @@
-FROM bpi/nextjs-base:local
+FROM bpi/nextjs-base:stack
 
 ARG BPI_NEXT_VERSION=keep
 ARG BPI_BUILD_TOOL

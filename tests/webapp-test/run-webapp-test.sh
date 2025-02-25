@@ -33,7 +33,7 @@ CHECK="SPECIAL_01234567890_TEST_STRING"
 
 set +e
 
-app_image_name="bpi/test-progressive-web-app:local"
+app_image_name="bpi/test-progressive-web-app:stack"
 
 CONTAINER_ID=$(docker run -p 3000:80 -d -e BPI_SCRIPT_DEBUG=$BPI_SCRIPT_DEBUG ${app_image_name})
 sleep 3

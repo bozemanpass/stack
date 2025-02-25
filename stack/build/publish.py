@@ -21,7 +21,7 @@ from stack.util import error_exit
 
 
 def _publish_tag_for_image(local_image_tag: str, remote_repo: str, version: str):
-    # Turns image tags of the form: foo/bar:local into remote.repo/org/bar:deploy
+    # Turns image tags of the form: foo/bar:stack into remote.repo/org/bar:deploy
     (image_name, image_version) = local_image_tag.split(":")
     if image_version == "local":
         return f"{remote_repo}/{image_name}:{version}"

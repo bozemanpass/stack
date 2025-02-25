@@ -23,10 +23,14 @@
 
 import os
 import sys
+
+import git
 from decouple import config
 import subprocess
 import click
 from pathlib import Path
+
+from python_on_whales import DockerClient
 from stack.opts import opts
 from stack.util import include_exclude_check, stack_is_external, error_exit
 from stack.base import get_npm_registry_url
@@ -35,6 +39,26 @@ from stack.build.publish import publish_image
 from stack.build.build_util import get_containers_in_scope
 
 from stack.util import get_dev_root_path
+
+from stack.repos.setup_repositories import fs_path_for_repo
+
+from stack.constants import container_file_name
+
+from stack.build.build_util import StackContainer
+
+from stack.repos.setup_repositories import host_and_path_for_repo
+
+docker = DockerClient()
+
+def container_exists_locally(tag):
+    return docker.image.exists(tag)
+
+def container_exists_remotely(tag):
+    try:
+        result = docker.manifest.inspect(tag)
+        return True if result else False
+    except:
+        return False
 
 
 # TODO: find a place for this
@@ -70,7 +94,7 @@ def process_container(build_context: BuildContext) -> bool:
     if not opts.o.quiet:
         print(f"Building: {build_context.container}")
 
-    default_container_tag = f"{build_context.container}:local"
+    default_container_tag = f"{build_context.container}:stack"
     build_context.container_build_env.update({"BPI_DEFAULT_CONTAINER_IMAGE_TAG": default_container_tag})
 
     # Check if this is in an external stack
@@ -122,7 +146,7 @@ def process_container(build_context: BuildContext) -> bool:
 
 @click.command()
 @click.option('--include', help="only build these containers")
-@click.option('--exclude', help="don\'t build these containers")
+@click.option('--exclude', help="don't build these containers")
 @click.option("--force-rebuild", is_flag=True, default=False, help="Override dependency checking -- always rebuild")
 @click.option("--extra-build-args", help="Supply extra arguments to build")
 @click.option("--publish-images", is_flag=True, default=False, help="Publish the built images in the specified image registry")
@@ -148,17 +172,68 @@ def command(ctx, include, exclude, force_rebuild, extra_build_args, publish_imag
         if not image_registry:
             error_exit("--image-registry must be supplied with --publish-images")
 
-    containers_in_scope = get_containers_in_scope(stack)
-
     container_build_env = make_container_build_env(dev_root_path,
                                                    container_build_dir,
                                                    opts.o.debug,
                                                    force_rebuild,
                                                    extra_build_args)
 
+    # check if we have any repos that specify the container targets / build info
+    containers_in_scope = [c for c in get_containers_in_scope(stack) if include_exclude_check(c, include, exclude)]
     for container in containers_in_scope:
-        if include_exclude_check(container, include, exclude):
+        if not include_exclude_check(container.name, include, exclude):
+            print(f"Skipping container {container.name}, it was excluded.")
+            continue
 
+        container_needs_built = True
+        container_needs_pulled = False
+
+        if container.ref:
+            fs_path_for_container_specs = fs_path_for_repo(container.ref, dev_root_path)
+            if not os.path.exists(fs_path_for_container_specs):
+                print(f"Error: Missing container repo for {fs_path_for_container_specs}, run setup-repositories")
+                sys.exit(1)
+
+            container_spec_yml_path = os.path.join(fs_path_for_container_specs, container_file_name)
+            if container.path:
+                container_spec_yml_path = os.path.join(fs_path_for_container_specs, container.path, container_file_name)
+
+            container_spec = StackContainer().init_from_file(container_spec_yml_path)
+            if container_spec.ref:
+                target_hash = None
+                repo_host, repo_path, branch_or_hash_from_spec = host_and_path_for_repo(container_spec.ref)
+                target_fs_repo_path = fs_path_for_repo(container_spec.ref, dev_root_path)
+                # does the ref include a hash?
+                if branch_or_hash_from_spec and len(branch_or_hash_from_spec) == 40 and all(c in string.hexdigits for c in branch_or_hash_from_spec):
+                    target_hash = branch_or_hash_from_spec
+                else:
+                    git_client = git.cmd.Git()
+                    # How to handle a mix of https and ssh?
+                    print(branch_or_hash_from_spec)
+                    result = git_client.ls_remote(f"https://{repo_host}/{repo_path}", branch_or_hash_from_spec)
+                    if result:
+                        target_hash = result.split()[0]
+
+                container_tag = f"{container_spec.name}:{target_hash}"[:128]
+                if container_exists_locally(container_tag):
+                    print(f"Container {container_tag} exists locally.")
+                    container_needs_pulled = False
+                    container_needs_built = False
+                elif container_exists_remotely(container_tag):
+                    print(f"Container {container_tag} exists remotely.")
+                    container_needs_pulled = True
+                    container_needs_built = False
+                else:
+                    container_needs_pulled = False
+                    container_needs_built = True
+                    if not os.path.exists(target_fs_repo_path):
+                        print("Git clone...")
+
+
+        if container_needs_pulled:
+            docker.image.pull(container_tag)
+            docker.image.tag(container_tag, f"{container_spec.name}:stack")
+        elif container_needs_built:
             build_context = BuildContext(
                 stack,
                 container,
@@ -169,7 +244,7 @@ def command(ctx, include, exclude, force_rebuild, extra_build_args, publish_imag
             result = process_container(build_context)
             if result:
                 if publish_images:
-                    publish_image(f"{container}:local", image_registry)
+                    publish_image(f"{container}:stack", image_registry)
             else:
                 print(f"Error running build for {build_context.container}")
                 if not opts.o.continue_on_error:
@@ -177,6 +252,3 @@ def command(ctx, include, exclude, force_rebuild, extra_build_args, publish_imag
                     sys.exit(1)
                 else:
                     print("****** Container Build Error, continuing because --continue-on-error is set")
-        else:
-            if opts.o.verbose:
-                print(f"Excluding: {container}")

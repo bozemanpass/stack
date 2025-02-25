@@ -48,7 +48,7 @@ class ExtendedManifestCLI(ManifestCLI):
 
 
 def _local_tag_for(container: str):
-    return f"{container}:local"
+    return f"{container}:stack"
 
 
 # See: https://docker-docs.uclv.cu/registry/spec/api/
@@ -127,9 +127,9 @@ def _fetch_image(tag: str, registry_info: RegistryInfo):
     docker.image.pull(remote_tag)
 
 
-def _exists_locally(container: str):
+def container_exists_locally(tag: str):
     docker = DockerClient()
-    return docker.image.exists(_local_tag_for(container))
+    return docker.image.exists(tag)
 
 
 def _add_local_tag(remote_tag: str, registry: str, local_tag: str):
@@ -173,21 +173,21 @@ def command(ctx, include, exclude, force_local_overwrite, image_registry, regist
                 print(f"Fetching: {image_to_fetch}")
             _fetch_image(image_to_fetch, registry_info)
             # Now check if the target container already exists exists locally already
-            if (_exists_locally(container)):
+            if (container_exists_locally(_local_tag_for(container))):
                 if not opts.o.quiet:
                     print(f"Container image {container} already exists locally")
                 # if so, fail unless the user specified force-local-overwrite
                 if (force_local_overwrite):
-                    # In that case remove the existing :local tag
+                    # In that case remove the existing :stack tag
                     if not opts.o.quiet:
                         print(f"Warning: overwriting local tag from this image: {container} because "
                               "--force-local-overwrite was specified")
                 else:
                     if not opts.o.quiet:
                         print(f"Skipping local tagging for this image: {container} because that would "
-                              "overwrite an existing :local tagged image, use --force-local-overwrite to do so.")
+                              "overwrite an existing :stack tagged image, use --force-local-overwrite to do so.")
                     continue
-            # Tag the fetched image with the :local tag
+            # Tag the fetched image with the :stack tag
             _add_local_tag(image_to_fetch, image_registry, local_tag)
         else:
             if opts.o.verbose:

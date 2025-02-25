@@ -27,7 +27,7 @@ pods:
 #!/usr/bin/env bash
 # Build the my-new-stack image
 source ${BPI_CONTAINER_BASE_DIR}/build-base.sh
-docker build -t bpi/my-new-stack:local -f ${BPI_REPO_BASE_DIR}/my-new-stack/Dockerfile ${build_command_args} ${BPI_REPO_BASE_DIR}/my-new-stack
+docker build -t bpi/my-new-stack:stack -f ${BPI_REPO_BASE_DIR}/my-new-stack/Dockerfile ${build_command_args} ${BPI_REPO_BASE_DIR}/my-new-stack
 ```
 
 - in `stack/data/compose/docker-compose-my-new-stack.yml` add:
@@ -37,7 +37,7 @@ version: "3.2"
 
 services:
   my-new-stack:
-    image: bpi/my-new-stack:local
+    image: bpi/my-new-stack:stack
     restart: always
     ports:
       - "0.0.0.0:3000:3000"

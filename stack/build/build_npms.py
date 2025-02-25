@@ -31,7 +31,7 @@ from stack.util import include_exclude_check, get_parsed_stack_config
 
 from stack.util import get_dev_root_path
 
-builder_js_image_name = "bpi/builder-js:local"
+builder_js_image_name = "bpi/builder-js:stack"
 
 
 @click.command()

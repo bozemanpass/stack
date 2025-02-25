@@ -1,7 +1,7 @@
 services:
 
   database:
-    image: bpi/test-database-container:local
+    image: bpi/test-database-container:stack
     restart: always
     volumes:
       - db-data:/var/lib/postgresql/data
@@ -14,7 +14,7 @@ services:
       - "5432"
     
   test-client:
-    image: bpi/test-database-client:local
+    image: bpi/test-database-client:stack
 
 volumes:
   db-data:

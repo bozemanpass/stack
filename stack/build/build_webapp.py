@@ -39,7 +39,7 @@ from stack.util import get_dev_root_path
 @click.option('--source-repo', help="directory containing the webapp to build", required=True)
 @click.option("--force-rebuild", is_flag=True, default=False, help="Override dependency checking -- always rebuild")
 @click.option("--extra-build-args", help="Supply extra arguments to build")
-@click.option("--tag", help="Container tag (default: bpi/<app_name>:local)")
+@click.option("--tag", help="Container tag (default: bpi/<app_name>:stack)")
 @click.pass_context
 def command(ctx, base_container, source_repo, force_rebuild, extra_build_args, tag):
     '''build the specified webapp container'''
@@ -91,7 +91,7 @@ def command(ctx, base_container, source_repo, force_rebuild, extra_build_args, t
                                                                           "Dockerfile.webapp")
     if not tag:
         webapp_name = os.path.abspath(source_repo).split(os.path.sep)[-1]
-        tag = f"bpi/{webapp_name}:local"
+        tag = f"bpi/{webapp_name}:stack"
 
     container_build_env["BPI_CONTAINER_BUILD_TAG"] = tag
 

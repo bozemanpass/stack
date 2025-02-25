@@ -29,10 +29,10 @@ from stack.deploy.deploy_types import DeployCommandContext
 def _fixup_container_tag(deployment_dir: str, image: str):
     deployment_dir_path = Path(deployment_dir)
     compose_file = deployment_dir_path.joinpath("compose", "docker-compose-webapp-template.yml")
-    # replace "bpi/webapp-container:local" in the file with our image tag
+    # replace "bpi/webapp-container:stack" in the file with our image tag
     with open(compose_file) as rfile:
         contents = rfile.read()
-        contents = contents.replace("bpi/webapp-container:local", image)
+        contents = contents.replace("bpi/webapp-container:stack", image)
     with open(compose_file, "w") as wfile:
         wfile.write(contents)
 

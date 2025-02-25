@@ -14,9 +14,45 @@
 # along with this program.  If not, see <http:#www.gnu.org/licenses/>.
 
 import importlib.resources
+import json
+
+from pathlib import Path
 
 from stack.opts import opts
 from stack.util import get_parsed_stack_config, warn_exit
+
+from stack.util import get_yaml
+
+
+class StackContainer:
+    name: str
+    ref: str
+    path: str
+    build: str
+    file_path: str
+
+    def __init__(self, name: str=None, ref=None, path=None, build=None):
+        self.name = name
+        self.ref = ref
+        self.path = path
+        self.build = build
+        self.file_path = None
+
+    def __repr__(self):
+        return str(self)
+
+    def __str__(self):
+        ret = { "name": self.name, "ref": self.ref, "path": self.path, "build": self.build, "file_path": self.file_path }
+        return json.dumps(ret)
+
+    def init_from_file(self, file_path: Path):
+        self.file_path = file_path
+        y = get_yaml().load(open(file_path, "r"))
+        self.name = y["container"]["name"]
+        self.ref = y["container"].get("ref")
+        self.path = y["container"].get("path")
+        self.build = y["container"].get("build")
+        return self
 
 
 def get_containers_in_scope(stack: str):
@@ -26,12 +62,19 @@ def get_containers_in_scope(stack: str):
         stack_config = get_parsed_stack_config(stack)
         if "containers" not in stack_config or stack_config["containers"] is None:
             warn_exit(f"stack {stack} does not define any containers")
-        containers_in_scope = stack_config['containers']
+        raw_containers = stack_config['containers']
     else:
         # See: https://stackoverflow.com/a/20885799/1701505
         from stack import data
         with importlib.resources.open_text(data, "container-image-list.txt") as container_list_file:
-            containers_in_scope = container_list_file.read().splitlines()
+            raw_containers = container_list_file.read().splitlines()
+
+
+    for container in raw_containers:
+        if isinstance(container, str):
+            containers_in_scope.append(StackContainer(container))
+        else:
+            containers_in_scope.append(StackContainer(container["name"], ref=container.get("ref"), path=container.get("path")))
 
     if opts.o.verbose:
         print(f'Containers: {containers_in_scope}')
