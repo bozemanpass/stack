@@ -360,7 +360,7 @@ class K8sDeployer(Deployer):
 
         if all_pods.items:
             for p in all_pods.items:
-                if f"{self.cluster_info.app_name}-deployment" in p.metadata.name:
+                if f"{self.cluster_info.app_name}-deploy" in p.metadata.name:
                     pods.append(p)
 
         if not pods:
@@ -413,7 +413,7 @@ class K8sDeployer(Deployer):
         ret = []
 
         for p in pods.items:
-            if f"{self.cluster_info.app_name}-deployment" in p.metadata.name:
+            if f"{self.cluster_info.app_name}-deploy" in p.metadata.name:
                 pod_ip = p.status.pod_ip
                 ports = AttrDict()
                 for c in p.spec.containers:
