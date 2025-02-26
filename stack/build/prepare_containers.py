@@ -35,10 +35,10 @@ from stack.base import get_npm_registry_url
 from stack.build.build_types import BuildContext
 from stack.build.build_util import ContainerSpec, get_containers_in_scope
 from stack.build.publish import publish_image
-from stack.constants import container_file_name
+from stack.constants import container_file_name, container_lock_file_name
 from stack.opts import opts
 from stack.repos.setup_repositories import fs_path_for_repo, host_and_path_for_repo, process_repo
-from stack.util import get_dev_root_path, include_exclude_check, stack_is_external, error_exit
+from stack.util import get_dev_root_path, include_exclude_check, stack_is_external, error_exit, get_yaml
 
 docker = DockerClient()
 
@@ -217,12 +217,18 @@ def command(ctx, include, exclude, git_ssh, build_policy, extra_build_args, no_p
                 sys.exit(1)
 
             container_spec_yml_path = os.path.join(fs_path_for_container_specs, container_file_name)
+            container_lock_file_path = None
             if stack_container.path:
                 container_spec_yml_path = os.path.join(fs_path_for_container_specs, stack_container.path, container_file_name)
+                container_lock_file_path = os.path.join(fs_path_for_container_specs, stack_container.path, container_lock_file_name)
 
             container_spec = ContainerSpec().init_from_file(container_spec_yml_path)
             if container_spec.ref:
-                target_hash = None
+                locked_hash = None
+                if container_lock_file_path and os.path.exists(container_lock_file_path):
+                    locked_hash = get_yaml().load(open(container_lock_file_path, "r")).get("hash")
+
+                target_hash = locked_hash
                 repo_host, repo_path, branch_or_hash_from_spec = host_and_path_for_repo(container_spec.ref)
                 repo = f"https://{repo_host}/{repo_path}"
                 if git_ssh:
@@ -230,12 +236,24 @@ def command(ctx, include, exclude, git_ssh, build_policy, extra_build_args, no_p
                 target_fs_repo_path = fs_path_for_repo(container_spec.ref, dev_root_path)
                 # does the ref include a hash?
                 if branch_or_hash_from_spec and len(branch_or_hash_from_spec) == 40 and all(c in string.hexdigits for c in branch_or_hash_from_spec):
-                    target_hash = branch_or_hash_from_spec
+                    if not locked_hash:
+                        target_hash = branch_or_hash_from_spec
+                    elif locked_hash != branch_or_hash_from_spec:
+                        error_exit(f"Specified hash {target_hash} does not match locked hash {locked_hash}.  Remove {container_lock_file_path}?")
                 else:
                     git_client = git.cmd.Git()
                     result = git_client.ls_remote(repo, branch_or_hash_from_spec)
                     if result:
-                        target_hash = result.split()[0]
+                        git_hash = result.split()[0]
+                        if locked_hash:
+                            if git_hash != locked_hash:
+                                print(f"WARN: Locked hash {locked_hash} does not match remote hash {git_hash} for {container_spec.ref}.")
+                        else:
+                            target_hash = git_hash
+
+                if not os.path.exists(container_lock_file_path):
+                    with open(container_lock_file_path, "w") as output_file:
+                        get_yaml().dump({"hash": target_hash}, output_file)
 
                 container_tag = f"{container_spec.name}:{target_hash}"[:128]
                 if container_exists_locally(container_tag) and build_policy in ["as-needed", "prebuilt", "prebuilt-local"]:
@@ -255,7 +273,8 @@ def command(ctx, include, exclude, git_ssh, build_policy, extra_build_args, no_p
                     container_needs_pulled = False
                     container_needs_built = True
                     if not os.path.exists(target_fs_repo_path):
-                        process_repo(False, False, git_ssh, dev_root_path, [], container_spec.ref)
+                        reconstructed_ref = f"{container_spec.ref.split('@')[0]}@{target_hash}"
+                        process_repo(False, False, git_ssh, dev_root_path, [], reconstructed_ref)
                     else:
                         print(f"Building {container_tag} from {target_fs_repo_path}\n\t"
                         "IMPORTANT: source files may include changes or be on a different branch than specified in container.yml.")
