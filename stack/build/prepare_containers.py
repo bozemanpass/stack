@@ -37,10 +37,8 @@ from stack.build.build_util import ContainerSpec, get_containers_in_scope
 from stack.build.publish import publish_image
 from stack.constants import container_file_name
 from stack.opts import opts
-from stack.repos.setup_repositories import fs_path_for_repo, host_and_path_for_repo
+from stack.repos.setup_repositories import fs_path_for_repo, host_and_path_for_repo, process_repo
 from stack.util import get_dev_root_path, include_exclude_check, stack_is_external, error_exit
-
-from stack.repos.setup_repositories import process_repo
 
 docker = DockerClient()
 
@@ -298,7 +296,7 @@ def command(ctx, include, exclude, git_ssh, build_policy, extra_build_args, no_p
                     docker.image.tag(stack_legacy_tag, stack_local_tag)
                 if publish_images:
                     # TODO: Use git hash of current tree?  What about local changes?
-                    container_version = datetime.now().strftime("%Y%m%d%H%M")
+                    container_version = datetime.datetime.now().strftime("%Y%m%d%H%M")
                     if container_tag:
                         container_version = container_tag.split(":")[-1]
                     publish_image(stack_local_tag, image_registry, container_version)
@@ -311,5 +309,7 @@ def command(ctx, include, exclude, git_ssh, build_policy, extra_build_args, no_p
                     print("****** Container Build Error, continuing because --continue-on-error is set")
 
         if container_tag:
-            # Point the local copy at the expected name.
-            docker.image.tag(stack_local_tag, container_tag)
+            # We won't have a local copy with prebuilt-remote and --no-pull
+            if container_exists_locally(stack_local_tag):
+                # Point the local copy at the expected name.
+                docker.image.tag(stack_local_tag, container_tag)
