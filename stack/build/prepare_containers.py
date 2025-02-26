@@ -20,9 +20,6 @@ from distutils.command.build_scripts import build_scripts
 # env vars:
 # BPI_REPO_BASE_DIR defaults to ~/bpi
 
-# TODO: display the available list of containers; allow re-build of either all or specific containers
-
-
 import click
 import datetime
 import git
@@ -153,22 +150,32 @@ def process_container(build_context: BuildContext) -> bool:
         print("Skipped")
         return True
 
+BUILD_POLICIES = [
+    "as-needed",
+    "build",
+    "build-force",
+    "prebuilt",
+    "prebuilt-local",
+    "prebuilt-remote",
+]
 
 @click.command()
 @click.option('--include', help="only build these containers")
 @click.option('--exclude', help="don't build these containers")
 @click.option("--git-ssh", is_flag=True, default=False)
-@click.option("--force-rebuild", is_flag=True, default=False, help="Override dependency checking -- always rebuild")
-@click.option("--only-prebuilt", is_flag=True, default=False, help="Only use prebuilt images.  Build nothing.")
-@click.option("--no-prebuilt", is_flag=True, default=False, help="No prebuilt images.  Build everything locally.")
+@click.option("--build-policy", default=BUILD_POLICIES[0], help=f"Available policies: {BUILD_POLICIES}")
 @click.option("--extra-build-args", help="Supply extra arguments to build")
+@click.option("--no-pull", is_flag=True, default=False, help="Don't pull remote images (useful with k8s deployments).")
 @click.option("--publish-images", is_flag=True, default=False, help="Publish the built images in the specified image registry")
 @click.option("--image-registry", help="Specify the image registry for --publish-images")
 @click.pass_context
-def command(ctx, include, exclude, git_ssh, force_rebuild, only_prebuilt, no_prebuilt, extra_build_args, publish_images, image_registry):
+def command(ctx, include, exclude, git_ssh, build_policy, extra_build_args, no_pull, publish_images, image_registry):
     '''build the set of containers required for a complete stack'''
 
     stack = ctx.obj.stack
+
+    if build_policy not in BUILD_POLICIES:
+        error_exit(f"{build_policy} is not one of {BUILD_POLICIES}")
 
     # See: https://stackoverflow.com/questions/25389095/python-get-path-of-root-project-structure
     container_build_dir = Path(__file__).absolute().parent.parent.joinpath("data", "container-build")
@@ -188,7 +195,7 @@ def command(ctx, include, exclude, git_ssh, force_rebuild, only_prebuilt, no_pre
     container_build_env = make_container_build_env(dev_root_path,
                                                    container_build_dir,
                                                    opts.o.debug,
-                                                   force_rebuild,
+                                                   "build-force" == build_policy,
                                                    extra_build_args)
 
     # check if we have any repos that specify the container targets / build info
@@ -202,6 +209,8 @@ def command(ctx, include, exclude, git_ssh, force_rebuild, only_prebuilt, no_pre
         container_needs_pulled = False
         container_tag = None
         container_spec = ContainerSpec(stack_container.name)
+        stack_local_tag = f"{container_spec.name}:stack"
+        stack_legacy_tag = f"{container_spec.name}:stack"
 
         if stack_container.ref:
             fs_path_for_container_specs = fs_path_for_repo(stack_container.ref, dev_root_path)
@@ -231,15 +240,19 @@ def command(ctx, include, exclude, git_ssh, force_rebuild, only_prebuilt, no_pre
                         target_hash = result.split()[0]
 
                 container_tag = f"{container_spec.name}:{target_hash}"[:128]
-                if container_exists_locally(container_tag) and not no_prebuilt:
+                if container_exists_locally(container_tag) and build_policy in ["as-needed", "prebuilt", "prebuilt-local"]:
                     print(f"Container {container_tag} exists locally.")
                     container_needs_pulled = False
                     container_needs_built = False
-                elif container_exists_remotely(container_tag, image_registry) and not no_prebuilt:
+                    # Tag the local copy to point at it.
+                    docker.image.tag(container_tag, stack_local_tag)
+                elif container_exists_remotely(container_tag, image_registry) and build_policy in ["as-needed", "prebuilt", "prebuilt-remote"]:
                     print(f"Container {container_tag} exists remotely.")
-                    container_needs_pulled = True
+                    container_needs_pulled = not no_pull
                     container_needs_built = False
                 else:
+                    if build_policy in ["prebuilt", "prebuilt-local", "prebuilt-remote"]:
+                        error_exit(f"Container {container_tag} not available prebuilt.")
                     print(f"Container {container_tag} needs to be built.")
                     container_needs_pulled = False
                     container_needs_built = True
@@ -259,10 +272,10 @@ def command(ctx, include, exclude, git_ssh, force_rebuild, only_prebuilt, no_pre
                 docker.image.tag(f"{image_registry}/{container_tag}", container_tag)
             else:
                 docker.image.pull(container_tag)
-            # And tag the local copy to point at it.
-            docker.image.tag(container_tag, f"{container_spec.name}:stack")
+            # Tag the local copy to point at it.
+            docker.image.tag(container_tag, stack_local_tag)
         elif container_needs_built:
-            if only_prebuilt:
+            if build_policy in ["prebuilt", "prebuilt-local", "prebuilt-remote"]:
                 error_exit(f"No prebuilt image available for: {container_spec.name}")
             build_context = BuildContext(
                 stack,
@@ -271,14 +284,24 @@ def command(ctx, include, exclude, git_ssh, force_rebuild, only_prebuilt, no_pre
                 container_build_env,
                 dev_root_path
             )
+
+            try:
+                docker.image.remove(stack_legacy_tag)
+                docker.image.remove(stack_local_tag)
+            except:
+                pass
+
             result = process_container(build_context)
             if result:
+                # Handle legacy build scripts
+                if container_exists_locally(stack_legacy_tag) and not container_exists_locally(stack_local_tag):
+                    docker.image.tag(stack_legacy_tag, stack_local_tag)
                 if publish_images:
                     # TODO: Use git hash of current tree?  What about local changes?
                     container_version = datetime.now().strftime("%Y%m%d%H%M")
                     if container_tag:
                         container_version = container_tag.split(":")[-1]
-                    publish_image(f"{container_spec.name}:stack", image_registry, container_version)
+                    publish_image(stack_local_tag, image_registry, container_version)
             else:
                 print(f"Error running build for {build_context.container}")
                 if not opts.o.continue_on_error:
@@ -289,4 +312,4 @@ def command(ctx, include, exclude, git_ssh, force_rebuild, only_prebuilt, no_pre
 
         if container_tag:
             # Point the local copy at the expected name.
-            docker.image.tag(f"{container_spec.name}:stack", container_tag)
+            docker.image.tag(stack_local_tag, container_tag)
