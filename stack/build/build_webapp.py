@@ -33,6 +33,8 @@ from stack.build.build_types import BuildContext
 
 from stack.util import get_dev_root_path
 
+from stack.stack.build.build_util import ContainerSpec
+
 
 @click.command()
 @click.option('--base-container')
@@ -70,7 +72,7 @@ def command(ctx, base_container, source_repo, force_rebuild, extra_build_args, t
 
     build_context_1 = BuildContext(
         stack,
-        base_container,
+        ContainerSpec(base_container),
         container_build_dir,
         container_build_env,
         dev_root_path,
@@ -100,7 +102,7 @@ def command(ctx, base_container, source_repo, force_rebuild, extra_build_args, t
 
     build_context_2 = BuildContext(
         stack,
-        base_container,
+        ContainerSpec(base_container),
         container_build_dir,
         container_build_env,
         dev_root_path,

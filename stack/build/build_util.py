@@ -19,9 +19,7 @@ import json
 from pathlib import Path
 
 from stack.opts import opts
-from stack.util import get_parsed_stack_config, warn_exit
-
-from stack.util import get_yaml
+from stack.util import get_parsed_stack_config, warn_exit, get_yaml
 
 
 class StackContainer:
