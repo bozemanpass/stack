@@ -30,7 +30,7 @@ mkdir -p $BPI_REPO_BASE_DIR
 # Test bringing the test container up and down
 # with and without volume removal
 $TEST_TARGET_SO --stack test setup-repositories
-$TEST_TARGET_SO --stack test build-containers
+$TEST_TARGET_SO --stack test prepare-containers
 # Test deploy command execution
 $TEST_TARGET_SO --stack test deploy setup $BPI_REPO_BASE_DIR
 # Check that we now have the expected output directory

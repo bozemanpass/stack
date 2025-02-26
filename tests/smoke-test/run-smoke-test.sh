@@ -25,9 +25,9 @@ $TEST_TARGET_SO setup-repositories --include cerc-io/registry-sdk
 # Test pulling a stack
 $TEST_TARGET_SO --stack test setup-repositories
 # Test building the a stack container
-$TEST_TARGET_SO --stack test build-containers
+$TEST_TARGET_SO --stack test prepare-containers
 # Build one example containers
-$TEST_TARGET_SO build-containers --include bpi/builder-js
+$TEST_TARGET_SO prepare-containers --include bpi/builder-js
 echo "Images in the local registry:"
 docker image ls -a
 # Deploy the test container
@@ -37,5 +37,5 @@ $TEST_TARGET_SO --stack test deploy up
 $TEST_TARGET_SO --stack test deploy down
 # Run same test but not using the stack definition
 # Test building the a stack container
-$TEST_TARGET_SO build-containers --include bpi/test-container
+$TEST_TARGET_SO prepare-containers --include bpi/test-container
 echo "Test passed"

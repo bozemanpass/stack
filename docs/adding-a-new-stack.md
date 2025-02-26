@@ -66,6 +66,6 @@ Now, the following commands will fetch, build, and deploy you app:
 
 ```bash
 stack --stack my-new-stack setup-repositories
-stack --stack my-new-stack build-containers
+stack --stack my-new-stack prepare-containers
 stack --stack my-new-stack deploy up
 ```
