@@ -28,13 +28,29 @@ class StackContainer:
     name: str
     ref: str
     path: str
-    build: str
-    file_path: str
 
-    def __init__(self, name: str=None, ref=None, path=None, build=None):
+    def __init__(self, name: str=None, ref=None, path=None):
         self.name = name
         self.ref = ref
         self.path = path
+
+    def __repr__(self):
+        return str(self)
+
+    def __str__(self):
+        ret = { "name": self.name, "ref": self.ref, "path": self.path }
+        return json.dumps(ret)
+
+
+class ContainerSpec:
+    name: str
+    ref: str
+    build: str
+    file_path: str
+
+    def __init__(self, name: str=None, ref=None, build=None):
+        self.name = name
+        self.ref = ref
         self.build = build
         self.file_path = None
 
@@ -42,7 +58,7 @@ class StackContainer:
         return str(self)
 
     def __str__(self):
-        ret = { "name": self.name, "ref": self.ref, "path": self.path, "build": self.build, "file_path": self.file_path }
+        ret = { "name": self.name, "ref": self.ref, "build": self.build, "file_path": self.file_path }
         return json.dumps(ret)
 
     def init_from_file(self, file_path: Path):
@@ -50,7 +66,6 @@ class StackContainer:
         y = get_yaml().load(open(file_path, "r"))
         self.name = y["container"]["name"]
         self.ref = y["container"].get("ref")
-        self.path = y["container"].get("path")
         self.build = y["container"].get("build")
         return self
 

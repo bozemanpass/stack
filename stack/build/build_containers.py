@@ -1,5 +1,6 @@
 # Copyright © 2022, 2023 Vulcanize
 # Copyright © 2025 Bozeman Pass, Inc.
+from distutils.command.build_scripts import build_scripts
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -21,41 +22,40 @@
 
 # TODO: display the available list of containers; allow re-build of either all or specific containers
 
+
+import click
+import datetime
+import git
 import os
+import subprocess
 import sys
 
-import git
 from decouple import config
-import subprocess
-import click
 from pathlib import Path
-
 from python_on_whales import DockerClient
-from stack.opts import opts
-from stack.util import include_exclude_check, stack_is_external, error_exit
+
 from stack.base import get_npm_registry_url
 from stack.build.build_types import BuildContext
+from stack.build.build_util import ContainerSpec, get_containers_in_scope
 from stack.build.publish import publish_image
-from stack.build.build_util import get_containers_in_scope
-
-from stack.util import get_dev_root_path
-
-from stack.repos.setup_repositories import fs_path_for_repo
-
 from stack.constants import container_file_name
+from stack.opts import opts
+from stack.repos.setup_repositories import fs_path_for_repo, host_and_path_for_repo
+from stack.util import get_dev_root_path, include_exclude_check, stack_is_external, error_exit
 
-from stack.build.build_util import StackContainer
-
-from stack.repos.setup_repositories import host_and_path_for_repo
+from stack.repos.setup_repositories import process_repo
 
 docker = DockerClient()
 
 def container_exists_locally(tag):
     return docker.image.exists(tag)
 
-def container_exists_remotely(tag):
+def container_exists_remotely(tag, registry=None):
     try:
-        result = docker.manifest.inspect(tag)
+        if registry:
+            result = docker.manifest.inspect(f"{registry}/{tag}")
+        else:
+            result = docker.manifest.inspect(f"{tag}")
         return True if result else False
     except:
         return False
@@ -78,6 +78,7 @@ def make_container_build_env(dev_root_path: str,
         "BPI_CONTAINER_BASE_DIR": container_build_dir,
         "BPI_HOST_UID": f"{os.getuid()}",
         "BPI_HOST_GID": f"{os.getgid()}",
+        "BPI_IMAGE_LOCAL_TAG": "stack",
         "DOCKER_BUILDKIT": config("DOCKER_BUILDKIT", default="0")
     }
     container_build_env.update({"BPI_SCRIPT_DEBUG": "true"} if debug else {})
@@ -94,23 +95,30 @@ def process_container(build_context: BuildContext) -> bool:
     if not opts.o.quiet:
         print(f"Building: {build_context.container}")
 
-    default_container_tag = f"{build_context.container}:stack"
+    default_container_tag = f"{build_context.container.name}:stack"
     build_context.container_build_env.update({"BPI_DEFAULT_CONTAINER_IMAGE_TAG": default_container_tag})
+
+    build_dir = None
+    build_script_filename = None
 
     # Check if this is in an external stack
     if stack_is_external(build_context.stack):
-        container_parent_dir = Path(build_context.stack).parent.parent.joinpath("container-build")
-        temp_build_dir = container_parent_dir.joinpath(build_context.container.replace("/", "-"))
-        temp_build_script_filename = temp_build_dir.joinpath("build.sh")
-        # Now check if the container exists in the external stack.
-        if not temp_build_script_filename.exists():
-            # If not, revert to building an internal container
-            container_parent_dir = build_context.container_build_dir
+        if build_context.container.build:
+            build_script_filename = Path(build_context.container.file_path).parent.joinpath(build_context.container.build)
+            build_dir = build_script_filename.parent
+        else:
+            container_build_script_dir = Path(build_context.stack).parent.parent.joinpath("container-build")
+            temp_build_dir = container_build_script_dir.joinpath(build_context.container.name.replace("/", "-"))
+            temp_build_script_filename = temp_build_dir.joinpath("build.sh")
+            # Now check if the container exists in the external stack.
+            if not temp_build_script_filename.exists():
+                # If not, revert to building an internal container
+                container_build_script_dir = build_context.container_build_dir
+            build_dir = container_build_script_dir.joinpath(build_context.container.name.replace("/", "-"))
+            build_script_filename = build_dir.joinpath("build.sh")
     else:
-        container_parent_dir = build_context.container_build_dir
-
-    build_dir = container_parent_dir.joinpath(build_context.container.replace("/", "-"))
-    build_script_filename = build_dir.joinpath("build.sh")
+        build_dir = build_context.container_build_dir.joinpath(build_context.container.name.replace("/", "-"))
+        build_script_filename = build_dir.joinpath("build.sh")
 
     if opts.o.verbose:
         print(f"Build script filename: {build_script_filename}")
@@ -119,13 +127,15 @@ def process_container(build_context: BuildContext) -> bool:
     else:
         if opts.o.verbose:
             print(f"No script file found: {build_script_filename}, using default build script")
-        repo_dir = build_context.container.split('/')[1]
+        repo_dir = build_context.container.name.split('/')[1]
         # TODO: make this less of a hack -- should be specified in some metadata somewhere
         # Check if we have a repo for this container. If not, set the context dir to the container-build subdir
         repo_full_path = os.path.join(build_context.dev_root_path, repo_dir)
         repo_dir_or_build_dir = repo_full_path if os.path.exists(repo_full_path) else build_dir
         build_command = os.path.join(build_context.container_build_dir,
                                      "default-build.sh") + f" {default_container_tag} {repo_dir_or_build_dir}"
+
+    build_context.container_build_env["BPI_IMAGE_NAME"] = build_context.container.name
     if not opts.o.dry_run:
         # No PATH at all causes failures with podman.
         if "PATH" not in build_context.container_build_env:
@@ -147,12 +157,15 @@ def process_container(build_context: BuildContext) -> bool:
 @click.command()
 @click.option('--include', help="only build these containers")
 @click.option('--exclude', help="don't build these containers")
+@click.option("--git-ssh", is_flag=True, default=False)
 @click.option("--force-rebuild", is_flag=True, default=False, help="Override dependency checking -- always rebuild")
+@click.option("--only-prebuilt", is_flag=True, default=False, help="Only use prebuilt images.  Build nothing.")
+@click.option("--no-prebuilt", is_flag=True, default=False, help="No prebuilt images.  Build everything locally.")
 @click.option("--extra-build-args", help="Supply extra arguments to build")
 @click.option("--publish-images", is_flag=True, default=False, help="Publish the built images in the specified image registry")
 @click.option("--image-registry", help="Specify the image registry for --publish-images")
 @click.pass_context
-def command(ctx, include, exclude, force_rebuild, extra_build_args, publish_images, image_registry):
+def command(ctx, include, exclude, git_ssh, force_rebuild, only_prebuilt, no_prebuilt, extra_build_args, publish_images, image_registry):
     '''build the set of containers required for a complete stack'''
 
     stack = ctx.obj.stack
@@ -180,46 +193,49 @@ def command(ctx, include, exclude, force_rebuild, extra_build_args, publish_imag
 
     # check if we have any repos that specify the container targets / build info
     containers_in_scope = [c for c in get_containers_in_scope(stack) if include_exclude_check(c, include, exclude)]
-    for container in containers_in_scope:
-        if not include_exclude_check(container.name, include, exclude):
-            print(f"Skipping container {container.name}, it was excluded.")
+    for stack_container in containers_in_scope:
+        if not include_exclude_check(stack_container.name, include, exclude):
+            print(f"Skipping container {stack_container.name}, it was excluded.")
             continue
 
         container_needs_built = True
         container_needs_pulled = False
+        container_tag = None
+        container_spec = ContainerSpec(stack_container.name)
 
-        if container.ref:
-            fs_path_for_container_specs = fs_path_for_repo(container.ref, dev_root_path)
+        if stack_container.ref:
+            fs_path_for_container_specs = fs_path_for_repo(stack_container.ref, dev_root_path)
             if not os.path.exists(fs_path_for_container_specs):
                 print(f"Error: Missing container repo for {fs_path_for_container_specs}, run setup-repositories")
                 sys.exit(1)
 
             container_spec_yml_path = os.path.join(fs_path_for_container_specs, container_file_name)
-            if container.path:
-                container_spec_yml_path = os.path.join(fs_path_for_container_specs, container.path, container_file_name)
+            if stack_container.path:
+                container_spec_yml_path = os.path.join(fs_path_for_container_specs, stack_container.path, container_file_name)
 
-            container_spec = StackContainer().init_from_file(container_spec_yml_path)
+            container_spec = ContainerSpec().init_from_file(container_spec_yml_path)
             if container_spec.ref:
                 target_hash = None
                 repo_host, repo_path, branch_or_hash_from_spec = host_and_path_for_repo(container_spec.ref)
+                repo = f"https://{repo_host}/{repo_path}"
+                if git_ssh:
+                    repo = f"git@{repo_host}:{repo_path}"
                 target_fs_repo_path = fs_path_for_repo(container_spec.ref, dev_root_path)
                 # does the ref include a hash?
                 if branch_or_hash_from_spec and len(branch_or_hash_from_spec) == 40 and all(c in string.hexdigits for c in branch_or_hash_from_spec):
                     target_hash = branch_or_hash_from_spec
                 else:
                     git_client = git.cmd.Git()
-                    # How to handle a mix of https and ssh?
-                    print(branch_or_hash_from_spec)
-                    result = git_client.ls_remote(f"https://{repo_host}/{repo_path}", branch_or_hash_from_spec)
+                    result = git_client.ls_remote(repo, branch_or_hash_from_spec)
                     if result:
                         target_hash = result.split()[0]
 
                 container_tag = f"{container_spec.name}:{target_hash}"[:128]
-                if container_exists_locally(container_tag):
+                if container_exists_locally(container_tag) and not no_prebuilt:
                     print(f"Container {container_tag} exists locally.")
                     container_needs_pulled = False
                     container_needs_built = False
-                elif container_exists_remotely(container_tag):
+                elif container_exists_remotely(container_tag, image_registry) and not no_prebuilt:
                     print(f"Container {container_tag} exists remotely.")
                     container_needs_pulled = True
                     container_needs_built = False
@@ -227,16 +243,27 @@ def command(ctx, include, exclude, force_rebuild, extra_build_args, publish_imag
                     container_needs_pulled = False
                     container_needs_built = True
                     if not os.path.exists(target_fs_repo_path):
-                        print("Git clone...")
+                        process_repo(False, False, git_ssh, dev_root_path, [], container_spec.ref)
 
 
         if container_needs_pulled:
-            docker.image.pull(container_tag)
+            if not container_tag:
+                error_exit(f"Container tag missing.")
+            # Pull the remote image
+            if image_registry:
+                docker.image.pull(f"{image_registry}/{container_tag}")
+                # Tag the local copy to point at it.
+                docker.image.tag(f"{image_registry}/{container_tag}", container_tag)
+            else:
+                docker.image.pull(container_tag)
+            # And tag the local copy to point at it.
             docker.image.tag(container_tag, f"{container_spec.name}:stack")
         elif container_needs_built:
+            if only_prebuilt:
+                error_exit(f"No prebuilt image available for: {container_spec.name}")
             build_context = BuildContext(
                 stack,
-                container,
+                container_spec,
                 container_build_dir,
                 container_build_env,
                 dev_root_path
@@ -244,7 +271,11 @@ def command(ctx, include, exclude, force_rebuild, extra_build_args, publish_imag
             result = process_container(build_context)
             if result:
                 if publish_images:
-                    publish_image(f"{container}:stack", image_registry)
+                    # TODO: Use git hash of current tree?  What about local changes?
+                    container_version = datetime.now().strftime("%Y%m%d%H%M")
+                    if container_tag:
+                        container_version = container_tag.split(":")[-1]
+                    publish_image(f"{container_spec.name}:stack", image_registry, container_version)
             else:
                 print(f"Error running build for {build_context.container}")
                 if not opts.o.continue_on_error:
@@ -252,3 +283,7 @@ def command(ctx, include, exclude, force_rebuild, extra_build_args, publish_imag
                     sys.exit(1)
                 else:
                     print("****** Container Build Error, continuing because --continue-on-error is set")
+
+        if container_tag:
+            # Point the local copy at the expected name.
+            docker.image.tag(f"{container_spec.name}:stack", container_tag)

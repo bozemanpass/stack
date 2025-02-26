@@ -23,20 +23,21 @@ from stack.util import error_exit
 def _publish_tag_for_image(local_image_tag: str, remote_repo: str, version: str):
     # Turns image tags of the form: foo/bar:stack into remote.repo/org/bar:deploy
     (image_name, image_version) = local_image_tag.split(":")
-    if image_version == "local":
+    if image_version == "local" or image_version == "stack":
         return f"{remote_repo}/{image_name}:{version}"
     else:
         error_exit("Asked to publish a non-locally built image")
 
 
-def publish_image(local_tag, registry):
+def publish_image(local_tag, registry, version=None):
     if opts.o.verbose:
         print(f"Publishing this image: {local_tag} to this registry: {registry}")
     docker = DockerClient()
     # Figure out the target image tag
     # Eventually this version will be generated from the source repo state
     # Using a timestemp is an intermediate step
-    version = datetime.now().strftime("%Y%m%d%H%M")
+    if not version:
+        version = datetime.now().strftime("%Y%m%d%H%M")
     remote_tag = _publish_tag_for_image(local_tag, registry, version)
     # Tag the image thus
     if opts.o.debug:
