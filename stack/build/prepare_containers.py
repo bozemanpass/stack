@@ -93,7 +93,7 @@ def make_container_build_env(dev_root_path: str,
 
 def process_container(build_context: BuildContext) -> bool:
     if not opts.o.quiet:
-        print(f"Building: {build_context.container}")
+        print(f"Building: {build_context.container.name}:stack")
 
     default_container_tag = f"{build_context.container.name}:stack"
     build_context.container_build_env.update({"BPI_DEFAULT_CONTAINER_IMAGE_TAG": default_container_tag})
@@ -240,15 +240,18 @@ def command(ctx, include, exclude, git_ssh, force_rebuild, only_prebuilt, no_pre
                     container_needs_pulled = True
                     container_needs_built = False
                 else:
+                    print(f"Container {container_tag} needs to be built.")
                     container_needs_pulled = False
                     container_needs_built = True
                     if not os.path.exists(target_fs_repo_path):
                         process_repo(False, False, git_ssh, dev_root_path, [], container_spec.ref)
-
+                    else:
+                        print(f"Building {container_tag} from {target_fs_repo_path}\n\t"
+                        "IMPORTANT: source files may include changes or be on a different branch than specified in container.yml.")
 
         if container_needs_pulled:
             if not container_tag:
-                error_exit(f"Container tag missing.")
+                error_exit(f"Cannot pull container: tag missing.")
             # Pull the remote image
             if image_registry:
                 docker.image.pull(f"{image_registry}/{container_tag}")
