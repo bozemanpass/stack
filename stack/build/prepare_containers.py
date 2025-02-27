@@ -40,6 +40,15 @@ from stack.opts import opts
 from stack.repos.setup_repositories import fs_path_for_repo, host_and_path_for_repo, process_repo
 from stack.util import get_dev_root_path, include_exclude_check, stack_is_external, error_exit, get_yaml
 
+BUILD_POLICIES = [
+    "as-needed",
+    "build",
+    "build-force",
+    "prebuilt",
+    "prebuilt-local",
+    "prebuilt-remote",
+]
+
 docker = DockerClient()
 
 def container_exists_locally(tag):
@@ -148,14 +157,6 @@ def process_container(build_context: BuildContext) -> bool:
         print("Skipped")
         return True
 
-BUILD_POLICIES = [
-    "as-needed",
-    "build",
-    "build-force",
-    "prebuilt",
-    "prebuilt-local",
-    "prebuilt-remote",
-]
 
 @click.command(hidden=True)
 @click.option('--include', help="only build these containers")
@@ -175,13 +176,6 @@ def legacy_command(ctx, include, exclude, force_rebuild, extra_build_args, no_pu
     command(ctx, include, exclude, False,  build_policy, extra_build_args, no_pull, publish_images, image_registry)
 
 
-
-
-
-
-
-
-
 @click.command()
 @click.option('--include', help="only build these containers")
 @click.option('--exclude', help="don't build these containers")
@@ -193,7 +187,7 @@ def legacy_command(ctx, include, exclude, force_rebuild, extra_build_args, no_pu
 @click.option("--image-registry", help="Specify the image registry for --publish-images")
 @click.pass_context
 def command(ctx, include, exclude, git_ssh, build_policy, extra_build_args, no_pull, publish_images, image_registry):
-    '''build the set of containers required for a complete stack'''
+    '''build or download the set of containers required for a complete stack'''
 
     stack = ctx.obj.stack
 
