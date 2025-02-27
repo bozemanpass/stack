@@ -208,7 +208,7 @@ def command(ctx, include, exclude, git_ssh, build_policy, extra_build_args, no_p
         container_tag = None
         container_spec = ContainerSpec(stack_container.name)
         stack_local_tag = f"{container_spec.name}:stack"
-        stack_legacy_tag = f"{container_spec.name}:stack"
+        stack_legacy_tag = f"{container_spec.name}:local"
 
         if stack_container.ref:
             fs_path_for_container_specs = fs_path_for_repo(stack_container.ref, dev_root_path)
