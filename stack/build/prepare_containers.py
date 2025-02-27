@@ -169,6 +169,8 @@ def process_container(build_context: BuildContext) -> bool:
 def legacy_command(ctx, include, exclude, force_rebuild, extra_build_args, no_pull, publish_images, image_registry):
     '''build the set of containers required for a complete stack'''
 
+    # Legacy support for build-containers command.
+
     build_policy = "build"
     if force_rebuild:
         build_policy = "build-force"
