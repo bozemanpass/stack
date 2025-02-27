@@ -1,6 +1,6 @@
 services:
   test:
-    image: bpi/test-container:local
+    image: bpi/test-container:stack
     restart: always
     environment:
       BPI_SCRIPT_DEBUG: ${BPI_SCRIPT_DEBUG}

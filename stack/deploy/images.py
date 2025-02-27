@@ -27,15 +27,15 @@ from stack.deploy.deploy_util import images_for_deployment
 
 def _image_needs_pushed(image: str):
     # TODO: this needs to be more intelligent
-    return image.endswith(":local")
+    return image.endswith(":stack") or image.endswith(":local")
 
 
 def _remote_tag_for_image(image: str, remote_repo_url: str):
-    # Turns image tags of the form: foo/bar:local into remote.repo/org/bar:deploy
+    # Turns image tags of the form: foo/bar:stack into remote.repo/org/bar:deploy
     major_parts = image.split("/", 2)
     image_name_with_version = major_parts[1] if 2 == len(major_parts) else major_parts[0]
     (image_name, image_version) = image_name_with_version.split(":")
-    if image_version == "local":
+    if image_version in ["local", "stack"]:
         return f"{remote_repo_url}/{image_name}:deploy"
     else:
         return image
@@ -67,11 +67,11 @@ def add_tags_to_image(remote_repo_url: str, local_tag: str, *additional_tags):
 
 
 def remote_tag_for_image_unique(image: str, remote_repo_url: str, deployment_id: str):
-    # Turns image tags of the form: foo/bar:local into remote.repo/org/bar:deploy
+    # Turns image tags of the form: foo/bar:stack into remote.repo/org/bar:deploy
     major_parts = image.split("/", 2)
     image_name_with_version = major_parts[1] if 2 == len(major_parts) else major_parts[0]
     (image_name, image_version) = image_name_with_version.split(":")
-    if image_version == "local":
+    if image_version in ["local", "stack"]:
         # Salt the tag with part of the deployment id to make it unique to this deployment
         deployment_tag = deployment_id[-8:]
         return f"{remote_repo_url}/{image_name}:deploy-{deployment_tag}"

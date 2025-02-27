@@ -22,7 +22,7 @@ from stack.cli_util import StackCLI, load_subcommands_from_stack
 from stack.command_types import CommandOptions
 from stack.repos import setup_repositories
 from stack.repos import fetch_stack
-from stack.build import build_containers, fetch_containers
+from stack.build import prepare_containers
 from stack.build import build_npms
 from stack.build import build_webapp
 from stack.deploy.webapp import run_webapp, deploy_webapp
@@ -58,8 +58,8 @@ def cli(ctx, stack, quiet, verbose, dry_run, debug, continue_on_error):
 
 cli.add_command(fetch_stack.command, "fetch-stack")
 cli.add_command(setup_repositories.command, "setup-repositories")
-cli.add_command(build_containers.command, "build-containers")
-cli.add_command(fetch_containers.command, "fetch-containers")
+cli.add_command(prepare_containers.command, "prepare-containers")
+cli.add_command(prepare_containers.legacy_command, "build-containers")
 cli.add_command(build_npms.command, "build-npms")
 cli.add_command(build_webapp.command, "build-webapp")
 cli.add_command(run_webapp.command, "run-webapp")

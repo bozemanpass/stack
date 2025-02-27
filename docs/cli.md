@@ -21,27 +21,27 @@ Use SSH rather than https:
 $ stack --stack fixturenet-eth setup-repositories --git-ssh
 ```
 
-## build-containers
+## prepare-containers
 
 Build a single container:
 ```
-$ stack build-containers --include <container-name>
+$ stack prepare-containers --include <container-name>
 ```
 e.g.
 ```
-$ stack build-containers --include bpi/go-ethereum
+$ stack prepare-containers --include bpi/go-ethereum
 ```
 Build the containers for a stack:
 ```
-$ stack --stack <stack-name> build-containers
+$ stack --stack <stack-name> prepare-containers
 ```
 e.g.
 ```
-$ stack --stack fixturenet-eth build-containers
+$ stack --stack fixturenet-eth prepare-containers
 ```
 Force full rebuild of container images:
 ```
-$ stack build-containers --include <container-name> --force-rebuild
+$ stack prepare-containers --include <container-name> --force-rebuild
 ```
 ## build-npms
 

@@ -1,4 +1,4 @@
-FROM bpi/webapp-base:local as builder
+FROM bpi/webapp-base:stack as builder
 
 ARG BPI_BUILD_TOOL
 ARG BPI_BUILD_OUTPUT_DIR
@@ -8,5 +8,5 @@ COPY . .
 RUN rm -rf node_modules build dist .next*
 RUN /scripts/build-app.sh /app /data
 
-FROM bpi/webapp-base:local
+FROM bpi/webapp-base:stack
 COPY --from=builder /data /data

@@ -36,7 +36,7 @@ TEST_TARGET_SO_STACK="$TEST_TARGET_SO --stack ${stack_name}"
 # Test bringing the test container up and down
 # with and without volume removal
 $TEST_TARGET_SO_STACK setup-repositories
-$TEST_TARGET_SO_STACK build-containers
+$TEST_TARGET_SO_STACK prepare-containers
 # Test deploy command execution
 $TEST_TARGET_SO_STACK deploy setup $BPI_REPO_BASE_DIR
 # Check that we now have the expected output directory
