@@ -59,6 +59,7 @@ def cli(ctx, stack, quiet, verbose, dry_run, debug, continue_on_error):
 cli.add_command(fetch_stack.command, "fetch-stack")
 cli.add_command(setup_repositories.command, "setup-repositories")
 cli.add_command(prepare_containers.command, "prepare-containers")
+cli.add_command(prepare_containers.legacy_command, "build-containers")
 cli.add_command(build_npms.command, "build-npms")
 cli.add_command(build_webapp.command, "build-webapp")
 cli.add_command(run_webapp.command, "run-webapp")

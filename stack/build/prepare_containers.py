@@ -157,6 +157,31 @@ BUILD_POLICIES = [
     "prebuilt-remote",
 ]
 
+@click.command(hidden=True)
+@click.option('--include', help="only build these containers")
+@click.option('--exclude', help="don't build these containers")
+@click.option("--force-rebuild", is_flag=True, default=False, help="Override dependency checking -- always rebuild")
+@click.option("--extra-build-args", help="Supply extra arguments to build")
+@click.option("--publish-images", is_flag=True, default=False, help="Publish the built images in the specified image registry")
+@click.option("--image-registry", help="Specify the image registry for --publish-images")
+@click.pass_context
+def legacy_command(ctx, include, exclude, force_rebuild, extra_build_args, no_pull, publish_images, image_registry):
+    '''build the set of containers required for a complete stack'''
+
+    build_policy = "build"
+    if force_rebuild:
+        build_policy = "build-force"
+
+    command(ctx, include, exclude, False,  build_policy, extra_build_args, no_pull, publish_images, image_registry)
+
+
+
+
+
+
+
+
+
 @click.command()
 @click.option('--include', help="only build these containers")
 @click.option('--exclude', help="don't build these containers")
