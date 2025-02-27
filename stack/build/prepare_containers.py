@@ -166,7 +166,7 @@ def process_container(build_context: BuildContext) -> bool:
 @click.option("--publish-images", is_flag=True, default=False, help="Publish the built images in the specified image registry")
 @click.option("--image-registry", help="Specify the image registry for --publish-images")
 @click.pass_context
-def legacy_command(ctx, include, exclude, force_rebuild, extra_build_args, no_pull, publish_images, image_registry):
+def legacy_command(ctx, include, exclude, force_rebuild, extra_build_args, publish_images, image_registry):
     '''build the set of containers required for a complete stack'''
 
     # Legacy support for build-containers command.
@@ -175,7 +175,7 @@ def legacy_command(ctx, include, exclude, force_rebuild, extra_build_args, no_pu
     if force_rebuild:
         build_policy = "build-force"
 
-    command(ctx, include, exclude, False,  build_policy, extra_build_args, no_pull, publish_images, image_registry)
+    command(ctx, include, exclude, False, build_policy, extra_build_args, True, publish_images, image_registry)
 
 
 @click.command()
