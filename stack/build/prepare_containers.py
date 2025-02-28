@@ -57,14 +57,21 @@ def container_exists_locally(tag):
 
 
 def container_exists_remotely(tag, registry=None):
+    ret = False
     try:
+        full_tag = tag
         if registry:
-            result = docker.manifest.inspect(f"{registry}/{tag}")
-        else:
-            result = docker.manifest.inspect(f"{tag}")
-        return True if result else False
+            full_tag = f"{registry}/{tag}"
+        result = subprocess.run(["docker", "manifest", "inspect", full_tag], capture_output=True, text=True)
+        if result.returncode == 0:
+            ret = True
+        # podman doesn't quite support the manifest inspect command, but we can still work around it
+        elif result.returncode == 125:
+            ret = ("schemaVersion" in result.stdout and "sha256:" in result.stdout) or ("schemaVersion" in result.stderr and "sha256:" in result.stderr)
     except:
-        return False
+        pass
+
+    return ret
 
 
 # TODO: find a place for this
