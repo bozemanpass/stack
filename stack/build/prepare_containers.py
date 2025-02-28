@@ -51,8 +51,10 @@ BUILD_POLICIES = [
 
 docker = DockerClient()
 
+
 def container_exists_locally(tag):
     return docker.image.exists(tag)
+
 
 def container_exists_remotely(tag, registry=None):
     try:
@@ -69,11 +71,7 @@ def container_exists_remotely(tag, registry=None):
 #    epilog="Config provided either in .env or settings.ini or env vars: BPI_REPO_BASE_DIR (defaults to ~/bpi)"
 
 
-def make_container_build_env(dev_root_path: str,
-                             container_build_dir: str,
-                             debug: bool,
-                             force_rebuild: bool,
-                             extra_build_args: str):
+def make_container_build_env(dev_root_path: str, container_build_dir: str, debug: bool, force_rebuild: bool, extra_build_args: str):
     container_build_env = {
         "BPI_NPM_REGISTRY_URL": get_npm_registry_url(),
         "BPI_GO_AUTH_TOKEN": config("BPI_GO_AUTH_TOKEN", default=""),
@@ -83,7 +81,7 @@ def make_container_build_env(dev_root_path: str,
         "BPI_HOST_UID": f"{os.getuid()}",
         "BPI_HOST_GID": f"{os.getgid()}",
         "BPI_IMAGE_LOCAL_TAG": "stack",
-        "DOCKER_BUILDKIT": config("DOCKER_BUILDKIT", default="0")
+        "DOCKER_BUILDKIT": config("DOCKER_BUILDKIT", default="0"),
     }
     container_build_env.update({"BPI_SCRIPT_DEBUG": "true"} if debug else {})
     container_build_env.update({"BPI_FORCE_REBUILD": "true"} if force_rebuild else {})
@@ -131,13 +129,15 @@ def process_container(build_context: BuildContext) -> bool:
     else:
         if opts.o.verbose:
             print(f"No script file found: {build_script_filename}, using default build script")
-        repo_dir = build_context.container.name.split('/')[1]
+        repo_dir = build_context.container.name.split("/")[1]
         # TODO: make this less of a hack -- should be specified in some metadata somewhere
         # Check if we have a repo for this container. If not, set the context dir to the container-build subdir
         repo_full_path = os.path.join(build_context.dev_root_path, repo_dir)
         repo_dir_or_build_dir = repo_full_path if os.path.exists(repo_full_path) else build_dir
-        build_command = os.path.join(build_context.container_build_dir,
-                                     "default-build.sh") + f" {default_container_tag} {repo_dir_or_build_dir}"
+        build_command = (
+            os.path.join(build_context.container_build_dir, "default-build.sh")
+            + f" {default_container_tag} {repo_dir_or_build_dir}"
+        )
 
     build_context.container_build_env["BPI_IMAGE_NAME"] = build_context.container.name
     if not opts.o.dry_run:
@@ -159,15 +159,15 @@ def process_container(build_context: BuildContext) -> bool:
 
 
 @click.command(hidden=True)
-@click.option('--include', help="only build these containers")
-@click.option('--exclude', help="don't build these containers")
+@click.option("--include", help="only build these containers")
+@click.option("--exclude", help="don't build these containers")
 @click.option("--force-rebuild", is_flag=True, default=False, help="Override dependency checking -- always rebuild")
 @click.option("--extra-build-args", help="Supply extra arguments to build")
 @click.option("--publish-images", is_flag=True, default=False, help="Publish the built images in the specified image registry")
 @click.option("--image-registry", help="Specify the image registry for --publish-images")
 @click.pass_context
 def legacy_command(ctx, include, exclude, force_rebuild, extra_build_args, publish_images, image_registry):
-    '''build the set of containers required for a complete stack'''
+    """build the set of containers required for a complete stack"""
 
     # Legacy support for build-containers command.
 
@@ -175,12 +175,12 @@ def legacy_command(ctx, include, exclude, force_rebuild, extra_build_args, publi
     if force_rebuild:
         build_policy = "build-force"
 
-    command(ctx, include, exclude, False, build_policy, extra_build_args, True, publish_images, image_registry)
+    _prepare_containers(ctx, include, exclude, False, build_policy, extra_build_args, True, publish_images, image_registry)
 
 
 @click.command()
-@click.option('--include', help="only build these containers")
-@click.option('--exclude', help="don't build these containers")
+@click.option("--include", help="only build these containers")
+@click.option("--exclude", help="don't build these containers")
 @click.option("--git-ssh", is_flag=True, default=False)
 @click.option("--build-policy", default=BUILD_POLICIES[0], help=f"Available policies: {BUILD_POLICIES}")
 @click.option("--extra-build-args", help="Supply extra arguments to build")
@@ -189,8 +189,12 @@ def legacy_command(ctx, include, exclude, force_rebuild, extra_build_args, publi
 @click.option("--image-registry", help="Specify the image registry for --publish-images")
 @click.pass_context
 def command(ctx, include, exclude, git_ssh, build_policy, extra_build_args, no_pull, publish_images, image_registry):
-    '''build or download the set of containers required for a complete stack'''
+    """build or download the set of containers required for a complete stack"""
 
+    _prepare_containers(ctx, include, exclude, git_ssh, build_policy, extra_build_args, no_pull, publish_images, image_registry)
+
+
+def _prepare_containers(ctx, include, exclude, git_ssh, build_policy, extra_build_args, no_pull, publish_images, image_registry):
     stack = ctx.obj.stack
 
     if build_policy not in BUILD_POLICIES:
@@ -202,20 +206,18 @@ def command(ctx, include, exclude, git_ssh, build_policy, extra_build_args, no_p
     dev_root_path = get_dev_root_path(ctx)
 
     if not opts.o.quiet:
-        print(f'Dev Root is: {dev_root_path}')
+        print(f"Dev Root is: {dev_root_path}")
 
     if not os.path.isdir(dev_root_path):
-        print('Dev root directory doesn\'t exist, creating')
+        print("Dev root directory doesn't exist, creating")
 
     if publish_images:
         if not image_registry:
             error_exit("--image-registry must be supplied with --publish-images")
 
-    container_build_env = make_container_build_env(dev_root_path,
-                                                   container_build_dir,
-                                                   opts.o.debug,
-                                                   "build-force" == build_policy,
-                                                   extra_build_args)
+    container_build_env = make_container_build_env(
+        dev_root_path, container_build_dir, opts.o.debug, "build-force" == build_policy, extra_build_args
+    )
 
     # check if we have any repos that specify the container targets / build info
     containers_in_scope = [c for c in get_containers_in_scope(stack) if include_exclude_check(c, include, exclude)]
@@ -256,11 +258,17 @@ def command(ctx, include, exclude, git_ssh, build_policy, extra_build_args, no_p
                     repo = f"git@{repo_host}:{repo_path}"
                 target_fs_repo_path = fs_path_for_repo(container_spec.ref, dev_root_path)
                 # does the ref include a hash?
-                if branch_or_hash_from_spec and len(branch_or_hash_from_spec) == 40 and all(c in string.hexdigits for c in branch_or_hash_from_spec):
+                if (
+                    branch_or_hash_from_spec
+                    and len(branch_or_hash_from_spec) == 40
+                    and all(c in string.hexdigits for c in branch_or_hash_from_spec)
+                ):
                     if not locked_hash:
                         target_hash = branch_or_hash_from_spec
                     elif locked_hash != branch_or_hash_from_spec:
-                        error_exit(f"Specified hash {target_hash} does not match locked hash {locked_hash}.  Remove {container_lock_file_path}?")
+                        error_exit(
+                            f"Specified hash {target_hash} does not match locked hash {locked_hash}.  Remove {container_lock_file_path}?"
+                        )
                 else:
                     git_client = git.cmd.Git()
                     result = git_client.ls_remote(repo, branch_or_hash_from_spec)
@@ -268,7 +276,9 @@ def command(ctx, include, exclude, git_ssh, build_policy, extra_build_args, no_p
                         git_hash = result.split()[0]
                         if locked_hash:
                             if git_hash != locked_hash:
-                                print(f"WARN: Locked hash {locked_hash} does not match remote hash {git_hash} for {container_spec.ref}.")
+                                print(
+                                    f"WARN: Locked hash {locked_hash} does not match remote hash {git_hash} for {container_spec.ref}."
+                                )
                         else:
                             target_hash = git_hash
 
@@ -283,7 +293,11 @@ def command(ctx, include, exclude, git_ssh, build_policy, extra_build_args, no_p
                     container_needs_built = False
                     # Tag the local copy to point at it.
                     docker.image.tag(container_tag, stack_local_tag)
-                elif container_exists_remotely(container_tag, image_registry) and build_policy in ["as-needed", "prebuilt", "prebuilt-remote"]:
+                elif container_exists_remotely(container_tag, image_registry) and build_policy in [
+                    "as-needed",
+                    "prebuilt",
+                    "prebuilt-remote",
+                ]:
                     print(f"Container {container_tag} exists remotely.")
                     container_needs_pulled = not no_pull
                     container_needs_built = False
@@ -297,8 +311,10 @@ def command(ctx, include, exclude, git_ssh, build_policy, extra_build_args, no_p
                         reconstructed_ref = f"{container_spec.ref.split('@')[0]}@{target_hash}"
                         process_repo(False, False, git_ssh, dev_root_path, [], reconstructed_ref)
                     else:
-                        print(f"Building {container_tag} from {target_fs_repo_path}\n\t"
-                        "IMPORTANT: source files may include changes or be on a different branch than specified in container.yml.")
+                        print(
+                            f"Building {container_tag} from {target_fs_repo_path}\n\t"
+                            "IMPORTANT: source files may include changes or be on a different branch than specified in container.yml."
+                        )
 
         if container_needs_pulled:
             if not container_tag:
@@ -315,13 +331,7 @@ def command(ctx, include, exclude, git_ssh, build_policy, extra_build_args, no_p
         elif container_needs_built:
             if build_policy in ["prebuilt", "prebuilt-local", "prebuilt-remote"]:
                 error_exit(f"No prebuilt image available for: {container_spec.name}")
-            build_context = BuildContext(
-                stack,
-                container_spec,
-                container_build_dir,
-                container_build_env,
-                dev_root_path
-            )
+            build_context = BuildContext(stack, container_spec, container_build_dir, container_build_env, dev_root_path)
 
             try:
                 docker.image.remove(stack_legacy_tag)
