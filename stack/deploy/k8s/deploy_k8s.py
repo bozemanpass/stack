@@ -95,7 +95,7 @@ class K8sDeployer(Deployer):
             print(f"Deployment dir: {deployment_context.deployment_dir}")
             print(f"Compose files: {compose_files}")
             print(f"Project name: {compose_project_name}")
-            print(f"Env file: {compose_env_file}")
+            print(f"Shared Env file: {compose_env_file}")
             print(f"Type: {type}")
 
     def connect_api(self):

@@ -18,6 +18,7 @@ import os
 import base64
 
 from kubernetes import client
+from pathlib import Path
 from typing import Any, List, Set
 
 from stack import constants
@@ -99,7 +100,7 @@ class ClusterInfo:
             if "ClusterIP" == svc.spec.type:
                 service_env[env_var_name_for_service(svc)] = f"{svc.metadata.name}.{self.k8s_namespace}.svc.cluster.local"
 
-        # Load the static ENV (raw)
+        # Load the shared static ENV (raw)
         env_vars_from_file = env_var_map_from_file(compose_env_file, expand=False)
 
         self.environment_variables = DeployEnvVars(
@@ -321,6 +322,7 @@ class ClusterInfo:
         deployments = []
 
         for pod_name in self.parsed_pod_yaml_map:
+            pod_dir = Path(pod_name).parent
             pod = self.parsed_pod_yaml_map[pod_name]
             services = pod["services"]
             for service_name in services:
@@ -329,17 +331,23 @@ class ClusterInfo:
                 image = service_info["image"]
                 container_ports = container_ports_for_service(service_info)
 
-                merged_envs = (
-                    merge_envs(
-                        envs_from_compose_file(service_info["environment"], self.environment_variables.map),
-                        self.environment_variables.map,
+                merged_envs = self.environment_variables.map.copy()
+                if "env_file" in service_info:
+                    for env_file in service_info["env_file"]:
+                        env_file = f"{pod_dir}/{env_file}"
+                        env_vars_from_file = env_var_map_from_file(env_file, expand=False)
+                        merged_envs = merge_envs(envs_from_compose_file(env_vars_from_file, merged_envs), merged_envs)
+
+                if "environment" in service_info:
+                    merged_envs = merge_envs(
+                        envs_from_compose_file(service_info["environment"], merged_envs),
+                        merged_envs
                     )
-                    if "environment" in service_info
-                    else self.environment_variables.map
-                )
+
                 envs = envs_from_environment_variables_map(merged_envs)
                 if opts.o.debug:
                     print(f"Merged envs: {envs}")
+
                 # Re-write the image tag for remote deployment
                 # Note self.app_name has the same value as deployment_id
                 image_to_use = (
