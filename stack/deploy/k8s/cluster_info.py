@@ -352,7 +352,7 @@ class ClusterInfo:
                     liveness_probe = client.V1Probe(
                         _exec=client.V1ExecAction(
                             # In a compose file, this will be something like:
-                            #   test: ["CMD", "wget", "--tries=1", "--connect-timeout=1", "--quiet", "-O", "-", "http://localhost:8545"]
+                            #   test: ["CMD", "wget", "--tries=1", "--connect-timeout=1", "-q", "-O", "-", "http://localhost"]
                             # We want to strip of the initial CMD, but keep the rest.
                             command=service_info["healthcheck"]["test"][1:],
                         ),
