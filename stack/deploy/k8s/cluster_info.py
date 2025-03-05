@@ -41,11 +41,11 @@ from stack.deploy.deploy_util import (
     images_for_deployment,
 )
 from stack.deploy.deploy_types import DeployEnvVars
-from stack.deploy.k8s.helpers import env_var_name_for_service
+from stack.deploy.deploy_util import convert_to_seconds
+from stack.deploy.k8s.helpers import env_var_name_for_service, DEFAULT_K8S_NAMESPACE
 from stack.deploy.spec import Spec, Resources, ResourceLimits
 from stack.deploy.images import remote_tag_for_image_unique
 
-from stack.deploy.k8s.helpers import DEFAULT_K8S_NAMESPACE
 
 DEFAULT_VOLUME_RESOURCES = Resources({"reservations": {"storage": "2Gi"}})
 
@@ -339,14 +339,25 @@ class ClusterInfo:
                         merged_envs = merge_envs(envs_from_compose_file(env_vars_from_file, merged_envs), merged_envs)
 
                 if "environment" in service_info:
-                    merged_envs = merge_envs(
-                        envs_from_compose_file(service_info["environment"], merged_envs),
-                        merged_envs
-                    )
+                    merged_envs = merge_envs(envs_from_compose_file(service_info["environment"], merged_envs), merged_envs)
 
                 envs = envs_from_environment_variables_map(merged_envs)
                 if opts.o.debug:
                     print(f"Merged envs: {envs}")
+
+                liveness_probe = None
+                if "healthcheck" in service_info:
+                    healthcheck = service_info["healthcheck"]
+                    # TODO: Support other probe types
+                    liveness_probe = client.V1Probe(
+                        _exec=client.V1ExecAction(
+                            command=service_info["healthcheck"]["test"][1:],
+                        ),
+                        initial_delay_seconds=convert_to_seconds(healthcheck.get("start_period", "0s")),
+                        period_seconds=convert_to_seconds(healthcheck.get("interval", "30s")),
+                        timeout_seconds=convert_to_seconds(healthcheck.get("timeout", "30s")),
+                        failure_threshold=int(healthcheck.get("retries", "3")),
+                    )
 
                 # Re-write the image tag for remote deployment
                 # Note self.app_name has the same value as deployment_id
@@ -375,6 +386,7 @@ class ClusterInfo:
                         ),
                     ),
                     resources=to_k8s_resource_requirements(resources),
+                    liveness_probe=liveness_probe,
                 )
                 volumes = volumes_for_service(self.parsed_pod_yaml_map, service_name, self.spec, self.app_name)
                 image_pull_secrets = [client.V1LocalObjectReference(name="bpi-image-registry")]

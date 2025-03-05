@@ -14,7 +14,9 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http:#www.gnu.org/licenses/>.
 
+from datetime import timedelta
 from typing import List, Any
+
 from stack.deploy.deploy_types import DeployCommandContext, VolumeMapping
 from stack.util import (
     get_parsed_stack_config,
@@ -23,6 +25,29 @@ from stack.util import (
     resolve_compose_file,
 )
 from stack.opts import opts
+
+TIME_UNITS = {"s": "seconds", "m": "minutes", "h": "hours", "d": "days", "w": "weeks"}
+
+
+# https://stackoverflow.com/questions/3096860/convert-time-string-expressed-as-numbermhdsw-to-seconds-in-python
+def convert_to_seconds(s):
+    if isinstance(s, int):
+        # We are dealing with a raw number
+        return s
+
+    try:
+        seconds = int(s)
+        # We are dealing with an integer string
+        return seconds
+    except ValueError:
+        # We are dealing with some other string or type
+        pass
+
+    # Expecting a string ending in [m|h|d|s|w]
+    count = int(s[:-1])
+    unit = TIME_UNITS[s[-1]]
+    td = timedelta(**{unit: count})
+    return td.seconds + 60 * 60 * 24 * td.days
 
 
 def _container_image_from_service(stack: str, service: str):
