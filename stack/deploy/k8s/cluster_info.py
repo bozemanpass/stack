@@ -41,13 +41,11 @@ from stack.deploy.deploy_util import (
     images_for_deployment,
 )
 from stack.deploy.deploy_types import DeployEnvVars
-from stack.deploy.k8s.helpers import env_var_name_for_service
+from stack.deploy.deploy_util import convert_to_seconds
+from stack.deploy.k8s.helpers import env_var_name_for_service, DEFAULT_K8S_NAMESPACE
 from stack.deploy.spec import Spec, Resources, ResourceLimits
 from stack.deploy.images import remote_tag_for_image_unique
 
-from stack.deploy.k8s.helpers import DEFAULT_K8S_NAMESPACE
-
-from stack.stack.deploy.deploy_util import convert_to_seconds
 
 DEFAULT_VOLUME_RESOURCES = Resources({"reservations": {"storage": "2Gi"}})
 
