@@ -351,6 +351,9 @@ class ClusterInfo:
                     # TODO: Support other probe types
                     liveness_probe = client.V1Probe(
                         _exec=client.V1ExecAction(
+                            # In a compose file, this will be something like:
+                            #   test: ["CMD", "wget", "--tries=1", "--connect-timeout=1", "--quiet", "-O", "-", "http://localhost:8545"]
+                            # We want to strip of the initial CMD, but keep the rest.
                             command=service_info["healthcheck"]["test"][1:],
                         ),
                         initial_delay_seconds=convert_to_seconds(healthcheck.get("start_period", "0s")),
