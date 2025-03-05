@@ -339,10 +339,7 @@ class ClusterInfo:
                         merged_envs = merge_envs(envs_from_compose_file(env_vars_from_file, merged_envs), merged_envs)
 
                 if "environment" in service_info:
-                    merged_envs = merge_envs(
-                        envs_from_compose_file(service_info["environment"], merged_envs),
-                        merged_envs
-                    )
+                    merged_envs = merge_envs(envs_from_compose_file(service_info["environment"], merged_envs), merged_envs)
 
                 envs = envs_from_environment_variables_map(merged_envs)
                 if opts.o.debug:
@@ -359,9 +356,8 @@ class ClusterInfo:
                         initial_delay_seconds=convert_to_seconds(healthcheck.get("start_period", "0s")),
                         period_seconds=convert_to_seconds(healthcheck.get("interval", "30s")),
                         timeout_seconds=convert_to_seconds(healthcheck.get("timeout", "30s")),
-                        failure_threshold=int(healthcheck.get("retries", "3"))
+                        failure_threshold=int(healthcheck.get("retries", "3")),
                     )
-
 
                 # Re-write the image tag for remote deployment
                 # Note self.app_name has the same value as deployment_id

@@ -26,7 +26,8 @@ from stack.util import (
 )
 from stack.opts import opts
 
-TIME_UNITS = {"s":"seconds", "m":"minutes", "h":"hours", "d":"days", "w":"weeks"}
+TIME_UNITS = {"s": "seconds", "m": "minutes", "h": "hours", "d": "days", "w": "weeks"}
+
 
 # https://stackoverflow.com/questions/3096860/convert-time-string-expressed-as-numbermhdsw-to-seconds-in-python
 def convert_to_seconds(s):
@@ -44,9 +45,10 @@ def convert_to_seconds(s):
 
     # Expecting a string ending in [m|h|d|s|w]
     count = int(s[:-1])
-    unit = TIME_UNITS[ s[-1] ]
+    unit = TIME_UNITS[s[-1]]
     td = timedelta(**{unit: count})
     return td.seconds + 60 * 60 * 24 * td.days
+
 
 def _container_image_from_service(stack: str, service: str):
     # Parse the compose files looking for the image name of the specified service
