@@ -354,7 +354,7 @@ class ClusterInfo:
                             # In a compose file, this will be something like:
                             #   test: ["CMD", "wget", "--tries=1", "--connect-timeout=1", "-q", "-O", "-", "http://localhost"]
                             # We want to strip of the initial CMD, but keep the rest.
-                            command=service_info["healthcheck"]["test"][1:],
+                            command=healthcheck["test"][1:],
                         ),
                         initial_delay_seconds=convert_to_seconds(healthcheck.get("start_period", "0s")),
                         period_seconds=convert_to_seconds(healthcheck.get("interval", "30s")),
