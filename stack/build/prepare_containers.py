@@ -33,12 +33,15 @@ from python_on_whales import DockerClient
 
 from stack.base import get_npm_registry_url
 from stack.build.build_types import BuildContext
-from stack.build.build_util import ContainerSpec, get_containers_in_scope
+from stack.build.build_util import ContainerSpec, get_containers_in_scope, container_exists_locally, container_exists_remotely, local_container_arch
 from stack.build.publish import publish_image
 from stack.constants import container_file_name, container_lock_file_name
 from stack.opts import opts
 from stack.repos.setup_repositories import fs_path_for_repo, host_and_path_for_repo, process_repo
 from stack.util import get_dev_root_path, include_exclude_check, stack_is_external, error_exit, get_yaml
+
+
+docker = DockerClient()
 
 BUILD_POLICIES = [
     "as-needed",
@@ -48,30 +51,6 @@ BUILD_POLICIES = [
     "prebuilt-local",
     "prebuilt-remote",
 ]
-
-docker = DockerClient()
-
-
-def container_exists_locally(tag):
-    return docker.image.exists(tag)
-
-
-def container_exists_remotely(tag, registry=None):
-    ret = False
-    try:
-        full_tag = tag
-        if registry:
-            full_tag = f"{registry}/{tag}"
-        result = subprocess.run(["docker", "manifest", "inspect", full_tag], capture_output=True, text=True)
-        if result.returncode == 0:
-            ret = True
-        # podman doesn't quite support the manifest inspect command, but we can still work around it
-        elif result.returncode == 125:
-            ret = ("schemaVersion" in result.stdout and "sha256:" in result.stdout) or ("schemaVersion" in result.stderr and "sha256:" in result.stderr)
-    except:
-        pass
-
-    return ret
 
 
 # TODO: find a place for this
@@ -182,7 +161,7 @@ def legacy_command(ctx, include, exclude, force_rebuild, extra_build_args, publi
     if force_rebuild:
         build_policy = "build-force"
 
-    _prepare_containers(ctx, include, exclude, False, build_policy, extra_build_args, True, publish_images, image_registry)
+    _prepare_containers(ctx, include, exclude, False, build_policy, extra_build_args, True, publish_images, image_registry, None)
 
 
 @click.command()
@@ -193,15 +172,16 @@ def legacy_command(ctx, include, exclude, force_rebuild, extra_build_args, publi
 @click.option("--extra-build-args", help="Supply extra arguments to build")
 @click.option("--no-pull", is_flag=True, default=False, help="Don't pull remote images (useful with k8s deployments).")
 @click.option("--publish-images", is_flag=True, default=False, help="Publish the built images in the specified image registry")
-@click.option("--image-registry", help="Specify the image registry for --publish-images")
+@click.option("--image-registry", help="Specify the remote image registry")
+@click.option("--target-arch", help="Specify a target architecture (only for use with --no-pull)")
 @click.pass_context
-def command(ctx, include, exclude, git_ssh, build_policy, extra_build_args, no_pull, publish_images, image_registry):
+def command(ctx, include, exclude, git_ssh, build_policy, extra_build_args, no_pull, publish_images, image_registry, target_arch):
     """build or download the set of containers required for a complete stack"""
 
-    _prepare_containers(ctx, include, exclude, git_ssh, build_policy, extra_build_args, no_pull, publish_images, image_registry)
+    _prepare_containers(ctx, include, exclude, git_ssh, build_policy, extra_build_args, no_pull, publish_images, image_registry, target_arch)
 
 
-def _prepare_containers(ctx, include, exclude, git_ssh, build_policy, extra_build_args, no_pull, publish_images, image_registry):
+def _prepare_containers(ctx, include, exclude, git_ssh, build_policy, extra_build_args, no_pull, publish_images, image_registry, target_arch):
     stack = ctx.obj.stack
 
     if build_policy not in BUILD_POLICIES:
@@ -218,8 +198,14 @@ def _prepare_containers(ctx, include, exclude, git_ssh, build_policy, extra_buil
     if not os.path.isdir(dev_root_path):
         print("Dev root directory doesn't exist, creating")
 
-    if publish_images:
-        if not image_registry:
+    if target_arch and target_arch != local_container_arch():
+        if not no_pull:
+            error_exit("--target-arch requires --no-pull")
+        if build_policy != "prebuilt-remote":
+            error_exit("--target-arch requires --build-policy prebuilt-remote")
+
+    if not image_registry:
+        if publish_images:
             error_exit("--image-registry must be supplied with --publish-images")
 
     container_build_env = make_container_build_env(
@@ -300,7 +286,7 @@ def _prepare_containers(ctx, include, exclude, git_ssh, build_policy, extra_buil
                     container_needs_built = False
                     # Tag the local copy to point at it.
                     docker.image.tag(container_tag, stack_local_tag)
-                elif container_exists_remotely(container_tag, image_registry) and build_policy in [
+                elif container_exists_remotely(container_tag, image_registry, target_arch) and build_policy in [
                     "as-needed",
                     "prebuilt",
                     "prebuilt-remote",

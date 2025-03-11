@@ -1,4 +1,5 @@
 # Copyright © 2024 Vulcanize
+# Copyright © 2025 Bozeman Pass, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -13,13 +14,18 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http:#www.gnu.org/licenses/>.
 
+import base64
 import importlib.resources
 import json
+import os
+import platform
+import subprocess
 
 from pathlib import Path
+from python_on_whales import DockerClient
 
 from stack.opts import opts
-from stack.util import get_parsed_stack_config, warn_exit, get_yaml
+from stack.util import get_parsed_stack_config, warn_exit, get_yaml, error_exit
 
 
 class StackContainer:
@@ -69,7 +75,6 @@ class ContainerSpec:
 
 
 def get_containers_in_scope(stack: str):
-
     containers_in_scope = []
     if stack:
         stack_config = get_parsed_stack_config(stack)
@@ -95,3 +100,74 @@ def get_containers_in_scope(stack: str):
             print(f"Stack: {stack}")
 
     return containers_in_scope
+
+
+def container_exists_locally(tag):
+    docker = DockerClient()
+    return docker.image.exists(tag)
+
+
+def container_exists_remotely(tag, registry=None, arch=None):
+    if not arch:
+        arch = local_container_arch()
+
+    manifests = _docker_manifest_inspect(tag, registry)
+    for manifest in manifests:
+        platform = manifest.get("Descriptor", {}).get("platform", {})
+        if arch == platform.get("architecture") and "linux" == platform.get("os"):
+            return True
+
+    return False
+
+
+def _docker_manifest_inspect(tag, registry=None):
+    manifest = None
+    full_tag = tag
+    if registry:
+        full_tag = f"{registry}/{tag}"
+
+    # Basic docker command
+    manifest_cmd = ["docker", "manifest", "inspect", "--verbose", full_tag]
+
+    # podman does not properly support the manifest command, so we cheat by having podman run the docker-cli
+    docker_version = subprocess.run(["docker", "--version"], capture_output=True, text=True)
+    if "podman" in docker_version.stdout or True:
+        inspect_str = f"docker manifest inspect --verbose {full_tag}"
+        if registry:
+            username = None
+            password = None
+            registry_root = registry
+            if "/" in registry:
+                registry_root = registry.split("/")[0]
+            if os.path.exists(f"{os.environ['XDG_RUNTIME_DIR']}/containers/auth.json"):
+                auths = json.load(open(f"{os.environ['XDG_RUNTIME_DIR']}/containers/auth.json", "rt")).get("auths", {})
+                login_info = None
+                if registry in auths and "auth" in auths[registry]:
+                    login_info = auths[registry]["auth"]
+                elif registry_root in auths and "auth" in auths[registry_root]:
+                    login_info = auths[registry_root]["auth"]
+                if login_info:
+                    username, password = base64.standard_b64decode(login_info).decode().split(":", 2)
+
+            if username and password:
+                inspect_str = f"""docker login --username "{username}" --password "{password}" {registry} >/dev/null && {inspect_str}"""
+
+        manifest_cmd = ["podman", "run", "-q", "alpinelinux/docker-cli", "sh", "-c", inspect_str]
+
+    result = subprocess.run(manifest_cmd, capture_output=True, text=True)
+    if 0 == result.returncode:
+        manifest = json.loads(result.stdout)
+        if not isinstance(manifest, list):
+            manifest = [manifest]
+
+    return manifest if manifest else []
+
+
+def local_container_arch():
+    this_machine = platform.machine()
+    # Translate between Python and docker platform names
+    if this_machine == "x86_64":
+        this_machine = "amd64"
+    if this_machine == "aarch64":
+        this_machine = "arm64"
+    return this_machine
