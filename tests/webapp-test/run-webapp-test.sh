@@ -24,7 +24,7 @@ echo "Version reported is: ${reported_version_string}"
 echo "Cloning repositories into: $BPI_REPO_BASE_DIR"
 rm -rf $BPI_REPO_BASE_DIR
 mkdir -p $BPI_REPO_BASE_DIR
-git clone https://gihub.com/bozemanpass/test-progressive-web-app.git $BPI_REPO_BASE_DIR/test-progressive-web-app
+git clone https://github.com/bozemanpass/test-progressive-web-app.git $BPI_REPO_BASE_DIR/test-progressive-web-app
 
 # Test webapp command execution
 $TEST_TARGET_SO build-webapp --source-repo $BPI_REPO_BASE_DIR/test-progressive-web-app
