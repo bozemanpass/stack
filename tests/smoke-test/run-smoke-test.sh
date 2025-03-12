@@ -20,8 +20,6 @@ echo "Version reported is: ${reported_version_string}"
 echo "Cloning repositories into: $BPI_REPO_BASE_DIR"
 rm -rf $BPI_REPO_BASE_DIR
 mkdir -p $BPI_REPO_BASE_DIR
-# Pull an example small public repo to test we can pull a repo
-$TEST_TARGET_SO setup-repositories --include cerc-io/registry-sdk
 # Test pulling a stack
 $TEST_TARGET_SO --stack test setup-repositories
 # Test building the a stack container
