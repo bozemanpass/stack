@@ -2,8 +2,8 @@ version: "1.0"
 name: test
 description: "A test stack"
 repos:
-  - git.vdb.to/cerc-io/laconicd
-  - git.vdb.to/cerc-io/test-project@test-branch
+  - bozemanpass/stack-test-laconicd
+  - bozemanpass/stack-test-project
 containers:
   - bpi/test-container
 pods:
