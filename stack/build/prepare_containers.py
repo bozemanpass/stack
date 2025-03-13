@@ -347,7 +347,7 @@ def _prepare_containers(ctx, include, exclude, git_ssh, build_policy, extra_buil
                     docker.image.tag(stack_legacy_tag, stack_local_tag)
                 if publish_images:
                     if not image_registry_to_push_this_container:
-                        error_exit(f"No image registry to specified to push {container_version}")
+                        error_exit(f"No image registry specified to push {container_tag}")
                     # TODO: Use git hash of current tree?  What about local changes?
                     container_version = datetime.datetime.now().strftime("%Y%m%d%H%M")
                     if container_tag:
