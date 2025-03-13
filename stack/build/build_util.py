@@ -131,7 +131,7 @@ def _docker_manifest_inspect(tag, registry=None):
 
     # podman does not properly support the manifest command, so we cheat by having podman run the docker-cli
     docker_version = subprocess.run(["docker", "--version"], capture_output=True, text=True)
-    if "podman" in docker_version.stdout or True:
+    if "podman" in docker_version.stdout:
         inspect_str = f"docker manifest inspect --verbose {full_tag}"
         if registry:
             username = None
