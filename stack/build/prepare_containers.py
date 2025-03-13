@@ -270,7 +270,7 @@ def _prepare_containers(ctx, include, exclude, git_ssh, build_policy, extra_buil
                         if locked_hash:
                             if git_hash != locked_hash:
                                 print(
-                                    f"WARN: Locked hash {locked_hash} does not match remote hash {git_hash} for {container_spec.ref}."
+                                    f"WARN: Locked hash {locked_hash} from {container_lock_file_path} does not match remote hash {git_hash} for {container_spec.ref}."
                                 )
                         else:
                             target_hash = git_hash
