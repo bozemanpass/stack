@@ -107,17 +107,23 @@ def container_exists_locally(tag):
     return docker.image.exists(tag)
 
 
-def container_exists_remotely(tag, registry=None, arch=None):
+def container_exists_remotely(tag, registries=None, arch=None):
     if not arch:
         arch = local_container_arch()
 
-    manifests = _docker_manifest_inspect(tag, registry)
-    for manifest in manifests:
-        platform = manifest.get("Descriptor", {}).get("platform", {})
-        if arch == platform.get("architecture") and "linux" == platform.get("os"):
-            return True
+    if not registries:
+        registries = [None]
+    else:
+        registries.append(None)
 
-    return False
+    for registry in registries:
+        manifests = _docker_manifest_inspect(tag, registry)
+        for manifest in manifests:
+            platform = manifest.get("Descriptor", {}).get("platform", {})
+            if arch == platform.get("architecture") and "linux" == platform.get("os"):
+                return True, registry
+
+    return False, None
 
 
 def _docker_manifest_inspect(tag, registry=None):
@@ -125,6 +131,9 @@ def _docker_manifest_inspect(tag, registry=None):
     full_tag = tag
     if registry:
         full_tag = f"{registry}/{tag}"
+
+    if opts.o.verbose:
+        print(f"Checking for {full_tag}")
 
     # Basic docker command
     manifest_cmd = ["docker", "manifest", "inspect", "--verbose", full_tag]
@@ -171,3 +180,29 @@ def local_container_arch():
     if this_machine == "aarch64":
         this_machine = "arm64"
     return this_machine
+
+
+def image_registry_for_repo(repository):
+    host, path, _ = host_and_path_for_repo(repository)
+    if "github.com" == host:
+        return f"ghcr.io"
+    elif host:
+        return host
+    return None
+
+
+def branch_strip(s):
+    return s.split("@")[0]
+
+
+def host_and_path_for_repo(fully_qualified_repo):
+    repo_branch_split = fully_qualified_repo.split("@")
+    repo_branch = repo_branch_split[-1] if len(repo_branch_split) > 1 else None
+    repo_host_split = repo_branch_split[0].split("/")
+    # Legacy unqualified repo means github
+    if len(repo_host_split) == 2:
+        return "github.com", "/".join(repo_host_split), repo_branch
+    else:
+        if len(repo_host_split) == 3:
+            # First part is the host
+            return repo_host_split[0], "/".join(repo_host_split[1:]), repo_branch

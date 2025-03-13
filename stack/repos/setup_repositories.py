@@ -35,7 +35,7 @@ from stack.util import (
 
 from stack.util import get_dev_root_path
 
-from stack.build.build_util import get_containers_in_scope
+from stack.build.build_util import get_containers_in_scope, host_and_path_for_repo, branch_strip
 
 
 class GitProgress(git.RemoteProgress):
@@ -61,23 +61,6 @@ def is_git_repo(path):
 # parser = argparse.ArgumentParser(
 #    epilog="Config provided either in .env or settings.ini or env vars: BPI_REPO_BASE_DIR (defaults to ~/bpi)"
 #   )
-
-
-def branch_strip(s):
-    return s.split("@")[0]
-
-
-def host_and_path_for_repo(fully_qualified_repo):
-    repo_branch_split = fully_qualified_repo.split("@")
-    repo_branch = repo_branch_split[-1] if len(repo_branch_split) > 1 else None
-    repo_host_split = repo_branch_split[0].split("/")
-    # Legacy unqualified repo means github
-    if len(repo_host_split) == 2:
-        return "github.com", "/".join(repo_host_split), repo_branch
-    else:
-        if len(repo_host_split) == 3:
-            # First part is the host
-            return repo_host_split[0], "/".join(repo_host_split[1:]), repo_branch
 
 
 # See: https://stackoverflow.com/questions/18659425/get-git-current-branch-tag-name
