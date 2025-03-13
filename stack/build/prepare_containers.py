@@ -345,14 +345,6 @@ def _prepare_containers(ctx, include, exclude, git_ssh, build_policy, extra_buil
                 # Handle legacy build scripts
                 if container_exists_locally(stack_legacy_tag) and not container_exists_locally(stack_local_tag):
                     docker.image.tag(stack_legacy_tag, stack_local_tag)
-                if publish_images:
-                    if not image_registry_to_push_this_container:
-                        error_exit(f"No image registry specified to push {container_tag}")
-                    # TODO: Use git hash of current tree?  What about local changes?
-                    container_version = datetime.datetime.now().strftime("%Y%m%d%H%M")
-                    if container_tag:
-                        container_version = container_tag.split(":")[-1]
-                    publish_image(stack_local_tag, image_registry_to_push_this_container, container_version)
             else:
                 print(f"Error running build for {build_context.container}")
                 if not opts.o.continue_on_error:
@@ -366,3 +358,9 @@ def _prepare_containers(ctx, include, exclude, git_ssh, build_policy, extra_buil
             if container_exists_locally(stack_local_tag):
                 # Point the local copy at the expected name.
                 docker.image.tag(stack_local_tag, container_tag)
+
+        if publish_images and container_tag:
+            if not image_registry_to_push_this_container:
+                error_exit(f"No image registry specified to push {container_tag}")
+            container_version = container_tag.split(":")[-1]
+            publish_image(stack_local_tag, image_registry_to_push_this_container, container_version)
