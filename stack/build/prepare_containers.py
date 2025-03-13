@@ -33,11 +33,11 @@ from python_on_whales import DockerClient
 
 from stack.base import get_npm_registry_url
 from stack.build.build_types import BuildContext
-from stack.build.build_util import ContainerSpec, get_containers_in_scope, container_exists_locally, container_exists_remotely, local_container_arch
+from stack.build.build_util import ContainerSpec, get_containers_in_scope, container_exists_locally, container_exists_remotely, local_container_arch, host_and_path_for_repo, image_registry_for_repo
 from stack.build.publish import publish_image
 from stack.constants import container_file_name, container_lock_file_name
 from stack.opts import opts
-from stack.repos.setup_repositories import fs_path_for_repo, host_and_path_for_repo, process_repo
+from stack.repos.setup_repositories import fs_path_for_repo, process_repo
 from stack.util import get_dev_root_path, include_exclude_check, stack_is_external, error_exit, get_yaml
 
 
@@ -171,8 +171,8 @@ def legacy_command(ctx, include, exclude, force_rebuild, extra_build_args, publi
 @click.option("--build-policy", default=BUILD_POLICIES[0], help=f"Available policies: {BUILD_POLICIES}")
 @click.option("--extra-build-args", help="Supply extra arguments to build")
 @click.option("--no-pull", is_flag=True, default=False, help="Don't pull remote images (useful with k8s deployments).")
-@click.option("--publish-images", is_flag=True, default=False, help="Publish the built images in the specified image registry")
-@click.option("--image-registry", help="Specify the remote image registry")
+@click.option("--publish-images", is_flag=True, default=False, help="Publish the built images")
+@click.option("--image-registry", help="Specify the remote image registry (default: auto-detect per-container)")
 @click.option("--target-arch", help="Specify a target architecture (only for use with --no-pull)")
 @click.pass_context
 def command(ctx, include, exclude, git_ssh, build_policy, extra_build_args, no_pull, publish_images, image_registry, target_arch):
@@ -204,9 +204,6 @@ def _prepare_containers(ctx, include, exclude, git_ssh, build_policy, extra_buil
         if build_policy != "prebuilt-remote":
             error_exit("--target-arch requires --build-policy prebuilt-remote")
 
-    if not image_registry:
-        if publish_images:
-            error_exit("--image-registry must be supplied with --publish-images")
 
     container_build_env = make_container_build_env(
         dev_root_path, container_build_dir, opts.o.debug, "build-force" == build_policy, extra_build_args
@@ -225,12 +222,16 @@ def _prepare_containers(ctx, include, exclude, git_ssh, build_policy, extra_buil
         container_spec = ContainerSpec(stack_container.name)
         stack_local_tag = f"{container_spec.name}:stack"
         stack_legacy_tag = f"{container_spec.name}:local"
+        image_registry_to_pull_this_container = image_registry
+        image_registry_to_push_this_container = image_registry
 
         if stack_container.ref:
             fs_path_for_container_specs = fs_path_for_repo(stack_container.ref, dev_root_path)
             if not os.path.exists(fs_path_for_container_specs):
                 print(f"Error: Missing container repo for {fs_path_for_container_specs}, run setup-repositories")
                 sys.exit(1)
+
+            image_registries_to_check = [r for r in [image_registry, image_registry_for_repo(stack_container.ref)] if r]
 
             container_spec_yml_path = os.path.join(fs_path_for_container_specs, container_file_name)
             container_lock_file_path = os.path.join(fs_path_for_container_specs, container_lock_file_name)
@@ -280,43 +281,50 @@ def _prepare_containers(ctx, include, exclude, git_ssh, build_policy, extra_buil
                         get_yaml().dump({"hash": target_hash}, output_file)
 
                 container_tag = f"{container_spec.name}:{target_hash}"[:128]
-                if container_exists_locally(container_tag) and build_policy in ["as-needed", "prebuilt", "prebuilt-local"]:
+                exists_remotely = None
+                exists_locally = container_exists_locally(container_tag)
+
+                if exists_locally and build_policy in ["as-needed", "prebuilt", "prebuilt-local"]:
                     print(f"Container {container_tag} exists locally.")
                     container_needs_pulled = False
                     container_needs_built = False
                     # Tag the local copy to point at it.
                     docker.image.tag(container_tag, stack_local_tag)
-                elif container_exists_remotely(container_tag, image_registry, target_arch) and build_policy in [
-                    "as-needed",
-                    "prebuilt",
-                    "prebuilt-remote",
-                ]:
-                    print(f"Container {container_tag} exists remotely.")
-                    container_needs_pulled = not no_pull
-                    container_needs_built = False
                 else:
+                    if build_policy in [ "as-needed", "prebuilt", "prebuilt-remote", ]:
+                        exists_remotely, image_registry_to_pull_this_container = container_exists_remotely(container_tag, image_registries_to_check, target_arch)
+                        if exists_remotely:
+                            if image_registry_to_pull_this_container:
+                                print(f"Container {image_registry_to_pull_this_container}:{container_tag} exists remotely.")
+                            else:
+                                print(f"Container {container_tag} exists remotely.")
+                            container_needs_pulled = not no_pull
+                            container_needs_built = False
+
+                if not exists_locally and not exists_remotely:
                     if build_policy in ["prebuilt", "prebuilt-local", "prebuilt-remote"]:
                         error_exit(f"Container {container_tag} not available prebuilt.")
-                    print(f"Container {container_tag} needs to be built.")
-                    container_needs_pulled = False
-                    container_needs_built = True
-                    if not os.path.exists(target_fs_repo_path):
-                        reconstructed_ref = f"{container_spec.ref.split('@')[0]}@{target_hash}"
-                        process_repo(False, False, git_ssh, dev_root_path, [], reconstructed_ref)
                     else:
-                        print(
-                            f"Building {container_tag} from {target_fs_repo_path}\n\t"
-                            "IMPORTANT: source files may include changes or be on a different branch than specified in container.yml."
-                        )
+                        print(f"Container {container_tag} needs to be built.")
+                        container_needs_pulled = False
+                        container_needs_built = True
+                        if not os.path.exists(target_fs_repo_path):
+                            reconstructed_ref = f"{container_spec.ref.split('@')[0]}@{target_hash}"
+                            process_repo(False, False, git_ssh, dev_root_path, [], reconstructed_ref)
+                        else:
+                            print(
+                                f"Building {container_tag} from {target_fs_repo_path}\n\t"
+                                "IMPORTANT: source files may include changes or be on a different branch than specified in container.yml."
+                            )
 
         if container_needs_pulled:
             if not container_tag:
                 error_exit(f"Cannot pull container: tag missing.")
             # Pull the remote image
-            if image_registry:
-                docker.image.pull(f"{image_registry}/{container_tag}")
+            if image_registry_to_pull_this_container:
+                docker.image.pull(f"{image_registry_to_pull_this_container}/{container_tag}")
                 # Tag the local copy to point at it.
-                docker.image.tag(f"{image_registry}/{container_tag}", container_tag)
+                docker.image.tag(f"{image_registry_to_pull_this_container}/{container_tag}", container_tag)
             else:
                 docker.image.pull(container_tag)
             # Tag the local copy to point at it.
@@ -338,11 +346,13 @@ def _prepare_containers(ctx, include, exclude, git_ssh, build_policy, extra_buil
                 if container_exists_locally(stack_legacy_tag) and not container_exists_locally(stack_local_tag):
                     docker.image.tag(stack_legacy_tag, stack_local_tag)
                 if publish_images:
+                    if not image_registry_to_push_this_container:
+                        error_exit(f"No image registry to specified to push {container_version}")
                     # TODO: Use git hash of current tree?  What about local changes?
                     container_version = datetime.datetime.now().strftime("%Y%m%d%H%M")
                     if container_tag:
                         container_version = container_tag.split(":")[-1]
-                    publish_image(stack_local_tag, image_registry, container_version)
+                    publish_image(stack_local_tag, image_registry_to_push_this_container, container_version)
             else:
                 print(f"Error running build for {build_context.container}")
                 if not opts.o.continue_on_error:
