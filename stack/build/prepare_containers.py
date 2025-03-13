@@ -233,7 +233,7 @@ def _prepare_containers(ctx, include, exclude, git_ssh, build_policy, extra_buil
                 sys.exit(1)
 
             container_spec_yml_path = os.path.join(fs_path_for_container_specs, container_file_name)
-            container_lock_file_path = None
+            container_lock_file_path = os.path.join(fs_path_for_container_specs, container_lock_file_name)
             if stack_container.path:
                 container_spec_yml_path = os.path.join(fs_path_for_container_specs, stack_container.path, container_file_name)
                 container_lock_file_path = os.path.join(fs_path_for_container_specs, stack_container.path, container_lock_file_name)
@@ -241,7 +241,7 @@ def _prepare_containers(ctx, include, exclude, git_ssh, build_policy, extra_buil
             container_spec = ContainerSpec().init_from_file(container_spec_yml_path)
             if container_spec.ref:
                 locked_hash = None
-                if container_lock_file_path and os.path.exists(container_lock_file_path):
+                if os.path.exists(container_lock_file_path):
                     locked_hash = get_yaml().load(open(container_lock_file_path, "r")).get("hash")
 
                 target_hash = locked_hash
