@@ -301,7 +301,7 @@ def _prepare_containers(ctx, include, exclude, git_ssh, build_policy, extra_buil
                             container_needs_pulled = not no_pull
                             container_needs_built = False
 
-                if not exists_locally and not exists_remotely:
+                if container_needs_built:
                     if build_policy in ["prebuilt", "prebuilt-local", "prebuilt-remote"]:
                         error_exit(f"Container {container_tag} not available prebuilt.")
                     else:
