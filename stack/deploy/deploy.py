@@ -42,7 +42,6 @@ from stack.deploy.deploy_types import ClusterContext, DeployCommandContext
 from stack.deploy.deployment_context import DeploymentContext
 from stack.deploy.deployment_create import create as deployment_create
 from stack.deploy.deployment_create import init as deployment_init
-from stack.deploy.deployment_create import setup as deployment_setup
 
 
 @click.group()
@@ -58,9 +57,8 @@ def command(ctx, include, exclude, env_file, cluster, deploy_to):
     # Although in theory for some subcommands (e.g. deploy create) the stack can be inferred,
     # Click doesn't allow us to know that here, so we make providing the stack mandatory
     stack = global_options2(ctx).stack
-    if not stack:
-        print("Error: --stack option is required")
-        sys.exit(1)
+    if stack:
+        stack = get_stack_path(stack)
 
     if ctx.parent.obj.debug:
         print(f"ctx.parent.obj: {ctx.parent.obj}")
@@ -68,7 +66,6 @@ def command(ctx, include, exclude, env_file, cluster, deploy_to):
     if deploy_to is None:
         deploy_to = "compose"
 
-    stack = get_stack_path(stack)
     ctx.obj = create_deploy_context(
         global_options2(ctx),
         None,
@@ -217,52 +214,6 @@ def logs_operation(ctx, tail: int, follow: bool, extra_args: str):
     logs_stream = ctx.obj.deployer.logs(services=services_list, tail=tail, follow=follow, stream=True)
     for stream_type, stream_content in logs_stream:
         print(stream_content.decode("utf-8"), end="")
-
-
-@command.command()
-@click.argument("extra_args", nargs=-1)  # help: command: up <service1> <service2>
-@click.pass_context
-def up(ctx, extra_args):
-    extra_args_list = list(extra_args) or None
-    up_operation(ctx, extra_args_list)
-
-
-@command.command()
-@click.option("--delete-volumes/--preserve-volumes", default=False, help="delete data volumes")
-@click.argument("extra_args", nargs=-1)  # help: command: down<service1> <service2>
-@click.pass_context
-def down(ctx, delete_volumes, extra_args):
-    extra_args_list = list(extra_args) or None
-    down_operation(ctx, delete_volumes, extra_args_list)
-
-
-@command.command()
-@click.pass_context
-def ps(ctx):
-    ps_operation(ctx)
-
-
-@command.command()
-@click.argument("extra_args", nargs=-1)  # help: command: port <service1> <service2>
-@click.pass_context
-def port(ctx, extra_args):
-    port_operation(ctx, extra_args)
-
-
-@command.command()
-@click.argument("extra_args", nargs=-1)  # help: command: exec <service> <command>
-@click.pass_context
-def exec(ctx, extra_args):
-    exec_operation(ctx, extra_args)
-
-
-@command.command()
-@click.option("--tail", "-n", default=None, help="number of lines to display")
-@click.option("--follow", "-f", is_flag=True, default=False, help="follow log output")
-@click.argument("extra_args", nargs=-1)  # help: command: logs <service1> <service2>
-@click.pass_context
-def logs(ctx, tail, follow, extra_args):
-    logs_operation(ctx, tail, follow, extra_args)
 
 
 def get_stack_status(ctx, stack):
@@ -507,4 +458,4 @@ def _orchestrate_cluster_config(ctx, cluster_config, deployer, container_exec_en
 
 command.add_command(deployment_init)
 command.add_command(deployment_create)
-command.add_command(deployment_setup)
+# command.add_command(deployment_setup)

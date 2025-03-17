@@ -1,5 +1,6 @@
 # Copyright © 2022, 2023 Vulcanize
 # Copyright © 2025 Bozeman Pass, Inc.
+import typing
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -40,7 +41,7 @@ from stack.util import (
     env_var_map_from_file,
     resolve_config_dir,
 )
-from stack.deploy.spec import Spec
+from stack.deploy.spec import Spec, MergedSpec
 from stack.deploy.deploy_types import LaconicStackSetupCommand
 from stack.deploy.deployer_factory import getDeployerConfigGenerator
 from stack.deploy.deployment_context import DeploymentContext
@@ -369,6 +370,8 @@ def init(
     map_ports_to_host,
 ):
     stack = global_options(ctx).stack
+    if not stack:
+        error_exit("Error: --stack option is required")
     deployer_type = ctx.obj.deployer.type
     deploy_command_context = ctx.obj
     return init_operation(
@@ -573,17 +576,27 @@ def _check_volume_definitions(spec):
 
 
 @click.command()
-@click.option("--spec-file", required=True, help="Spec file to use to create this deployment")
+@click.option("--spec-file", required=True, help="Spec file to use to create this deployment", multiple=True)
 @click.option("--deployment-dir", help="Create deployment files in this directory")
 # TODO: Hack
 @click.option("--network-dir", help="Network configuration supplied in this directory")
 @click.option("--initial-peers", help="Initial set of persistent peers")
 @click.pass_context
 def create(ctx, spec_file, deployment_dir, network_dir, initial_peers):
+    global_context = ctx.parent.parent.obj
+    # deploy_context = ctx.obj
+    merged_spec = MergedSpec()
+
+    for sf in spec_file:
+        merged_spec.merge(Spec().init_from_file(sf))
+
+    if global_context.verbose:
+        print(merged_spec)
+
     deployment_command_context = ctx.obj
     return create_operation(
         deployment_command_context,
-        spec_file,
+        merged_spec,
         deployment_dir,
         network_dir,
         initial_peers,
@@ -592,8 +605,9 @@ def create(ctx, spec_file, deployment_dir, network_dir, initial_peers):
 
 # The init command's implementation is in a separate function so that we can
 # call it from other commands, bypassing the click decoration stuff
-def create_operation(deployment_command_context, spec_file, deployment_dir, network_dir, initial_peers):
-    parsed_spec = Spec(os.path.abspath(spec_file), get_parsed_deployment_spec(spec_file))
+def create_operation(
+    deployment_command_context, parsed_spec: typing.Union[Spec, MergedSpec], deployment_dir, network_dir, initial_peers
+):
     _check_volume_definitions(parsed_spec)
     stack_name = parsed_spec["stack"]
     deployment_type = parsed_spec[constants.deploy_to_key]
@@ -609,11 +623,11 @@ def create_operation(deployment_command_context, spec_file, deployment_dir, netw
         error_exit(f"{deployment_dir_path} already exists")
     os.mkdir(deployment_dir_path)
     # Copy spec file and the stack file into the deployment dir
-    copyfile(spec_file, deployment_dir_path.joinpath(constants.spec_file_name))
+    copyfile(parsed_spec.file_path, deployment_dir_path.joinpath(constants.spec_file_name))
     copyfile(stack_file, deployment_dir_path.joinpath(constants.stack_file_name))
     _create_deployment_file(deployment_dir_path)
     # Copy any config varibles from the spec file into an env file suitable for compose
-    _write_config_file(spec_file, deployment_dir_path.joinpath(constants.config_file_name))
+    _write_config_file(parsed_spec.file_path, deployment_dir_path.joinpath(constants.config_file_name))
     # Copy any k8s config file into the deployment dir
     if deployment_type == "k8s":
         _write_kube_config_file(

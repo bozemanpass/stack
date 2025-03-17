@@ -28,3 +28,5 @@ class Stack:
     def init_from_file(self, file_path: Path):
         with file_path:
             self.obj = get_yaml().load(open(file_path, "r"))
+
+        return self

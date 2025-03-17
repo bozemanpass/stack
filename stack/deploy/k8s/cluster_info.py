@@ -245,14 +245,13 @@ class ClusterInfo:
         result = []
         spec_configmaps = self.spec.get_configmaps()
         named_volumes = named_volumes_from_pod_files(self.parsed_pod_yaml_map)
-        for cfg_map_name, cfg_map_path in spec_configmaps.items():
+        for cfg_map_name in spec_configmaps.keys():
             if cfg_map_name not in named_volumes:
                 if opts.o.debug:
                     print(f"{cfg_map_name} not in pod files")
                 continue
 
-            if not cfg_map_path.startswith("/"):
-                cfg_map_path = os.path.join(os.path.dirname(self.spec.file_path), cfg_map_path)
+            cfg_map_path = self.spec.fully_qualified_path(cfg_map_name)
 
             # Read in all the files at a single-level of the directory.  This mimics the behavior
             # of `kubectl create configmap foo --from-file=/path/to/dir`
