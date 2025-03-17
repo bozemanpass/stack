@@ -13,20 +13,54 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http:#www.gnu.org/licenses/>.
 
-from pathlib import Path
+import json
 import typing
-from stack.util import get_yaml
+
+from pathlib import Path
+from stack.util import get_yaml, get_pod_file_path
 
 
 class Stack:
     name: str
+    file_path: str | Path
     obj: typing.Any
 
     def __init__(self, name: str) -> None:
         self.name = name
 
+    def __getitem__(self, item):
+        return self.obj[item]
+
+    def __contains__(self, item):
+        return item in self.obj
+
+    def get(self, item, default=None):
+        return self.obj.get(item, default)
+
     def init_from_file(self, file_path: Path):
-        with file_path:
-            self.obj = get_yaml().load(open(file_path, "r"))
+        self.obj = get_yaml().load(open(file_path, "r"))
+        self.file_path = file_path
 
         return self
+
+    def get_pods(self):
+        return self.obj.get("pods", [])
+
+    def get_pod_list(self):
+        # Handle both old and new format
+        pods = self.get_pods()
+        if type(pods[0]) is str:
+            return pods
+        return [p["name"] for p in pods]
+
+    def load_pod_file(self, pod_name):
+        pod_file_path = get_pod_file_path(self.name, self, pod_name)
+        if pod_file_path:
+            return get_yaml().load(open(pod_file_path, "rt"))
+        return None
+
+    def dump(self, output_file_path):
+        get_yaml().dump(self.obj, open(output_file_path, "wt"))
+
+    def __str__(self):
+        return json.dumps(self, default=vars, indent=2)

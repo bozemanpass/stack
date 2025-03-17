@@ -25,6 +25,8 @@ from mergedeep import merge, Strategy
 from stack import constants
 from stack.util import get_yaml
 
+from stack.deploy.stack import Stack
+
 
 class ResourceLimits:
     cpus: float = None
@@ -104,6 +106,12 @@ class Spec:
     def get_image_registry(self):
         return self.obj.get(constants.image_registry_key)
 
+    def get_config(self):
+        return self.obj.get(constants.config_key, {})
+
+    def get_kube_config(self):
+        return self.obj.get(constants.kube_config_key, None)
+
     def get_volumes(self):
         return self.obj.get(constants.volumes_key, {})
 
@@ -164,6 +172,15 @@ class Spec:
     def is_docker_deployment(self):
         return self.get_deployment_type() in [constants.compose_deploy_type]
 
+    def load_stack(self):
+        return Stack(self.obj["stack"]).init_from_file(os.path.join(self.obj["stack"], constants.stack_file_name))
+
+    def get_pod_list(self):
+        return self.load_stack().get_pod_list()
+
+    def load_pod_file(self, pod_name):
+        return self.load_stack().load_pod_file(pod_name)
+
     def copy(self):
         ret = Spec()
         ret.obj = self.obj.copy()
@@ -171,16 +188,40 @@ class Spec:
 
         return ret
 
+    def dump(self, output_file_path):
+        get_yaml().dump(self.obj, open(output_file_path, "w"))
+
     def __str__(self):
         return json.dumps(self, default=vars, indent=2)
 
 
 class MergedSpec(Spec):
-
     def __init__(self):
         super().__init__()
         self.type = "merged"
         self._specs = []
+
+    def load_stack(self):
+        raise Exception("Not supported")
+
+    def stack_for_pod(self, pod_name):
+        for spec in self._specs:
+            if pod_name in spec.get_pod_list():
+                return spec.load_stack()
+        return None
+
+    def get_pod_list(self):
+        ret = []
+        for spec in self._specs:
+            ret.extend(spec.get_pod_list())
+        return ret
+
+    def load_pod_file(self, pod_name):
+        for spec in self._specs:
+            pod_file = spec.load_pod_file(pod_name)
+            if pod_file:
+                return pod_file
+        return None
 
     def fully_qualified_path(self, cfg_map_or_vol_name):
         for spec in self._specs:
@@ -199,7 +240,7 @@ class MergedSpec(Spec):
         merge(self.obj, other.obj, strategy=Strategy.ADDITIVE)
         self._specs.append(other)
 
-        self.obj["stack"] = ":".join([x["stack"] for x in self._specs])
+        self.obj["stack"] = [x["stack"] for x in self._specs]
 
         return self
 
@@ -210,6 +251,3 @@ class MergedSpec(Spec):
         ret._specs = self._specs.copy()
 
         return ret
-
-    def __str__(self):
-        return json.dumps(self, default=vars, indent=2)

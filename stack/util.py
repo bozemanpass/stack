@@ -116,6 +116,7 @@ def resolve_compose_file(stack, pod_name: str):
 
 
 def get_pod_file_path(stack, parsed_stack, pod_name: str):
+    result = None
     pods = parsed_stack["pods"]
     if type(pods[0]) is str:
         result = resolve_compose_file(stack, pod_name)

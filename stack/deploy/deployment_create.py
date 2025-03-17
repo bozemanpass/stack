@@ -1,6 +1,5 @@
 # Copyright © 2022, 2023 Vulcanize
 # Copyright © 2025 Bozeman Pass, Inc.
-import typing
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -16,24 +15,20 @@ import typing
 # along with this program.  If not, see <http:#www.gnu.org/licenses/>.
 
 import click
-from importlib import util
 import os
+import random
+import sys
+
+from importlib import util
 from pathlib import Path
 from typing import List
-import random
 from shutil import copy, copyfile, copytree
 from secrets import token_hex
-import sys
 from stack import constants
 from stack.opts import opts
 from stack.util import (
-    get_stack_path,
-    get_parsed_deployment_spec,
-    get_parsed_stack_config,
     global_options,
     get_yaml,
-    get_pod_list,
-    get_pod_file_path,
     pod_has_scripts,
     get_pod_script_paths,
     get_plugin_code_paths,
@@ -42,6 +37,7 @@ from stack.util import (
     resolve_config_dir,
 )
 from stack.deploy.spec import Spec, MergedSpec
+from stack.deploy.stack import Stack
 from stack.deploy.deploy_types import LaconicStackSetupCommand
 from stack.deploy.deployer_factory import getDeployerConfigGenerator
 from stack.deploy.deployment_context import DeploymentContext
@@ -53,12 +49,9 @@ def _make_default_deployment_dir():
 
 def _get_ports(stack):
     ports = {}
-    parsed_stack = get_parsed_stack_config(stack)
-    pods = get_pod_list(parsed_stack)
-    yaml = get_yaml()
+    pods = stack.get_pod_list()
     for pod in pods:
-        pod_file_path = get_pod_file_path(stack, parsed_stack, pod)
-        parsed_pod_file = yaml.load(open(pod_file_path, "r"))
+        parsed_pod_file = stack.load_pod_file(pod)
         if "services" in parsed_pod_file:
             for svc_name, svc in parsed_pod_file["services"].items():
                 if "ports" in svc:
@@ -69,12 +62,9 @@ def _get_ports(stack):
 
 def _get_security_settings(stack):
     security_settings = {}
-    parsed_stack = get_parsed_stack_config(stack)
-    pods = get_pod_list(parsed_stack)
-    yaml = get_yaml()
+    pods = stack.get_pod_list()
     for pod in pods:
-        pod_file_path = get_pod_file_path(stack, parsed_stack, pod)
-        parsed_pod_file = yaml.load(open(pod_file_path, "r"))
+        parsed_pod_file = stack.load_pod_file(pod)
         if "services" in parsed_pod_file:
             for svc_name, svc in parsed_pod_file["services"].items():
                 # All we understand for now is 'privileged'
@@ -86,9 +76,6 @@ def _get_security_settings(stack):
 def _get_named_volumes(stack):
     # Parse the compose files looking for named volumes
     named_volumes = {"rw": [], "ro": []}
-    parsed_stack = get_parsed_stack_config(stack)
-    pods = get_pod_list(parsed_stack)
-    yaml = get_yaml()
 
     def find_vol_usage(parsed_pod_file, vol):
         ret = {}
@@ -105,9 +92,9 @@ def _get_named_volumes(stack):
                             }
         return ret
 
+    pods = stack.get_pod_list()
     for pod in pods:
-        pod_file_path = get_pod_file_path(stack, parsed_stack, pod)
-        parsed_pod_file = yaml.load(open(pod_file_path, "r"))
+        parsed_pod_file = stack.load_pod_file(pod)
         if "volumes" in parsed_pod_file:
             volumes = parsed_pod_file["volumes"]
             for volume in volumes.keys():
@@ -272,7 +259,7 @@ def _find_extra_config_dirs(parsed_pod_file, pod):
     return config_dirs
 
 
-def _get_mapped_ports(stack: str, map_recipe: str):
+def _get_mapped_ports(stack: Stack, map_recipe: str):
     port_map_recipes = [
         "any-variable-random",
         "localhost-same",
@@ -467,7 +454,8 @@ def init_operation(  # noqa: C901
         if "k8s-" not in map_ports_to_host:
             error_exit(f"Error: --map-ports-to-host {map_ports_to_host} is not allowed with a {deployer_type} deployment ")
 
-    ports = _get_mapped_ports(stack, map_ports_to_host)
+    parsed_stack = Stack(stack).init_from_file(os.path.join(stack, constants.stack_file_name))
+    ports = _get_mapped_ports(parsed_stack, map_ports_to_host)
     if constants.network_key in spec_file_content:
         proxy_targets = []
         if constants.http_proxy_key in spec_file_content[constants.network_key]:
@@ -487,7 +475,7 @@ def init_operation(  # noqa: C901
     else:
         spec_file_content.update({constants.network_key: {constants.ports_key: ports}})
 
-    named_volumes = _get_named_volumes(stack)
+    named_volumes = _get_named_volumes(parsed_stack)
     if named_volumes:
         volume_descriptors = {}
         configmap_descriptors = {}
@@ -509,7 +497,7 @@ def init_operation(  # noqa: C901
         if configmap_descriptors:
             spec_file_content["configmaps"] = configmap_descriptors
 
-    security_settings = _get_security_settings(stack)
+    security_settings = _get_security_settings(parsed_stack)
     if security_settings:
         spec_file_content[constants.security_key] = security_settings
 
@@ -534,15 +522,13 @@ def _parse_http_proxy(raw_val: str):
     return cluster_issuer, host, route, target
 
 
-def _write_config_file(spec_file: Path, config_env_file: Path):
-    spec_content = get_parsed_deployment_spec(spec_file)
+def _write_config_file(spec: Spec, config_env_file: Path):
     # Note: we want to write an empty file even if we have no config variables
     with open(config_env_file, "w") as output_file:
-        if "config" in spec_content and spec_content["config"]:
-            config_vars = spec_content["config"]
-            if config_vars:
-                for variable_name, variable_value in config_vars.items():
-                    output_file.write(f"{variable_name}={variable_value}\n")
+        config_vars = spec.get_config()
+        if config_vars:
+            for variable_name, variable_value in config_vars.items():
+                output_file.write(f"{variable_name}={variable_value}\n")
 
 
 def _write_kube_config_file(external_path: Path, internal_path: Path):
@@ -584,19 +570,21 @@ def _check_volume_definitions(spec):
 @click.pass_context
 def create(ctx, spec_file, deployment_dir, network_dir, initial_peers):
     global_context = ctx.parent.parent.obj
-    # deploy_context = ctx.obj
-    merged_spec = MergedSpec()
 
-    for sf in spec_file:
-        merged_spec.merge(Spec().init_from_file(sf))
+    if len(spec_file) == 1:
+        spec = Spec().init_from_file(spec_file[0])
+    else:
+        spec = MergedSpec()
+        for sf in spec_file:
+            spec.merge(Spec().init_from_file(sf))
 
     if global_context.verbose:
-        print(merged_spec)
+        print(spec)
 
     deployment_command_context = ctx.obj
     return create_operation(
         deployment_command_context,
-        merged_spec,
+        spec,
         deployment_dir,
         network_dir,
         initial_peers,
@@ -605,45 +593,46 @@ def create(ctx, spec_file, deployment_dir, network_dir, initial_peers):
 
 # The init command's implementation is in a separate function so that we can
 # call it from other commands, bypassing the click decoration stuff
-def create_operation(
-    deployment_command_context, parsed_spec: typing.Union[Spec, MergedSpec], deployment_dir, network_dir, initial_peers
-):
-    _check_volume_definitions(parsed_spec)
-    stack_name = parsed_spec["stack"]
-    deployment_type = parsed_spec[constants.deploy_to_key]
-    stack_file = get_stack_path(stack_name).joinpath(constants.stack_file_name)
-    parsed_stack = get_parsed_stack_config(stack_name)
+def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec, deployment_dir, network_dir, initial_peers):
     if opts.o.debug:
         print(f"parsed spec: {parsed_spec}")
+    _check_volume_definitions(parsed_spec)
+
+    deployment_type = parsed_spec[constants.deploy_to_key]
+
+    # steps that we need no matter the spec type
     if deployment_dir is None:
         deployment_dir_path = _make_default_deployment_dir()
     else:
         deployment_dir_path = Path(deployment_dir)
     if deployment_dir_path.exists():
         error_exit(f"{deployment_dir_path} already exists")
+
     os.mkdir(deployment_dir_path)
-    # Copy spec file and the stack file into the deployment dir
-    copyfile(parsed_spec.file_path, deployment_dir_path.joinpath(constants.spec_file_name))
-    copyfile(stack_file, deployment_dir_path.joinpath(constants.stack_file_name))
-    _create_deployment_file(deployment_dir_path)
-    # Copy any config varibles from the spec file into an env file suitable for compose
-    _write_config_file(parsed_spec.file_path, deployment_dir_path.joinpath(constants.config_file_name))
-    # Copy any k8s config file into the deployment dir
-    if deployment_type == "k8s":
-        _write_kube_config_file(
-            Path(parsed_spec[constants.kube_config_key]),
-            deployment_dir_path.joinpath(constants.kube_config_filename),
-        )
-    # Copy the pod files into the deployment dir, fixing up content
-    pods = get_pod_list(parsed_stack)
     destination_compose_dir = deployment_dir_path.joinpath("compose")
     os.mkdir(destination_compose_dir)
     destination_pods_dir = deployment_dir_path.joinpath("pods")
     os.mkdir(destination_pods_dir)
+
+    _create_deployment_file(deployment_dir_path)
+
+    # Copy spec file into the deployment dir
+    parsed_spec.dump(deployment_dir_path.joinpath(constants.spec_file_name))
+
+    # Copy any config varibles from the spec file into an env file suitable for compose
+    _write_config_file(parsed_spec, deployment_dir_path.joinpath(constants.config_file_name))
+
+    # Copy any k8s config file into the deployment dir
+    if deployment_type == "k8s":
+        _write_kube_config_file(
+            parsed_spec.get_kube_config(),
+            deployment_dir_path.joinpath(constants.kube_config_filename),
+        )
+
     yaml = get_yaml()
+    pods = parsed_spec.get_pod_list()
     for pod in pods:
-        pod_file_path = get_pod_file_path(stack_name, parsed_stack, pod)
-        parsed_pod_file = yaml.load(open(pod_file_path, "r"))
+        parsed_pod_file = parsed_spec.load_pod_file(pod)
         extra_config_dirs = _find_extra_config_dirs(parsed_pod_file, pod)
         destination_pod_dir = destination_pods_dir.joinpath(pod)
         os.mkdir(destination_pod_dir)
@@ -652,11 +641,14 @@ def create_operation(
         _fixup_pod_file(parsed_pod_file, parsed_spec, destination_compose_dir)
         with open(destination_compose_dir.joinpath("docker-compose-%s.yml" % pod), "w") as output_file:
             yaml.dump(parsed_pod_file, output_file)
+
+        parsed_stack = parsed_spec.stack_for_pod(pod) if isinstance(parsed_spec, MergedSpec) else parsed_spec.load_stack()
+
         # Copy the config files for the pod, if any
         config_dirs = {pod}
         config_dirs = config_dirs.union(extra_config_dirs)
         for config_dir in config_dirs:
-            source_config_dir = resolve_config_dir(stack_name, config_dir)
+            source_config_dir = resolve_config_dir(parsed_stack.name, config_dir)
             if os.path.exists(source_config_dir):
                 destination_config_dir = deployment_dir_path.joinpath("config", config_dir)
                 # If the same config dir appears in multiple pods, it may already have been copied
@@ -670,14 +662,14 @@ def create_operation(
             _copy_files_to_directory(script_paths, destination_script_dir)
         if parsed_spec.is_kubernetes_deployment():
             for configmap in parsed_spec.get_configmaps():
-                source_config_dir = resolve_config_dir(stack_name, configmap)
+                source_config_dir = resolve_config_dir(parsed_stack.name, configmap)
                 if os.path.exists(source_config_dir):
                     destination_config_dir = deployment_dir_path.joinpath("configmaps", configmap)
                     copytree(source_config_dir, destination_config_dir, dirs_exist_ok=True)
         else:
             # TODO: We should probably only do this if the volume is marked :ro.
             for volume_name, volume_path in parsed_spec.get_volumes().items():
-                source_config_dir = resolve_config_dir(stack_name, volume_name)
+                source_config_dir = resolve_config_dir(parsed_stack.name, volume_name)
                 # Only copy if the source exists and is _not_ empty.
                 if os.path.exists(source_config_dir) and os.listdir(source_config_dir):
                     destination_config_dir = deployment_dir_path.joinpath(volume_path)
