@@ -226,9 +226,11 @@ def call_stack_deploy_create(deployment_context, extra_args):
     # Link with the python file in the stack
     # Call a function in it
     # If no function found, return None
-    stacks = deployment_context.spec.load_stack()
-    if isinstance(stacks, Stack):
-        stacks = [stacks]
+    spec = deployment_context.spec
+    if isinstance(spec, MergedSpec):
+        stacks = spec.load_stacks()
+    else:
+        stacks = [spec.load_stack()]
 
     for stack in stacks:
         python_file_paths = _commands_plugin_paths(stack.name)
@@ -618,6 +620,12 @@ def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec,
 
     # Copy spec file into the deployment dir
     parsed_spec.dump(deployment_dir_path.joinpath(constants.spec_file_name))
+
+    # Copy stack file into the deployment dir
+    if isinstance(parsed_spec, MergedSpec):
+        parsed_spec.merge_stacks().dump(deployment_dir_path.joinpath(constants.stack_file_name))
+    else:
+        parsed_spec.load_stack().dump(deployment_dir_path.joinpath(constants.stack_file_name))
 
     # Copy any config varibles from the spec file into an env file suitable for compose
     _write_config_file(parsed_spec, deployment_dir_path.joinpath(constants.config_file_name))

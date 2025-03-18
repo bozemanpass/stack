@@ -201,7 +201,14 @@ class MergedSpec(Spec):
         self.type = "merged"
         self._specs = []
 
-    def load_stack(self):
+    def merge_stacks(self):
+        stacks = self.load_stacks()
+        ret = Stack(":".join([s.name for s in stacks]))
+        for stack in stacks:
+            merge(ret.obj, stack.obj, strategy=Strategy.ADDITIVE)
+        return ret
+
+    def load_stacks(self):
         return [spec.load_stack() for spec in self._specs]
 
     def stack_for_pod(self, pod_name):

@@ -27,6 +27,7 @@ class Stack:
 
     def __init__(self, name: str) -> None:
         self.name = name
+        self.obj = {}
 
     def __getitem__(self, item):
         return self.obj[item]
