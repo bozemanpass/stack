@@ -202,7 +202,7 @@ class MergedSpec(Spec):
         self._specs = []
 
     def load_stack(self):
-        raise Exception("Not supported")
+        return [spec.load_stack() for spec in self._specs]
 
     def stack_for_pod(self, pod_name):
         for spec in self._specs:

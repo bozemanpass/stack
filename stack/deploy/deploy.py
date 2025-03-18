@@ -113,14 +113,14 @@ def up_operation(ctx, services_list, stay_attached=False, skip_cluster_managemen
     if global_context.verbose:
         print(f"Running compose up with container_exec_env: {container_exec_env}, extra_args: {services_list}")
     for pre_start_command in cluster_context.pre_start_commands:
-        _run_command(global_context, deploy_context.stack, cluster_context.cluster, pre_start_command)
+        _run_command(global_context, deploy_context, cluster_context, pre_start_command)
     deploy_context.deployer.up(
         detach=not stay_attached,
         skip_cluster_management=skip_cluster_management,
         services=services_list,
     )
     for post_start_command in cluster_context.post_start_commands:
-        _run_command(global_context, deploy_context.stack, cluster_context.cluster, post_start_command)
+        _run_command(global_context, deploy_context, cluster_context, post_start_command)
     _orchestrate_cluster_config(
         global_context,
         cluster_context.config,
@@ -368,14 +368,14 @@ def _convert_to_new_format(old_pod_array):
     return new_pod_array
 
 
-def _run_command(ctx, stack, cluster_name, command):
+def _run_command(ctx, deployment_ctx, cluster_ctx, command):
     if ctx.verbose:
         print(f"Running command: {command}")
     command_dir = os.path.dirname(command)
     command_file = os.path.join(".", os.path.basename(command))
     command_env = os.environ.copy()
-    command_env["BPI_SO_COMPOSE_PROJECT"] = cluster_name
-    command_env["BPI_SO_DEPLOYMENT_DIR"] = os.path.abspath(stack)
+    command_env["BPI_SO_COMPOSE_PROJECT"] = cluster_ctx.cluster
+    command_env["BPI_SO_DEPLOYMENT_DIR"] = deployment_ctx.deployment_dir
     if ctx.debug:
         command_env["BPI_SCRIPT_DEBUG"] = "true"
     command_result = subprocess.run(command_file, shell=True, env=command_env, cwd=command_dir)

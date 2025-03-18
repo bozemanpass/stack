@@ -59,6 +59,9 @@ class Stack:
             return get_yaml().load(open(pod_file_path, "rt"))
         return None
 
+    def get_pod_file_path(self, pod_name):
+        return get_pod_file_path(self.name, self, pod_name)
+
     def dump(self, output_file_path):
         get_yaml().dump(self.obj, open(output_file_path, "wt"))
 

@@ -226,14 +226,19 @@ def call_stack_deploy_create(deployment_context, extra_args):
     # Link with the python file in the stack
     # Call a function in it
     # If no function found, return None
-    python_file_paths = _commands_plugin_paths(deployment_context.stack.name)
-    for python_file_path in python_file_paths:
-        if python_file_path.exists():
-            spec = util.spec_from_file_location("commands", python_file_path)
-            imported_stack = util.module_from_spec(spec)
-            spec.loader.exec_module(imported_stack)
-            if _has_method(imported_stack, "create"):
-                imported_stack.create(deployment_context, extra_args)
+    stacks = deployment_context.spec.load_stack()
+    if isinstance(stacks, Stack):
+        stacks = [stacks]
+
+    for stack in stacks:
+        python_file_paths = _commands_plugin_paths(stack.name)
+        for python_file_path in python_file_paths:
+            if python_file_path.exists():
+                spec = util.spec_from_file_location("commands", python_file_path)
+                imported_stack = util.module_from_spec(spec)
+                spec.loader.exec_module(imported_stack)
+                if _has_method(imported_stack, "create"):
+                    imported_stack.create(deployment_context, stack, extra_args)
 
 
 # Inspect the pod yaml to find config files referenced in subdirectories
@@ -564,11 +569,8 @@ def _check_volume_definitions(spec):
 @click.command()
 @click.option("--spec-file", required=True, help="Spec file to use to create this deployment", multiple=True)
 @click.option("--deployment-dir", help="Create deployment files in this directory")
-# TODO: Hack
-@click.option("--network-dir", help="Network configuration supplied in this directory")
-@click.option("--initial-peers", help="Initial set of persistent peers")
 @click.pass_context
-def create(ctx, spec_file, deployment_dir, network_dir, initial_peers):
+def create(ctx, spec_file, deployment_dir):
     global_context = ctx.parent.parent.obj
 
     if len(spec_file) == 1:
@@ -586,14 +588,12 @@ def create(ctx, spec_file, deployment_dir, network_dir, initial_peers):
         deployment_command_context,
         spec,
         deployment_dir,
-        network_dir,
-        initial_peers,
     )
 
 
 # The init command's implementation is in a separate function so that we can
 # call it from other commands, bypassing the click decoration stuff
-def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec, deployment_dir, network_dir, initial_peers):
+def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec, deployment_dir):
     if opts.o.debug:
         print(f"parsed spec: {parsed_spec}")
     _check_volume_definitions(parsed_spec)
@@ -682,16 +682,15 @@ def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec,
                         )
 
     # Delegate to the stack's Python code
-    # The deploy create command doesn't require a --stack argument so we need to insert the
-    # stack member here.
-    deployment_command_context.stack = stack_name
     deployment_context = DeploymentContext()
     deployment_context.init(deployment_dir_path)
+    # Bit of an hack, but we want to maintain the MergedSpec obj if we have it.
+    deployment_context.spec = parsed_spec
     # Call the deployer to generate any deployer-specific files (e.g. for kind)
     deployer_config_generator = getDeployerConfigGenerator(deployment_type, deployment_context)
     # TODO: make deployment_dir_path a Path above
     deployer_config_generator.generate(deployment_dir_path)
-    call_stack_deploy_create(deployment_context, [network_dir, initial_peers, deployment_command_context])
+    call_stack_deploy_create(deployment_context, [deployment_command_context])
 
 
 # TODO: this code should be in the stack .py files but
