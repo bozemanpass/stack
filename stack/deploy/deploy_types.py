@@ -44,25 +44,5 @@ class VolumeMapping:
 
 
 @dataclass
-class LaconicStackSetupCommand:
-    chain_id: str
-    node_moniker: str
-    key_name: str
-    initialize_network: bool
-    join_network: bool
-    connect_network: bool
-    create_network: bool
-    gentx_file_list: str
-    gentx_address_list: str
-    genesis_file: str
-    network_dir: str
-
-
-@dataclass
-class LaconicStackCreateCommand:
-    network_dir: str
-
-
-@dataclass
 class DeployEnvVars:
     map: Mapping[str, str]

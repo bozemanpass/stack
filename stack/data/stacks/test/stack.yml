@@ -2,7 +2,6 @@ version: "1.0"
 name: test
 description: "A test stack"
 repos:
-  - bozemanpass/stack-test-laconicd
   - bozemanpass/stack-test-project
 containers:
   - bpi/test-container

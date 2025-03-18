@@ -31,57 +31,6 @@ mkdir -p $BPI_REPO_BASE_DIR
 # with and without volume removal
 $TEST_TARGET_SO --stack test setup-repositories
 $TEST_TARGET_SO --stack test prepare-containers
-# Test deploy command execution
-$TEST_TARGET_SO --stack test deploy setup $BPI_REPO_BASE_DIR
-# Check that we now have the expected output directory
-container_output_dir=$BPI_REPO_BASE_DIR/container-output-dir
-if [ ! -d "$container_output_dir" ]; then
-    echo "deploy setup test: output directory not present"
-    echo "deploy setup test: FAILED"
-    exit 1
-fi
-if [ ! -f "$container_output_dir/output-file" ]; then
-    echo "deploy setup test: output file not present"
-    echo "deploy setup test: FAILED"
-    exit 1
-fi
-output_file_content=$(<$container_output_dir/output-file)
-if [ ! "$output_file_content" == "output-data"  ]; then
-    echo "deploy setup test: output file contents not correct"
-    echo "deploy setup test: FAILED"
-    exit 1
-fi
-# Check that we now have the expected output file
-$TEST_TARGET_SO --stack test deploy up
-# Test deploy port command
-deploy_port_output=$( $TEST_TARGET_SO --stack test deploy port test 80 )
-if [[ "$deploy_port_output" =~ ^0.0.0.0:[1-9][0-9]* ]]; then
-    echo "Deploy port test: passed"
-else
-    echo "Deploy port test: FAILED"
-    exit 1
-fi
-$TEST_TARGET_SO --stack test deploy down
-# The next time we bring the container up the volume will be old (from the previous run above)
-$TEST_TARGET_SO --stack test deploy up
-log_output_1=$( $TEST_TARGET_SO --stack test deploy logs )
-if [[ "$log_output_1" == *"filesystem is old"* ]]; then
-    echo "Retain volumes test: passed"
-else
-    echo "Retain volumes test: FAILED"
-    exit 1
-fi
-$TEST_TARGET_SO --stack test deploy down --delete-volumes
-# Now when we bring the container up the volume will be new again
-$TEST_TARGET_SO --stack test deploy up
-log_output_2=$( $TEST_TARGET_SO --stack test deploy logs )
-if [[ "$log_output_2" == *"filesystem is fresh"* ]]; then
-    echo "Delete volumes test: passed"
-else
-    echo "Delete volumes test: FAILED"
-    exit 1
-fi
-$TEST_TARGET_SO --stack test deploy down --delete-volumes
 # Basic test of creating a deployment
 test_deployment_dir=$BPI_REPO_BASE_DIR/test-deployment-dir
 test_deployment_spec=$BPI_REPO_BASE_DIR/test-deployment-spec.yml

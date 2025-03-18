@@ -23,7 +23,7 @@ from pathlib import Path
 from mergedeep import merge, Strategy
 
 from stack import constants
-from stack.util import get_yaml
+from stack.util import get_yaml, get_stack_path
 
 from stack.deploy.stack import Stack
 
@@ -173,7 +173,7 @@ class Spec:
         return self.get_deployment_type() in [constants.compose_deploy_type]
 
     def load_stack(self):
-        return Stack(self.obj["stack"]).init_from_file(os.path.join(self.obj["stack"], constants.stack_file_name))
+        return Stack(self.obj["stack"]).init_from_file(os.path.join(get_stack_path(self.obj["stack"]), constants.stack_file_name))
 
     def get_pod_list(self):
         return self.load_stack().get_pod_list()
