@@ -107,7 +107,6 @@ def up_operation(ctx, services_list, stay_attached=False, skip_cluster_managemen
     global_context = ctx.parent.parent.obj
     deployment_cmd_context = ctx.obj
     cluster_context = deployment_cmd_context.cluster_context
-    print(global_context, deployment_cmd_context, cluster_context)
     container_exec_env = _make_runtime_env(global_context)
     for attr, value in container_exec_env.items():
         os.environ[attr] = value
