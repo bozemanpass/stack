@@ -632,6 +632,22 @@ def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec,
         if opts.o.debug:
             print(f"extra config dirs: {extra_config_dirs}")
         _fixup_pod_file(parsed_pod_file, parsed_spec, destination_compose_dir)
+
+        if deployment_type == "compose":
+            # Inject the shared config.env file into the compose file.  We don't need to do this for k8s.
+            services = parsed_pod_file["services"]
+            for service_name in services:
+                service_info = services[service_name]
+                shared_cfg_file = os.path.join(deployment_dir, constants.config_file_name)
+                if "env_file" in service_info:
+                    env_files = service_info["env_file"]
+                    if isinstance(env_files, list):
+                        service_info["env_file"] = [shared_cfg_file, *env_files]
+                    else:
+                        service_info["env_file"] = [shared_cfg_file, env_files]
+                else:
+                    service_info["env_file"] = [shared_cfg_file]
+
         with open(destination_compose_dir.joinpath("docker-compose-%s.yml" % pod), "w") as output_file:
             yaml.dump(parsed_pod_file, output_file)
 
