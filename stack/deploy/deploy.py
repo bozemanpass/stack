@@ -392,7 +392,6 @@ def _orchestrate_cluster_config(ctx, cluster_config, deployer, container_exec_en
         destination_container: str
         destination_variable: str
 
-    print("CCC", cluster_config)
     if cluster_config is not None:
         for container in cluster_config:
             container_config = cluster_config[container]

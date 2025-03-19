@@ -219,6 +219,7 @@ def call_stack_deploy_create(deploy_command_context, deployment_context, extra_a
 
     for stack in stacks:
         python_file_paths = _commands_plugin_paths(stack.name)
+        print(python_file_paths)
         for python_file_path in python_file_paths:
             if python_file_path.exists():
                 spec = util.spec_from_file_location("commands", python_file_path)
@@ -618,7 +619,7 @@ def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec,
     # Copy any k8s config file into the deployment dir
     if deployment_type == "k8s":
         _write_kube_config_file(
-            parsed_spec.get_kube_config(),
+            Path(parsed_spec.get_kube_config()),
             deployment_dir_path.joinpath(constants.kube_config_filename),
         )
 

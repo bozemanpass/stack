@@ -82,7 +82,7 @@ def get_plugin_code_paths(stack) -> List[Path]:
         if type(pod) is str:
             result.add(get_stack_path(stack))
         else:
-            pod_root_dir = os.path.join(get_dev_root_path(None), pod["repository"].split("/")[-1], pod["path"])
+            pod_root_dir = os.path.join(get_dev_root_path(None), pod["repository"].split("@")[0].split("/")[-1], pod["path"])
             result.add(Path(os.path.join(pod_root_dir, "stack")))
     return list(result)
 
@@ -122,10 +122,11 @@ def get_pod_file_path(stack, parsed_stack, pod_name: str):
         result = resolve_compose_file(stack, pod_name)
     else:
         for pod in pods:
+            print(pod)
             if pod["name"] == pod_name:
                 pod_root_dir = os.path.join(
                     get_dev_root_path(None),
-                    pod["repository"].split("/")[-1],
+                    pod["repository"].split("@")[0].split("/")[-1],
                     pod["path"],
                 )
                 result = os.path.join(pod_root_dir, "docker-compose.yml")
@@ -140,7 +141,7 @@ def get_pod_script_paths(parsed_stack, pod_name: str):
             if pod["name"] == pod_name:
                 pod_root_dir = os.path.join(
                     get_dev_root_path(None),
-                    pod["repository"].split("/")[-1],
+                    pod["repository"].split("@")[0].split("/")[-1],
                     pod["path"],
                 )
                 if "pre_start_command" in pod:
