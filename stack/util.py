@@ -122,7 +122,6 @@ def get_pod_file_path(stack, parsed_stack, pod_name: str):
         result = resolve_compose_file(stack, pod_name)
     else:
         for pod in pods:
-            print(pod)
             if pod["name"] == pod_name:
                 pod_root_dir = os.path.join(
                     get_dev_root_path(None),
