@@ -1,4 +1,5 @@
 # Copyright © 2022, 2023 Vulcanize
+# Copyright © 2025 Bozeman Pass, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -20,7 +21,6 @@ from pathlib import Path
 
 from stack import constants
 from stack.util import get_yaml
-from stack.deploy.stack import Stack
 from stack.deploy.spec import Spec
 
 
@@ -28,10 +28,6 @@ class DeploymentContext:
     deployment_dir: Path
     id: str
     spec: Spec
-    stack: Stack
-
-    def get_stack_file(self):
-        return self.deployment_dir.joinpath(constants.stack_file_name)
 
     def get_spec_file(self):
         return self.deployment_dir.joinpath(constants.spec_file_name)
@@ -55,8 +51,6 @@ class DeploymentContext:
         self.deployment_dir = dir
         self.spec = Spec()
         self.spec.init_from_file(self.get_spec_file())
-        self.stack = Stack(self.spec.obj["stack"])
-        self.stack.init_from_file(self.get_stack_file())
         deployment_file_path = self.get_deployment_file()
         if deployment_file_path.exists():
             with deployment_file_path:
@@ -67,6 +61,6 @@ class DeploymentContext:
         # TODO: remove when we no longer need to support legacy deployments
         else:
             path = os.path.realpath(os.path.abspath(self.get_compose_dir()))
-            unique_cluster_descriptor = f"{path},{self.get_stack_file()},None,None"
+            unique_cluster_descriptor = f"{path},{self.get_spec_file()},None,None"
             hash = hashlib.md5(unique_cluster_descriptor.encode()).hexdigest()[:16]
             self.id = f"{constants.cluster_name_prefix}{hash}"

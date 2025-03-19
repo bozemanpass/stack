@@ -58,7 +58,7 @@ def get_parsed_stack_config(stack):
     # We try here to generate a useful diagnostic error
     # First check if the stack directory is present
     if stack_file_path.parent.exists():
-        error_exit(f"stack.yml file is missing from stack: {stack}")
+        error_exit(f"{stack_file_name} file is missing from: {stack}")
     error_exit(f"stack {stack} does not exist")
 
 
@@ -82,7 +82,7 @@ def get_plugin_code_paths(stack) -> List[Path]:
         if type(pod) is str:
             result.add(get_stack_path(stack))
         else:
-            pod_root_dir = os.path.join(get_dev_root_path(None), pod["repository"].split("/")[-1], pod["path"])
+            pod_root_dir = os.path.join(get_dev_root_path(None), pod["repository"].split("@")[0].split("/")[-1], pod["path"])
             result.add(Path(os.path.join(pod_root_dir, "stack")))
     return list(result)
 
@@ -116,6 +116,7 @@ def resolve_compose_file(stack, pod_name: str):
 
 
 def get_pod_file_path(stack, parsed_stack, pod_name: str):
+    result = None
     pods = parsed_stack["pods"]
     if type(pods[0]) is str:
         result = resolve_compose_file(stack, pod_name)
@@ -124,7 +125,7 @@ def get_pod_file_path(stack, parsed_stack, pod_name: str):
             if pod["name"] == pod_name:
                 pod_root_dir = os.path.join(
                     get_dev_root_path(None),
-                    pod["repository"].split("/")[-1],
+                    pod["repository"].split("@")[0].split("/")[-1],
                     pod["path"],
                 )
                 result = os.path.join(pod_root_dir, "docker-compose.yml")
@@ -139,7 +140,7 @@ def get_pod_script_paths(parsed_stack, pod_name: str):
             if pod["name"] == pod_name:
                 pod_root_dir = os.path.join(
                     get_dev_root_path(None),
-                    pod["repository"].split("/")[-1],
+                    pod["repository"].split("@")[0].split("/")[-1],
                     pod["path"],
                 )
                 if "pre_start_command" in pod:

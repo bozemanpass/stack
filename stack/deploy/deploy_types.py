@@ -1,4 +1,5 @@
 # Copyright © 2023 Vulcanize
+# Copyright © 2025 Bozeman Pass, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -41,26 +42,6 @@ class DeployCommandContext:
 class VolumeMapping:
     host_path: str
     container_path: str
-
-
-@dataclass
-class LaconicStackSetupCommand:
-    chain_id: str
-    node_moniker: str
-    key_name: str
-    initialize_network: bool
-    join_network: bool
-    connect_network: bool
-    create_network: bool
-    gentx_file_list: str
-    gentx_address_list: str
-    genesis_file: str
-    network_dir: str
-
-
-@dataclass
-class LaconicStackCreateCommand:
-    network_dir: str
 
 
 @dataclass

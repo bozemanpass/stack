@@ -28,11 +28,15 @@ $TEST_TARGET_SO --stack test prepare-containers
 $TEST_TARGET_SO prepare-containers --include bpi/builder-js
 echo "Images in the local registry:"
 docker image ls -a
+test_deployment_dir=$BPI_REPO_BASE_DIR/test-deployment-dir
+test_deployment_spec=$BPI_REPO_BASE_DIR/test-deployment-spec.yml
 # Deploy the test container
-$TEST_TARGET_SO --stack test deploy up
-# TODO: test that we can use the deployed container somehow
-# Clean up
-$TEST_TARGET_SO --stack test deploy down
+$TEST_TARGET_SO --stack test deploy init --output $test_deployment_spec
+$TEST_TARGET_SO deploy create --spec-file $test_deployment_spec --deployment-dir $test_deployment_dir
+# Up
+$TEST_TARGET_SO deployment --dir $test_deployment_dir start
+# Down
+$TEST_TARGET_SO deployment --dir $test_deployment_dir stop
 # Run same test but not using the stack definition
 # Test building the a stack container
 $TEST_TARGET_SO prepare-containers --include bpi/test-container

@@ -24,6 +24,7 @@ from stack.util import error_exit, global_options2
 from stack.deploy.deployment_create import init_operation, create_operation
 from stack.deploy.deploy import create_deploy_context
 from stack.deploy.deploy_types import DeployCommandContext
+from stack.deploy.spec import Spec
 
 
 def _fixup_container_tag(deployment_dir: str, image: str):
@@ -89,7 +90,8 @@ def create_deployment(ctx, deployment_dir, image, url, kube_config, image_regist
     )
     # Add the TLS and DNS spec
     _fixup_url_spec(spec_file_name, url)
-    create_operation(deploy_command_context, spec_file_name, deployment_dir, None, None)
+    spec = Spec().init_from_file(spec_file_name)
+    create_operation(deploy_command_context, spec, deployment_dir)
     # Fix up the container tag inside the deployment compose file
     _fixup_container_tag(deployment_dir, image)
     os.remove(spec_file_name)

@@ -24,12 +24,12 @@ jobs:
         if: ${{ runner.arch == 'arm64' && runner.os == 'Linux' }}
         uses: deadsnakes/action@v3.0.1
         with:
-          python-version: '3.8'
+          python-version: '3.10'
       - name: "Install Python cases other than ARM on Linux"
         if: ${{ ! (runner.arch == 'arm64' && runner.os == 'Linux') }}
         uses: actions/setup-python@v4
         with:
-          python-version: '3.8'
+          python-version: '3.10'
       - name: "Print Python version"
         run: python3 --version
       - name: "Install shiv"

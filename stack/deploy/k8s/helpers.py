@@ -33,7 +33,7 @@ from stack.deploy.deployer import DeployerException
 DEFAULT_K8S_NAMESPACE = "default"
 
 
-def _run_command(command: str):
+def _shell_command(command: str):
     if opts.o.debug:
         print(f"Running: {command}")
     result = subprocess.run(command, shell=True)
@@ -43,13 +43,13 @@ def _run_command(command: str):
 
 
 def create_cluster(name: str, config_file: str):
-    result = _run_command(f"kind create cluster --name {name} --config {config_file}")
+    result = _shell_command(f"kind create cluster --name {name} --config {config_file}")
     if result.returncode != 0:
         raise DeployerException(f"kind create cluster failed: {result}")
 
 
 def destroy_cluster(name: str):
-    _run_command(f"kind delete cluster --name {name}")
+    _shell_command(f"kind delete cluster --name {name}")
 
 
 def wait_for_ingress_in_kind():
@@ -83,7 +83,7 @@ def install_ingress_for_kind():
 
 def load_images_into_kind(kind_cluster_name: str, image_set: Set[str]):
     for image in image_set:
-        result = _run_command(f"kind load docker-image {image} --name {kind_cluster_name}")
+        result = _shell_command(f"kind load docker-image {image} --name {kind_cluster_name}")
         if result.returncode != 0:
             raise DeployerException(f"kind create cluster failed: {result}")
 
