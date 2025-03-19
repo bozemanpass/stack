@@ -217,6 +217,7 @@ def _prepare_containers(ctx, include, exclude, git_ssh, build_policy, extra_buil
             continue
 
         container_needs_built = True
+        container_was_built = False
         container_needs_pulled = False
         container_tag = None
         container_spec = ContainerSpec(stack_container.name)
@@ -334,14 +335,15 @@ def _prepare_containers(ctx, include, exclude, git_ssh, build_policy, extra_buil
                 error_exit(f"No prebuilt image available for: {container_spec.name}")
             build_context = BuildContext(stack, container_spec, container_build_dir, container_build_env, dev_root_path)
 
-            try:
-                docker.image.remove(stack_legacy_tag)
-                docker.image.remove(stack_local_tag)
-            except:
-                pass
+            for tag in [stack_legacy_tag, stack_local_tag, container_tag]:
+                try:
+                    docker.image.remove(tag)
+                except:
+                    pass
 
             result = process_container(build_context)
             if result:
+                container_was_built = True
                 # Handle legacy build scripts
                 if container_exists_locally(stack_legacy_tag) and not container_exists_locally(stack_local_tag):
                     docker.image.tag(stack_legacy_tag, stack_local_tag)
@@ -355,9 +357,16 @@ def _prepare_containers(ctx, include, exclude, git_ssh, build_policy, extra_buil
 
         if container_tag:
             # We won't have a local copy with prebuilt-remote and --no-pull
-            if container_exists_locally(stack_local_tag):
+            if container_exists_locally(stack_local_tag) and container_was_built:
                 # Point the local copy at the expected name.
                 docker.image.tag(stack_local_tag, container_tag)
+
+            # Now check the other way, we have the container_tag but not the local tags
+            if container_exists_locally(container_tag):
+                if not container_exists_locally(stack_local_tag):
+                    docker.image.tag(container_tag, stack_local_tag)
+                if not container_exists_locally(stack_legacy_tag):
+                    docker.image.tag(container_tag, stack_legacy_tag)
 
         if publish_images and container_tag:
             if not image_registry_to_push_this_container:
