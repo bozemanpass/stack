@@ -251,26 +251,42 @@ class MergedSpec(Spec):
     def merge(self, other: Spec):
         # Check for conflicts on deployment type.
         if self.get_deployment_type() and self.get_deployment_type() != other.get_deployment_type():
-            error_exit(f"{self.get_deployment_type()} != {other.get_deployment_type()}")
+            error_exit(f"{self.get_deployment_type()} != {other.get_deployment_type()} in {other.file_path}")
 
         # Check for conflicts on image registry.
         if self.get_image_registry() and self.get_image_registry() != other.get_image_registry():
-            error_exit(f"{self.get_image_registry()} != {other.get_image_registry()}")
+            error_exit(f"{self.get_image_registry()} != {other.get_image_registry()} in {other.file_path}")
 
         # Check for conflicts on kube config.
         if self.get_kube_config() and self.get_kube_config() != other.get_kube_config():
-            error_exit(f"{self.get_kube_config()} != {other.get_kube_config()}")
+            error_exit(f"{self.get_kube_config()} != {other.get_kube_config()} in {other.file_path}")
 
         # Check for conflicts on HTTP proxy settings.
         if self.get_http_proxy() and other.get_http_proxy() and self.get_http_proxy() != other.get_http_proxy():
-            error_exit(f"Merge HTTP proxy settings is not allowed: {self.get_http_proxy()} != {other.get_http_proxy()}")
+            error_exit(
+                "Merge HTTP proxy settings is not allowed: "
+                f"{self.get_http_proxy()} != {other.get_http_proxy()} in {other.file_path}"
+            )
+
+        # Check for conflicts on pod names
+        current_pods = self.get_pod_list()
+        for pod in other.get_pod_list():
+            if pod in current_pods:
+                error_exit(f"Pod name conflict for {pod}")
 
         # Check for conflicts on the service names
         current_services = list(self.get_services().keys())
         other_services = list(other.get_services().keys())
         for svc_name in other_services:
             if svc_name in current_services:
-                error_exit(f"Service name conflict for {svc_name}, cannot merge.")
+                error_exit(f"Service name conflict for {svc_name} in {other.file_path}.")
+
+        # Check for conflicts on volume names
+        current_volume_names = list(self.get_volumes().keys())
+        other_volume_names = list(other.get_volumes().keys())
+        for vol_name in other_volume_names:
+            if vol_name in current_volume_names:
+                error_exit(f"Volume name conflict for {vol_name} in {other.file_path}.")
 
         # Check for conflicts on mapped ports
         mapped_ports = {}
@@ -279,7 +295,10 @@ class MergedSpec(Spec):
                 if ":" in port:
                     first_part = ":".join(port.split(":")[0:-1])
                     if first_part in mapped_ports:
-                        error_exit(f"Port mapping conflict for {svc_name}:{first_part} and {mapped_ports[first_part]}:{first_part}")
+                        error_exit(
+                            f"Port mapping conflict for {svc_name}:{first_part} and "
+                            f"{mapped_ports[first_part]}:{first_part} in {other.file_path}"
+                        )
                     mapped_ports[first_part] = svc_name
 
         merge(self.obj, other.obj, strategy=Strategy.ADDITIVE)
