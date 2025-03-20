@@ -19,11 +19,12 @@ import typing
 
 from pathlib import Path
 from stack.util import get_yaml, get_pod_file_path
+from stack import constants
 
 
 class Stack:
     name: str
-    file_path: str | Path
+    file_path: Path
     obj: typing.Any
 
     def __init__(self, name: str) -> None:
@@ -40,8 +41,10 @@ class Stack:
         return self.obj.get(item, default)
 
     def init_from_file(self, file_path: Path):
-        self.obj = get_yaml().load(open(file_path, "r"))
-        self.file_path = file_path
+        if isinstance(file_path, str):
+            file_path = Path(file_path)
+        self.obj = get_yaml().load(open(file_path, "rt"))
+        self.file_path = file_path.absolute()
 
         return self
 
@@ -51,6 +54,8 @@ class Stack:
     def get_pod_list(self):
         # Handle both old and new format
         pods = self.get_pods()
+        if not pods:
+            return []
         if type(pods[0]) is str:
             return pods
         return [p["name"] for p in pods]
@@ -63,6 +68,76 @@ class Stack:
 
     def get_pod_file_path(self, pod_name):
         return get_pod_file_path(self.name, self, pod_name)
+
+    def get_services(self):
+        services = {}
+        pods = self.get_pod_list()
+        for pod in pods:
+            parsed_pod_file = self.load_pod_file(pod)
+            if constants.services_key in parsed_pod_file:
+                for svc_name in parsed_pod_file[constants.services_key]:
+                    services[svc_name] = parsed_pod_file[constants.services_key][svc_name]
+        return services
+
+    def get_ports(self):
+        ports = {}
+        pods = self.get_pod_list()
+        for pod in pods:
+            parsed_pod_file = self.load_pod_file(pod)
+            if constants.services_key in parsed_pod_file:
+                for svc_name, svc in parsed_pod_file[constants.services_key].items():
+                    if constants.ports_key in svc:
+                        # Ports can appear as strings or numbers.  We normalize them as strings.
+                        ports[svc_name] = [str(x) for x in svc[constants.ports_key]]
+        return ports
+
+    def get_security_settings(self):
+        security_settings = {}
+        pods = self.get_pod_list()
+        for pod in pods:
+            parsed_pod_file = self.load_pod_file(pod)
+            if constants.services_key in parsed_pod_file:
+                for svc_name, svc in parsed_pod_file[constants.services_key].items():
+                    # All we understand for now is 'privileged'
+                    if constants.privileged_key in svc:
+                        security_settings[svc_name] = {constants.privileged_key: svc[constants.privileged_key]}
+        return security_settings
+
+    def get_named_volumes(self):
+        # Parse the compose files looking for named volumes
+        named_volumes = {"rw": [], "ro": []}
+
+        def find_vol_usage(parsed_pod_file, vol):
+            ret = {}
+            if constants.services_key in parsed_pod_file:
+                for svc_name, svc in parsed_pod_file[constants.services_key].items():
+                    if constants.volumes_key in svc:
+                        for svc_volume in svc[constants.volumes_key]:
+                            parts = svc_volume.split(":")
+                            if parts[0] == vol:
+                                ret[svc_name] = {
+                                    "volume": parts[0],
+                                    "mount": parts[1],
+                                    "options": parts[2] if len(parts) == 3 else None,
+                                }
+            return ret
+
+        pods = self.get_pod_list()
+        for pod in pods:
+            parsed_pod_file = self.load_pod_file(pod)
+            if constants.volumes_key in parsed_pod_file:
+                volumes = parsed_pod_file[constants.volumes_key]
+                for volume in volumes.keys():
+                    for vu in find_vol_usage(parsed_pod_file, volume).values():
+                        read_only = vu["options"] == "ro"
+                        if read_only:
+                            if vu["volume"] not in named_volumes["rw"] and vu["volume"] not in named_volumes["ro"]:
+                                named_volumes["ro"].append(vu["volume"])
+                        else:
+                            if vu["volume"] not in named_volumes["rw"]:
+                                named_volumes["rw"].append(vu["volume"])
+
+        return named_volumes
 
     def dump(self, output_file_path):
         get_yaml().dump(self.obj, open(output_file_path, "wt"))

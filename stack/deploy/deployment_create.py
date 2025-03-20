@@ -48,66 +48,15 @@ def _make_default_deployment_dir():
 
 
 def _get_ports(stack):
-    ports = {}
-    pods = stack.get_pod_list()
-    for pod in pods:
-        parsed_pod_file = stack.load_pod_file(pod)
-        if "services" in parsed_pod_file:
-            for svc_name, svc in parsed_pod_file["services"].items():
-                if "ports" in svc:
-                    # Ports can appear as strings or numbers.  We normalize them as strings.
-                    ports[svc_name] = [str(x) for x in svc["ports"]]
-    return ports
+    return stack.get_ports()
 
 
 def _get_security_settings(stack):
-    security_settings = {}
-    pods = stack.get_pod_list()
-    for pod in pods:
-        parsed_pod_file = stack.load_pod_file(pod)
-        if "services" in parsed_pod_file:
-            for svc_name, svc in parsed_pod_file["services"].items():
-                # All we understand for now is 'privileged'
-                if "privileged" in svc:
-                    security_settings[svc_name] = {"privileged": svc["privileged"]}
-    return security_settings
+    return stack.get_security_settings()
 
 
 def _get_named_volumes(stack):
-    # Parse the compose files looking for named volumes
-    named_volumes = {"rw": [], "ro": []}
-
-    def find_vol_usage(parsed_pod_file, vol):
-        ret = {}
-        if "services" in parsed_pod_file:
-            for svc_name, svc in parsed_pod_file["services"].items():
-                if "volumes" in svc:
-                    for svc_volume in svc["volumes"]:
-                        parts = svc_volume.split(":")
-                        if parts[0] == vol:
-                            ret[svc_name] = {
-                                "volume": parts[0],
-                                "mount": parts[1],
-                                "options": parts[2] if len(parts) == 3 else None,
-                            }
-        return ret
-
-    pods = stack.get_pod_list()
-    for pod in pods:
-        parsed_pod_file = stack.load_pod_file(pod)
-        if "volumes" in parsed_pod_file:
-            volumes = parsed_pod_file["volumes"]
-            for volume in volumes.keys():
-                for vu in find_vol_usage(parsed_pod_file, volume).values():
-                    read_only = vu["options"] == "ro"
-                    if read_only:
-                        if vu["volume"] not in named_volumes["rw"] and vu["volume"] not in named_volumes["ro"]:
-                            named_volumes["ro"].append(vu["volume"])
-                    else:
-                        if vu["volume"] not in named_volumes["rw"]:
-                            named_volumes["rw"].append(vu["volume"])
-
-    return named_volumes
+    return stack.get_named_volumes()
 
 
 # If we're mounting a volume from a relatie path, then we

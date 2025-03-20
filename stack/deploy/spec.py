@@ -23,7 +23,7 @@ from pathlib import Path
 from mergedeep import merge, Strategy
 
 from stack import constants
-from stack.util import get_yaml, get_stack_path
+from stack.util import get_yaml, get_stack_path, error_exit
 
 from stack.deploy.stack import Stack
 
@@ -99,8 +99,10 @@ class Spec:
         return self.obj.get(item, default)
 
     def init_from_file(self, file_path: Path):
+        if isinstance(file_path, str):
+            file_path = Path(file_path)
         self.obj = get_yaml().load(open(file_path, "r"))
-        self.file_path = os.path.abspath(file_path)
+        self.file_path = file_path.absolute()
         return self
 
     def get_image_registry(self):
@@ -178,6 +180,12 @@ class Spec:
     def get_pod_list(self):
         return self.load_stack().get_pod_list()
 
+    def get_services(self):
+        return self.load_stack().get_services()
+
+    def get_network_ports(self):
+        return self.obj.get(constants.network_key, {}).get(constants.ports_key, {})
+
     def load_pod_file(self, pod_name):
         return self.load_stack().load_pod_file(pod_name)
 
@@ -200,6 +208,9 @@ class MergedSpec(Spec):
         super().__init__()
         self.type = "merged"
         self._specs = []
+
+    def load_stack(self):
+        return self.merge_stacks()
 
     def merge_stacks(self):
         stacks = self.load_stacks()
@@ -237,12 +248,58 @@ class MergedSpec(Spec):
                 return vol_path
         return None
 
-    def merge(self, other):
+    def merge(self, other: Spec):
+        # Check for conflicts on deployment type.
         if self.get_deployment_type() and self.get_deployment_type() != other.get_deployment_type():
-            raise TypeError(f"{self.get_deployment_type()} != {other.get_deployment_type()}")
+            error_exit(f"{self.get_deployment_type()} != {other.get_deployment_type()} in {other.file_path}")
 
+        # Check for conflicts on image registry.
         if self.get_image_registry() and self.get_image_registry() != other.get_image_registry():
-            raise TypeError(f"{self.get_image_registry()} != {other.get_image_registry()}")
+            error_exit(f"{self.get_image_registry()} != {other.get_image_registry()} in {other.file_path}")
+
+        # Check for conflicts on kube config.
+        if self.get_kube_config() and self.get_kube_config() != other.get_kube_config():
+            error_exit(f"{self.get_kube_config()} != {other.get_kube_config()} in {other.file_path}")
+
+        # Check for conflicts on HTTP proxy settings.
+        if self.get_http_proxy() and other.get_http_proxy() and self.get_http_proxy() != other.get_http_proxy():
+            error_exit(
+                "Merge HTTP proxy settings is not allowed: "
+                f"{self.get_http_proxy()} != {other.get_http_proxy()} in {other.file_path}"
+            )
+
+        # Check for conflicts on pod names
+        current_pods = self.get_pod_list()
+        for pod in other.get_pod_list():
+            if pod in current_pods:
+                error_exit(f"Pod name conflict for {pod}")
+
+        # Check for conflicts on the service names
+        current_services = list(self.get_services().keys())
+        other_services = list(other.get_services().keys())
+        for svc_name in other_services:
+            if svc_name in current_services:
+                error_exit(f"Service name conflict for {svc_name} in {other.file_path}.")
+
+        # Check for conflicts on volume names
+        current_volume_names = list(self.get_volumes().keys())
+        other_volume_names = list(other.get_volumes().keys())
+        for vol_name in other_volume_names:
+            if vol_name in current_volume_names:
+                error_exit(f"Volume name conflict for {vol_name} in {other.file_path}.")
+
+        # Check for conflicts on mapped ports
+        mapped_ports = {}
+        for svc_name, ports in self.get_network_ports().items():
+            for port in ports:
+                if ":" in port:
+                    first_part = ":".join(port.split(":")[0:-1])
+                    if first_part in mapped_ports:
+                        error_exit(
+                            f"Port mapping conflict for {svc_name}:{first_part} and "
+                            f"{mapped_ports[first_part]}:{first_part} in {other.file_path}"
+                        )
+                    mapped_ports[first_part] = svc_name
 
         merge(self.obj, other.obj, strategy=Strategy.ADDITIVE)
         self._specs.append(other)
