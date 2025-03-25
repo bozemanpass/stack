@@ -27,11 +27,15 @@ import validators
 from stack.util import get_yaml
 
 
+DEFAULT_URL = "https://github.com/bozemanpass/stack/releases/latest/download/stack"
+
+
 def _download_url(url: str, file_path: Path):
     r = requests.get(url, stream=True)
     r.raw.decode_content = True
     with open(file_path, "wb") as f:
         shutil.copyfileobj(r.raw, f)
+    return r.status_code
 
 
 def _error_exit(s: str):
@@ -48,13 +52,14 @@ def command(ctx, check_only):
     # Get the distribution URL from config
     config_key = "distribution-url"
     config_file_path = Path(os.path.expanduser("~/.stack/config.yml"))
-    if not config_file_path.exists():
-        _error_exit(f"Error: Config file: {config_file_path} not found")
-    yaml = get_yaml()
-    config = yaml.load(open(config_file_path, "r"))
-    if "distribution-url" not in config:
-        _error_exit(f"Error: {config_key} not defined in {config_file_path}")
-    distribution_url = config[config_key]
+    distribution_url = DEFAULT_URL
+
+    if config_file_path.exists():
+        yaml = get_yaml()
+        config = yaml.load(open(config_file_path, "r"))
+        if "distribution-url" in config and config_key in config:
+            distribution_url = config[config_key]
+
     # Sanity check the URL
     if not validators.url(distribution_url):
         _error_exit(f"ERROR: distribution url: {distribution_url} is not valid")
@@ -65,7 +70,10 @@ def command(ctx, check_only):
     # Download the file to a temp filename
     if ctx.obj.verbose:
         print(f"Downloading from: {distribution_url} to {temp_download_path}")
-    _download_url(distribution_url, temp_download_path)
+    status_code = _download_url(distribution_url, temp_download_path)
+    if status_code != 200:
+        os.unlink(temp_download_path)
+        _error_exit(f"HTTP error {status_code} downloading from {distribution_url}")
     # Set the executable bit
     existing_mode = os.stat(temp_download_path)
     os.chmod(temp_download_path, existing_mode.st_mode | stat.S_IXUSR)
