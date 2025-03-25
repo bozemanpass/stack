@@ -137,7 +137,7 @@ fi
 echo "**************************************************************************************"
 echo "Installing stack"
 # install latest `stack`
-distribution_url=https://github.com/bozemanpass/stack/releases/download/latest/stack
+distribution_url=https://github.com/bozemanpass/stack/releases/latest/download/stack
 install_filename=${install_dir}/stack
 mkdir -p  ${install_dir}
 curl -L -o ${install_filename} ${distribution_url}

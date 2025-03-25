@@ -30,7 +30,7 @@ a "user" binary directory such as `~/bin` or perhaps `/usr/local/stack` or possi
 Now, having selected that directory, download the latest release from [this page](https://github.com/bozemanpass/stack/tags) into it (we're using `~/bin` below for concreteness but edit to suit if you selected a different directory). Also be sure that the destination directory exists and is writable:
 
 ```bash
-curl -L -o ~/bin/stack https://github.com/bozemanpass/stack/releases/download/latest/stack
+curl -L -o ~/bin/stack https://github.com/bozemanpass/stack/releases/latest/download/stack
 ```
 
 Give it execute permissions:
@@ -50,7 +50,7 @@ Version: 1.1.0-7a607c2-202304260513
 Save the distribution url to `~/.stack/config.yml`:
 ```bash
 mkdir ~/.stack
-echo "distribution-url: https://github.com/bozemanpass/stack/releases/download/latest/stack" >  ~/.stack/config.yml
+echo "distribution-url: https://github.com/bozemanpass/stack/releases/latest/download/stack" >  ~/.stack/config.yml
 ```
 
 ### Update
