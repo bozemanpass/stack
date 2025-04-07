@@ -224,7 +224,7 @@ def command(ctx, include, exclude, git_ssh, check_only, pull, branches):
     repos_in_scope = []
     if stack:
         stack_config = get_parsed_stack_config(stack)
-        repos_in_scope = stack_config["repos"]
+        repos_in_scope = stack_config.get("repos", [])
     else:
         repos_in_scope = all_repos
 
