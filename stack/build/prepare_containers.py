@@ -1,6 +1,5 @@
 # Copyright © 2022, 2023 Vulcanize
 # Copyright © 2025 Bozeman Pass, Inc.
-from distutils.command.build_scripts import build_scripts
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
