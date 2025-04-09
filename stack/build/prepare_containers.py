@@ -20,7 +20,6 @@
 # BPI_REPO_BASE_DIR defaults to ~/bpi
 
 import click
-import datetime
 import git
 import os
 import subprocess
