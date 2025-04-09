@@ -96,15 +96,16 @@ def process_container(build_context: BuildContext) -> bool:
             build_dir = build_script_filename.parent
         else:
             container_build_script_dir = Path(build_context.stack).parent.parent.joinpath("container-build")
-            temp_build_dir = container_build_script_dir.joinpath(build_context.container.name.replace("/", "-"))
-            temp_build_script_filename = temp_build_dir.joinpath("build.sh")
-            # Now check if the container exists in the external stack.
-            if not temp_build_script_filename.exists():
-                # If not, revert to building an internal container
-                container_build_script_dir = build_context.container_build_dir
-            build_dir = container_build_script_dir.joinpath(build_context.container.name.replace("/", "-"))
-            build_script_filename = build_dir.joinpath("build.sh")
-    else:
+            if os.path.exists(container_build_script_dir):
+                temp_build_dir = container_build_script_dir.joinpath(build_context.container.name.replace("/", "-"))
+                temp_build_script_filename = temp_build_dir.joinpath("build.sh")
+                # Now check if the container exists in the external stack.
+                if not temp_build_script_filename.exists():
+                    # If not, revert to building an internal container
+                    container_build_script_dir = build_context.container_build_dir
+                build_dir = container_build_script_dir.joinpath(build_context.container.name.replace("/", "-"))
+                build_script_filename = build_dir.joinpath("build.sh")
+    if not build_dir:
         build_dir = build_context.container_build_dir.joinpath(build_context.container.name.replace("/", "-"))
         build_script_filename = build_dir.joinpath("build.sh")
 
@@ -115,7 +116,7 @@ def process_container(build_context: BuildContext) -> bool:
     else:
         if opts.o.verbose:
             print(f"No script file found: {build_script_filename}, using default build script")
-        repo_dir = build_context.container.name.split("/")[1]
+        repo_dir = build_context.container.ref.split("/")[1] if build_context.container.ref else build_context.container.name.split("/")[1]
         # TODO: make this less of a hack -- should be specified in some metadata somewhere
         # Check if we have a repo for this container. If not, set the context dir to the container-build subdir
         repo_full_path = os.path.join(build_context.dev_root_path, repo_dir)
@@ -220,7 +221,8 @@ def _prepare_containers(ctx, include, exclude, git_ssh, build_policy, extra_buil
         container_was_built = False
         container_needs_pulled = False
         container_tag = None
-        container_spec = ContainerSpec(stack_container.name)
+        # TODO: Handle stack_container.path
+        container_spec = ContainerSpec(stack_container.name, stack_container.ref)
         stack_local_tag = f"{container_spec.name}:stack"
         stack_legacy_tag = f"{container_spec.name}:local"
         image_registry_to_pull_this_container = image_registry
@@ -240,7 +242,9 @@ def _prepare_containers(ctx, include, exclude, git_ssh, build_policy, extra_buil
                 container_spec_yml_path = os.path.join(fs_path_for_container_specs, stack_container.path, container_file_name)
                 container_lock_file_path = os.path.join(fs_path_for_container_specs, stack_container.path, container_lock_file_name)
 
-            container_spec = ContainerSpec().init_from_file(container_spec_yml_path)
+            if os.path.exists(container_spec_yml_path):
+                container_spec = ContainerSpec().init_from_file(container_spec_yml_path)
+
             if container_spec.ref:
                 locked_hash = None
                 if os.path.exists(container_lock_file_path):
