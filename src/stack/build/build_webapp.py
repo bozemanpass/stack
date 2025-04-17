@@ -114,4 +114,4 @@ def command(ctx, base_container, source_repo, force_rebuild, extra_build_args, t
 
     if verbose:
         logger.log(f"App container {base_container} build finished.")
-        logger.log("build-webapp complete", show_step_time=False, show_total_time=True)
+        logger.log("webapp build complete", show_step_time=False, show_total_time=True)

@@ -533,7 +533,7 @@ def build_container_image(app_record, tag, extra_build_args=None, logger=None):
         build_command = [
             sys.argv[0],
             "--verbose",
-            "build-webapp",
+            "webapp build",
             "--source-repo",
             clone_dir,
             "--tag",

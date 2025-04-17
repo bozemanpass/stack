@@ -58,13 +58,13 @@ In addition to the pre-requisites listed in the [README](/README.md), the follow
                   
             Core Commands:      
                build-npms             build the set of npm packages required for a...
-               build-webapp           build the specified webapp container
+               webapp build           build the specified webapp container
                deploy                 deploy a stack
-               deploy-webapp          manage a webapp deployment
+               webapp deploy          manage a webapp deployment
                deployment             manage a deployment
                fetch-stack            optionally resolve then git clone a repository...
                prepare-containers     build or download the set of containers required...
-               run-webapp             run the specified webapp container
+               webapp run             run the specified webapp container
                setup-repositories     git clone the set of repositories required to build...
                update                 update shiv binary from a distribution url
                version                print tool version

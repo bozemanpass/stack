@@ -104,7 +104,7 @@ def command(ctx):
 
     # Check that --stack wasn't supplied
     if ctx.parent.obj.stack:
-        error_exit("--stack can't be supplied with the deploy-webapp command")
+        error_exit("--stack can't be supplied with the webapp deploy command")
 
 
 @command.command()

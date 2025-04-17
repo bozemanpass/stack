@@ -23,14 +23,12 @@ from stack.command_types import CommandOptions
 from stack.repos import setup_repositories
 from stack.repos import fetch_stack
 from stack.build import prepare_containers
-from stack.build import build_npms
-from stack.build import build_webapp
-from stack.deploy.webapp import run_webapp, deploy_webapp
 from stack.deploy import deploy
 from stack import version
 from stack.deploy import deployment
 from stack import opts
 from stack import update
+from stack.webapp import webapp
 from stack.util import stack_is_external, error_exit
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
@@ -60,12 +58,9 @@ cli.add_command(fetch_stack.command, "fetch-stack")
 cli.add_command(setup_repositories.command, "setup-repositories")
 cli.add_command(prepare_containers.command, "prepare-containers")
 cli.add_command(prepare_containers.legacy_command, "build-containers")
-cli.add_command(build_npms.command, "build-npms")
-cli.add_command(build_webapp.command, "build-webapp")
-cli.add_command(run_webapp.command, "run-webapp")
-cli.add_command(deploy_webapp.command, "deploy-webapp")
 cli.add_command(deploy.command, "deploy")
 cli.add_command(deployment.command, "deployment")
+cli.add_command(webapp.command, "webapp")
 cli.add_command(version.command, "version")
 cli.add_command(update.command, "update")
 
