@@ -24,7 +24,7 @@ from stack.deploy.webapp.run_webapp import command as run_webapp
 @click.group()
 @click.pass_context
 def command(ctx):
-    '''build, run, and deploy webapps'''
+    """build, run, and deploy webapps"""
     pass
 
 
