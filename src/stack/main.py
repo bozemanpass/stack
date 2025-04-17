@@ -38,8 +38,8 @@ STACK_USE_BUILTIN_STACK = "true" == os.environ.get("STACK_USE_BUILTIN_STACK", "f
 
 @click.group(context_settings=CONTEXT_SETTINGS, cls=StackCLI)
 @click.option("--stack", help="path to the stack to build/deploy")
-@click.option("--verbose", help="More detailed output", is_flag=True, default=False)
-@click.option("--debug", help="Enable debug logging", is_flag=True, default=False)
+@click.option("--verbose", help="more detailed output", is_flag=True, default=False)
+@click.option("--debug", help="enable debug logging", is_flag=True, default=False)
 # TEL: Hide these for now, until we make sure they are consistently implemented.
 @click.option("--quiet", is_flag=True, default=False, hidden=True)
 @click.option("--dry-run", is_flag=True, default=False, hidden=True)
