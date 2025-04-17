@@ -34,6 +34,9 @@ requires-python = ">=3.10"
 [project.scripts]
 stack = "stack:main.cli"
 
+[tool.setuptools.package-data]
+stack = ['data/**']
+
 [project.urls]
 "Homepage" = "https://github.com/bozemanpass/stack"
 "Bug Tracker" = "https://github.com/bozemanpass/stack/issues"
