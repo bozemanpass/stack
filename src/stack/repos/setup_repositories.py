@@ -191,7 +191,7 @@ def parse_branches(branches_string):
 @click.option("--branches", help="override branches for repositories")
 @click.pass_context
 def command(ctx, include, exclude, git_ssh, check_only, pull, branches):
-    """git clone the set of repositories required to build the complete system from source"""
+    """clone the repositories needed by the stack"""
 
     quiet = opts.o.quiet
     verbose = opts.o.verbose

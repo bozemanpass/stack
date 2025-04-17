@@ -53,17 +53,17 @@ def cli(ctx, stack, quiet, verbose, dry_run, debug, continue_on_error):
     opts.opts.o = command_options
     ctx.obj = command_options
 
-
-cli.add_command(fetch_stack.command, "fetch-stack")
-cli.add_command(setup_repositories.command, "setup-repositories")
-cli.add_command(prepare_containers.command, "prepare-containers")
-cli.add_command(prepare_containers.legacy_command, "build-containers")
 cli.add_command(deploy.command, "deploy")
 cli.add_command(deployment.command, "deployment")
-cli.add_command(webapp.command, "webapp")
-cli.add_command(version.command, "version")
+cli.add_command(fetch_stack.command, "fetch-stack")
+cli.add_command(prepare_containers.command, "prepare-containers")
+cli.add_command(setup_repositories.command, "setup-repositories")
 cli.add_command(update.command, "update")
+cli.add_command(version.command, "version")
+cli.add_command(webapp.command, "webapp")
 
+# Hidden commands
+cli.add_command(prepare_containers.legacy_command, "build-containers")
 
 # We only try to load external commands from an external stack.
 if not STACK_USE_BUILTIN_STACK:

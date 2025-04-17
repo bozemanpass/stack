@@ -175,7 +175,7 @@ def legacy_command(ctx, include, exclude, force_rebuild, extra_build_args, publi
 @click.option("--target-arch", help="Specify a target architecture (only for use with --no-pull)")
 @click.pass_context
 def command(ctx, include, exclude, git_ssh, build_policy, extra_build_args, no_pull, publish_images, image_registry, target_arch):
-    """build or download the set of containers required for a complete stack"""
+    """build or download stack containers"""
 
     _prepare_containers(ctx, include, exclude, git_ssh, build_policy, extra_build_args, no_pull, publish_images, image_registry, target_arch)
 
