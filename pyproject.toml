@@ -1,4 +1,39 @@
-# pyproject.toml
 [build-system]
-requires = ["setuptools >= 64"]
+requires = ["setuptools>=75.0", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "stack"
+version = "2.0.1"
+authors = [{name="David Boreham", email="david@bozemanpass.com" }]
+description = ""
+readme = "README.md"
+dependencies = [
+    "click",
+    "python-decouple",
+    "python-dotenv",
+    "GitPython",
+    "tqdm",
+    "python-on-whales",
+    "PyYAML",
+    "ruamel.yaml",
+    "pydantic",
+    "tomli",
+    "validators",
+    "kubernetes",
+    "humanfriendly",
+    "python-gnupg",
+    "requests",
+    "expandvars",
+    "mergedeep",
+    "flake8",
+    "black"
+]
+requires-python = ">=3.10"
+
+[project.scripts]
+stack = "stack:main.cli"
+
+[project.urls]
+"Homepage" = "https://github.com/bozemanpass/stack"
+"Bug Tracker" = "https://github.com/bozemanpass/stack/issues"
