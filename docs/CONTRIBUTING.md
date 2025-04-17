@@ -78,7 +78,7 @@ Use shiv to build a single file Python executable zip archive of stack:
    ```
    $ (venv)  ./scripts/build_shiv_package.sh
    ```
-   This creates a file `./stack` that is executable outside of any venv, and on other machines and OSes and architectures, and requiring only the system Python3:
+   This creates a file under `./package/` that is executable outside of any venv, and on other machines and OSes and architectures, and requiring only the system Python3:
 
 3. Verify it works:
    ```
