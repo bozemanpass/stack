@@ -59,7 +59,7 @@ def cli(ctx, stack, quiet, verbose, dry_run, debug, continue_on_error):
 cli.add_command(build.command, "build")
 cli.add_command(deployment.command, "deployment")
 cli.add_command(fetch.command, "fetch")
-cli.add_command(deploy.command, "setup")
+cli.add_command(deploy.command, "init")
 cli.add_command(update.command, "update")
 cli.add_command(version.command, "version")
 cli.add_command(webapp.command, "webapp")

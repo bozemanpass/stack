@@ -31,8 +31,8 @@ docker image ls -a
 test_deployment_dir=$BPI_REPO_BASE_DIR/test-deployment-dir
 test_deployment_spec=$BPI_REPO_BASE_DIR/test-deployment-spec.yml
 # Deploy the test container
-$TEST_TARGET_SO --stack test setup init --output $test_deployment_spec
-$TEST_TARGET_SO setup create --spec-file $test_deployment_spec --deployment-dir $test_deployment_dir
+$TEST_TARGET_SO --stack test init config --output $test_deployment_spec
+$TEST_TARGET_SO init create --spec-file $test_deployment_spec --deployment-dir $test_deployment_dir
 # Up
 $TEST_TARGET_SO deployment --dir $test_deployment_dir start
 # Down

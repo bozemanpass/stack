@@ -54,7 +54,7 @@ from stack.deploy.deployment_create import init as deployment_init
 def command(ctx, include, exclude, env_file, cluster, deploy_to):
     """create and configure a new stack deployment"""
 
-    # Although in theory for some subcommands (e.g. setup create) the stack can be inferred,
+    # Although in theory for some subcommands (e.g. init create) the stack can be inferred,
     # Click doesn't allow us to know that here, so we make providing the stack mandatory
     stack = global_options2(ctx).stack
     if stack:
@@ -456,5 +456,5 @@ def _orchestrate_cluster_config(ctx, cluster_config, deployer, container_exec_en
                         print(f"destination output: {destination_output}")
 
 
-command.add_command(deployment_init)
-command.add_command(deployment_create)
+command.add_command(deployment_init, "config")
+command.add_command(deployment_create, "create")

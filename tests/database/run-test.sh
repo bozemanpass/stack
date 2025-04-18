@@ -81,23 +81,23 @@ test_deployment_spec=$BPI_REPO_BASE_DIR/${spec_file}
 $TEST_TARGET_SO --stack ${stack} deploy --deploy-to k8s-kind init --output $test_deployment_spec
 # Check the file now exists
 if [ ! -f "$test_deployment_spec" ]; then
-    echo "setup init test: spec file not present"
-    echo "setup init test: FAILED"
+    echo "deploy init test: spec file not present"
+    echo "deploy init test: FAILED"
     exit 1
 fi
-echo "setup init test: passed"
+echo "deploy init test: passed"
 
 # Switch to a full path for the data dir so it gets provisioned as a host bind mounted volume and preserved beyond cluster lifetime
 sed -i "s|^\(\s*db-data:$\)$|\1 ${test_deployment_dir}/data/db-data|" $test_deployment_spec
 
-$TEST_TARGET_SO --stack ${stack} setup create --spec-file $test_deployment_spec --deployment-dir $test_deployment_dir
+$TEST_TARGET_SO --stack ${stack} init create --spec-file $test_deployment_spec --deployment-dir $test_deployment_dir
 # Check the deployment dir exists
 if [ ! -d "$test_deployment_dir" ]; then
-    echo "setup create test: deployment directory not present"
-    echo "setup create test: FAILED"
+    echo "deploy create test: deployment directory not present"
+    echo "deploy create test: FAILED"
     exit 1
 fi
-echo "setup create test: passed"
+echo "deploy create test: passed"
 
 # Try to start the deployment
 $TEST_TARGET_SO deployment --dir $test_deployment_dir start

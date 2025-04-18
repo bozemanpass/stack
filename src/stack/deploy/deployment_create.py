@@ -297,7 +297,7 @@ def init(
     output,
     map_ports_to_host,
 ):
-    """initialize a new stack specification file"""
+    """output a stack specification file"""
     stack = global_options(ctx).stack
     if not stack:
         error_exit("Error: --stack option is required")

@@ -55,10 +55,10 @@ URL: http://localhost:32769
 
 ## Deploying
 
-Use the subcommand `webapp setup create` to make a deployment directory that can be subsequently deployed to a Kubernetes cluster.
+Use the subcommand `webapp init create` to make a deployment directory that can be subsequently deployed to a Kubernetes cluster.
 Example commands are shown below, assuming that the webapp container image `bpi/test-progressive-web-app:stack` has already been built:
 ```
-$ stack webapp setup create --kube-config ~/kubectl/k8s-kubeconfig.yaml --image-registry registry.digitalocean.com/laconic-registry --deployment-dir webapp-k8s-deployment --image bpi/test-progressive-web-app:stack --url https://test-pwa-app.hosting.laconic.com/ --env-file test-webapp.env
+$ stack webapp init create --kube-config ~/kubectl/k8s-kubeconfig.yaml --image-registry registry.digitalocean.com/laconic-registry --deployment-dir webapp-k8s-deployment --image bpi/test-progressive-web-app:stack --url https://test-pwa-app.hosting.laconic.com/ --env-file test-webapp.env
 $ stack deployment --dir webapp-k8s-deployment push-images
 $ stack deployment --dir webapp-k8s-deployment start
 ```
