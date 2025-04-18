@@ -181,6 +181,7 @@ def parse_branches(branches_string):
     else:
         return None
 
+
 @click.command(hidden=True)
 @click.option("--include", help="only clone these repositories")
 @click.option("--exclude", help="don't clone these repositories")
@@ -194,6 +195,7 @@ def legacy_command(ctx, include, exclude, git_ssh, check_only, pull, branches):
 
     return _command(ctx, include, exclude, git_ssh, check_only, pull, branches)
 
+
 @click.command()
 @click.option("--include", help="only clone these repositories")
 @click.option("--exclude", help="don't clone these repositories")
@@ -206,6 +208,7 @@ def command(ctx, include, exclude, git_ssh, check_only, pull, branches):
     """clone the repositories needed by the stack"""
 
     return _command(ctx, include, exclude, git_ssh, check_only, pull, branches)
+
 
 def _command(ctx, include, exclude, git_ssh, check_only, pull, branches):
     """clone the repositories needed by the stack"""

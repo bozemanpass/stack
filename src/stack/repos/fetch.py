@@ -22,7 +22,7 @@ from stack.repos.setup_repositories import command as setup_repositories
 @click.group()
 @click.pass_context
 def command(ctx):
-    """clone stacks and their referenced repos"""
+    """clone stacks and their required repos"""
     pass
 
 
