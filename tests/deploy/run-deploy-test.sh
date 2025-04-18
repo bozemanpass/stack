@@ -29,7 +29,7 @@ rm -rf $BPI_REPO_BASE_DIR
 mkdir -p $BPI_REPO_BASE_DIR
 # Test bringing the test container up and down
 # with and without volume removal
-$TEST_TARGET_SO --stack test setup-repositories
+$TEST_TARGET_SO --stack test fetch repositories
 $TEST_TARGET_SO --stack test prepare-containers
 # Basic test of creating a deployment
 test_deployment_dir=$BPI_REPO_BASE_DIR/test-deployment-dir

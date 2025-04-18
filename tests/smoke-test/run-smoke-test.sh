@@ -21,7 +21,7 @@ echo "Cloning repositories into: $BPI_REPO_BASE_DIR"
 rm -rf $BPI_REPO_BASE_DIR
 mkdir -p $BPI_REPO_BASE_DIR
 # Test pulling a stack
-$TEST_TARGET_SO --stack test setup-repositories
+$TEST_TARGET_SO --stack test fetch repositories
 # Test building the a stack container
 $TEST_TARGET_SO --stack test prepare-containers
 # Build one example containers

@@ -30,51 +30,50 @@ In addition to the pre-requisites listed in the [README](/README.md), the follow
    ```
 
    2. Enter the project directory:
-      ```
-      $ cd stack
-      ```
+   ```
+   $ cd stack
+   ```
 
-      3. Setup the virtualenv:
+   3. Setup the virtualenv:
+   ```
+   $ source ./scripts/developer-mode-setup.sh
+   ```
 
-         ```
-         $ source ./scripts/developer-mode-setup.sh
-         ```
+   4. Verify installation:
+   ```
+   $ (venv)  stack
+      Usage: stack [OPTIONS] COMMAND [ARGS]...
 
-         5. Verify installation:
-         ```
-         $ (venv)  stack
-            Usage: stack [OPTIONS] COMMAND [ARGS]...
+      BPI stack
 
-            BPI stack
+      Options:
+         --stack TEXT  path to the stack to build/deploy
+         --verbose     more detailed output
+         --debug       enable debug logging
+         -h, --help    Show this message and exit.
 
-            Options:
-               --stack TEXT  path to the stack to build/deploy
-               --verbose     more detailed output
-               --debug       enable debug logging
-               -h, --help    Show this message and exit.
-
-            Core Commands:
-               deploy              deploy a stack
-               deployment          manage a deployment
-               fetch-stack         clone a stack repository
-               prepare-containers  build or download stack containers
-               setup-repositories  clone the repositories needed by the stack
-               update              update shiv binary from a distribution url
-               version             print tool version
-               webapp              build, run, and deploy webapps
-         ```
+      Core Commands:
+         deploy              deploy a stack
+         deployment          manage a deployment
+         fetch stack         clone a stack repository
+         prepare-containers  build or download stack containers
+         fetch repositories  clone the repositories needed by the stack
+         update              update shiv binary from a distribution url
+         version             print tool version
+         webapp              build, run, and deploy webapps
+   ```
 
 ## Build a zipapp (single file distributable script)
 
 Use shiv to build a single file Python executable zip archive of stack:
 
-2. Run shiv to create a zipapp file:
+1. Run shiv to create a zipapp file:
    ```
    $ (venv)  ./scripts/build_shiv_package.sh
    ```
    This creates a file under `./package/` that is executable outside of any venv, and on other machines and OSes and architectures, and requiring only the system Python3:
 
-3. Verify it works:
+2. Verify it works:
    ```
    $ cp  ~/bin
    $ stack
@@ -82,5 +81,3 @@ Use shiv to build a single file Python executable zip archive of stack:
 
    ...
    ```
-
-For cutting releases, use the [shiv build script](/scripts/build_shiv_package.sh).

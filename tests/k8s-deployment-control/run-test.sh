@@ -67,7 +67,7 @@ echo "Version reported is: ${reported_version_string}"
 echo "Cloning repositories into: $BPI_REPO_BASE_DIR"
 rm -rf $BPI_REPO_BASE_DIR
 mkdir -p $BPI_REPO_BASE_DIR
-$TEST_TARGET_SO --stack test setup-repositories
+$TEST_TARGET_SO --stack test fetch repositories
 $TEST_TARGET_SO --stack test prepare-containers
 # Test basic stack deploy to k8s
 test_deployment_dir=$BPI_REPO_BASE_DIR/test-deployment-dir

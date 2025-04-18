@@ -229,7 +229,7 @@ def _prepare_containers(ctx, include, exclude, git_ssh, build_policy, extra_buil
         if stack_container.ref:
             fs_path_for_container_specs = fs_path_for_repo(stack_container.ref, dev_root_path)
             if not os.path.exists(fs_path_for_container_specs):
-                print(f"Error: Missing container repo for {fs_path_for_container_specs}, run setup-repositories")
+                print(f"Error: Missing container repo for {fs_path_for_container_specs}, run fetch repositories")
                 sys.exit(1)
 
             image_registries_to_check = [r for r in [image_registry, image_registry_for_repo(stack_container.ref)] if r]

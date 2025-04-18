@@ -181,6 +181,18 @@ def parse_branches(branches_string):
     else:
         return None
 
+@click.command(hidden=True)
+@click.option("--include", help="only clone these repositories")
+@click.option("--exclude", help="don't clone these repositories")
+@click.option("--git-ssh", is_flag=True, default=False)
+@click.option("--check-only", is_flag=True, default=False)
+@click.option("--pull", is_flag=True, default=False)
+@click.option("--branches", help="override branches for repositories")
+@click.pass_context
+def legacy_command(ctx, include, exclude, git_ssh, check_only, pull, branches):
+    """clone the repositories needed by the stack"""
+
+    return _command(ctx, include, exclude, git_ssh, check_only, pull, branches)
 
 @click.command()
 @click.option("--include", help="only clone these repositories")
@@ -193,6 +205,10 @@ def parse_branches(branches_string):
 def command(ctx, include, exclude, git_ssh, check_only, pull, branches):
     """clone the repositories needed by the stack"""
 
+    return _command(ctx, include, exclude, git_ssh, check_only, pull, branches)
+
+def _command(ctx, include, exclude, git_ssh, check_only, pull, branches):
+    """clone the repositories needed by the stack"""
     quiet = opts.o.quiet
     verbose = opts.o.verbose
     stack = opts.o.stack

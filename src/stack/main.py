@@ -20,8 +20,8 @@ import sys
 
 from stack.cli_util import StackCLI, load_subcommands_from_stack
 from stack.command_types import CommandOptions
+from stack.repos import fetch
 from stack.repos import setup_repositories
-from stack.repos import fetch_stack
 from stack.build import prepare_containers
 from stack.deploy import deploy
 from stack import version
@@ -57,15 +57,15 @@ def cli(ctx, stack, quiet, verbose, dry_run, debug, continue_on_error):
 
 cli.add_command(deploy.command, "deploy")
 cli.add_command(deployment.command, "deployment")
-cli.add_command(fetch_stack.command, "fetch-stack")
+cli.add_command(fetch.command, "fetch")
 cli.add_command(prepare_containers.command, "prepare-containers")
-cli.add_command(setup_repositories.command, "setup-repositories")
 cli.add_command(update.command, "update")
 cli.add_command(version.command, "version")
 cli.add_command(webapp.command, "webapp")
 
 # Hidden commands
 cli.add_command(prepare_containers.legacy_command, "build-containers")
+cli.add_command(setup_repositories.legacy_command, "fetch repositories")
 
 # We only try to load external commands from an external stack.
 if not STACK_USE_BUILTIN_STACK:

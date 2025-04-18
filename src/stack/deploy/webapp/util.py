@@ -470,7 +470,7 @@ def build_container_image(app_record, tag, extra_build_args=None, logger=None):
         extra_build_args = []
     tmpdir = tempfile.mkdtemp()
 
-    # TODO: determine if this code could be calling into the Python git library like setup-repositories
+    # TODO: determine if this code could be calling into the Python git library like fetch repositories
     try:
         record_id = app_record["id"]
         ref = app_record.attributes.repository_ref

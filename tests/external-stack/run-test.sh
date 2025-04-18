@@ -30,12 +30,12 @@ echo "Cloning repositories into: $BPI_REPO_BASE_DIR"
 rm -rf $BPI_REPO_BASE_DIR
 mkdir -p $BPI_REPO_BASE_DIR
 # Clone the external test stack
-$TEST_TARGET_SO fetch-stack github.com/bozemanpass/test-external-stack
+$TEST_TARGET_SO fetch stack github.com/bozemanpass/test-external-stack
 stack_name="$BPI_REPO_BASE_DIR/test-external-stack/stack/stacks/test-external-stack"
 TEST_TARGET_SO_STACK="$TEST_TARGET_SO --stack ${stack_name}"
 # Test bringing the test container up and down
 # with and without volume removal
-$TEST_TARGET_SO_STACK setup-repositories
+$TEST_TARGET_SO_STACK fetch repositories
 $TEST_TARGET_SO_STACK prepare-containers
 # Test deploy command execution
 $TEST_TARGET_SO_STACK deploy setup $BPI_REPO_BASE_DIR
