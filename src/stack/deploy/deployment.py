@@ -42,10 +42,6 @@ from stack.deploy.deployment_context import DeploymentContext
 def command(ctx, dir):
     """manage an existing stack deployment"""
 
-    # Check that --stack wasn't supplied
-    if ctx.parent.obj.stack:
-        print("Error: --stack can't be supplied with the deployment command")
-        sys.exit(1)
     # Check dir is valid
     dir_path = Path(dir)
     if not dir_path.exists():

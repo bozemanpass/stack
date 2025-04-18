@@ -25,7 +25,6 @@ import click
 import os
 import sys
 
-from decouple import config
 from pathlib import Path
 
 from stack.build import prepare_containers
@@ -50,7 +49,6 @@ def command(ctx, base_container, source_repo, force_rebuild, extra_build_args, t
     quiet = ctx.obj.quiet
     debug = ctx.obj.debug
     verbose = ctx.obj.verbose
-    stack = ctx.obj.stack
 
     # See: https://stackoverflow.com/questions/25389095/python-get-path-of-root-project-structure
     container_build_dir = Path(__file__).absolute().parent.parent.joinpath("data", "container-build")
@@ -71,7 +69,7 @@ def command(ctx, base_container, source_repo, force_rebuild, extra_build_args, t
         logger.log(f"Building base container: {base_container}")
 
     build_context_1 = BuildContext(
-        stack,
+        None,
         ContainerSpec(base_container),
         container_build_dir,
         container_build_env,
@@ -101,7 +99,7 @@ def command(ctx, base_container, source_repo, force_rebuild, extra_build_args, t
         logger.log(f"Building app container: {tag}")
 
     build_context_2 = BuildContext(
-        stack,
+        None,
         ContainerSpec(base_container),
         container_build_dir,
         container_build_env,

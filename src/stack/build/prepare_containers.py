@@ -36,8 +36,7 @@ from stack.build.publish import publish_image
 from stack.constants import container_file_name, container_lock_file_name
 from stack.opts import opts
 from stack.repos.setup_repositories import fs_path_for_repo, process_repo
-from stack.util import get_dev_root_path, include_exclude_check, stack_is_external, error_exit, get_yaml
-
+from stack.util import get_dev_root_path, include_exclude_check, stack_is_external, error_exit, get_yaml, check_if_stack_exists
 
 docker = DockerClient()
 
@@ -143,27 +142,8 @@ def process_container(build_context: BuildContext) -> bool:
         return True
 
 
-@click.command(hidden=True)
-@click.option("--include", help="only build these containers")
-@click.option("--exclude", help="don't build these containers")
-@click.option("--force-rebuild", is_flag=True, default=False, help="Override dependency checking -- always rebuild")
-@click.option("--extra-build-args", help="Supply extra arguments to build")
-@click.option("--publish-images", is_flag=True, default=False, help="Publish the built images in the specified image registry")
-@click.option("--image-registry", help="Specify the image registry for --publish-images")
-@click.pass_context
-def legacy_command(ctx, include, exclude, force_rebuild, extra_build_args, publish_images, image_registry):
-    """build the set of containers required for a complete stack"""
-
-    # Legacy support for build-containers command.
-
-    build_policy = "build"
-    if force_rebuild:
-        build_policy = "build-force"
-
-    _prepare_containers(ctx, include, exclude, False, build_policy, extra_build_args, True, publish_images, image_registry, None)
-
-
 @click.command()
+@click.option("--stack", help="path to the stack", required=True)
 @click.option("--include", help="only build these containers")
 @click.option("--exclude", help="don't build these containers")
 @click.option("--git-ssh", is_flag=True, default=False)
@@ -174,14 +154,9 @@ def legacy_command(ctx, include, exclude, force_rebuild, extra_build_args, publi
 @click.option("--image-registry", help="Specify the remote image registry (default: auto-detect per-container)")
 @click.option("--target-arch", help="Specify a target architecture (only for use with --no-pull)")
 @click.pass_context
-def command(ctx, include, exclude, git_ssh, build_policy, extra_build_args, no_pull, publish_images, image_registry, target_arch):
+def command(ctx, stack, include, exclude, git_ssh, build_policy, extra_build_args, no_pull, publish_images, image_registry, target_arch):
     """build (or fetch pre-built) stack containers"""
-
-    _prepare_containers(ctx, include, exclude, git_ssh, build_policy, extra_build_args, no_pull, publish_images, image_registry, target_arch)
-
-
-def _prepare_containers(ctx, include, exclude, git_ssh, build_policy, extra_build_args, no_pull, publish_images, image_registry, target_arch):
-    stack = ctx.obj.stack
+    check_if_stack_exists(stack)
 
     if build_policy not in BUILD_POLICIES:
         error_exit(f"{build_policy} is not one of {BUILD_POLICIES}")

@@ -29,12 +29,12 @@ rm -rf $BPI_REPO_BASE_DIR
 mkdir -p $BPI_REPO_BASE_DIR
 # Test bringing the test container up and down
 # with and without volume removal
-$TEST_TARGET_SO --stack test fetch repositories
-$TEST_TARGET_SO --stack test build containers
+$TEST_TARGET_SO fetch repositories --stack test
+$TEST_TARGET_SO build containers --stack test
 # Basic test of creating a deployment
 test_deployment_dir=$BPI_REPO_BASE_DIR/test-deployment-dir
 test_deployment_spec=$BPI_REPO_BASE_DIR/test-deployment-spec.yml
-$TEST_TARGET_SO --stack test init config --output $test_deployment_spec --config BPI_TEST_PARAM_1=PASSED,BPI_TEST_PARAM_3=FAST
+$TEST_TARGET_SO deploy init --stack test --output $test_deployment_spec --config BPI_TEST_PARAM_1=PASSED,BPI_TEST_PARAM_3=FAST
 # Check the file now exists
 if [ ! -f "$test_deployment_spec" ]; then
     echo "deploy init test: spec file not present"
@@ -42,7 +42,7 @@ if [ ! -f "$test_deployment_spec" ]; then
     exit 1
 fi
 echo "deploy init test: passed"
-$TEST_TARGET_SO --stack test init create --spec-file $test_deployment_spec --deployment-dir $test_deployment_dir
+$TEST_TARGET_SO deploy create --spec-file $test_deployment_spec --deployment-dir $test_deployment_dir
 # Check the deployment dir exists
 if [ ! -d "$test_deployment_dir" ]; then
     echo "deploy create test: deployment directory not present"

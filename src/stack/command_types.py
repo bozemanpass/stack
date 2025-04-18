@@ -18,7 +18,6 @@ from dataclasses import dataclass
 
 @dataclass
 class CommandOptions:
-    stack: str
     quiet: bool = False
     verbose: bool = False
     dry_run: bool = False

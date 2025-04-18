@@ -27,7 +27,6 @@ from secrets import token_hex
 from stack import constants
 from stack.opts import opts
 from stack.util import (
-    global_options,
     get_stack_path,
     get_yaml,
     pod_has_scripts,
@@ -41,6 +40,7 @@ from stack.deploy.spec import Spec, MergedSpec
 from stack.deploy.stack import Stack
 from stack.deploy.deployer_factory import getDeployerConfigGenerator
 from stack.deploy.deployment_context import DeploymentContext
+from stack.util import check_if_stack_exists
 
 
 def _make_default_deployment_dir():
@@ -266,6 +266,7 @@ def _parse_config_variables(variable_values: str):
 
 
 @click.command()
+@click.option("--stack", help="path to the stack", required=True)
 @click.option("--config", help="Provide config variables for the deployment")
 @click.option("--config-file", help="Provide config variables in a file for the deployment")
 @click.option("--kube-config", help="Provide a config file for a k8s deployment")
@@ -289,6 +290,7 @@ def _parse_config_variables(variable_values: str):
 @click.pass_context
 def init(
     ctx,
+    stack,
     config,
     config_file,
     kube_config,
@@ -298,9 +300,8 @@ def init(
     map_ports_to_host,
 ):
     """output a stack specification file"""
-    stack = global_options(ctx).stack
-    if not stack:
-        error_exit("Error: --stack option is required")
+    check_if_stack_exists(stack)
+
     deployer_type = ctx.obj.deployer.type
     deploy_command_context = ctx.obj
     return init_operation(

@@ -456,5 +456,5 @@ def _orchestrate_cluster_config(ctx, cluster_config, deployer, container_exec_en
                         print(f"destination output: {destination_output}")
 
 
-command.add_command(deployment_init, "config")
+command.add_command(deployment_init, "init")
 command.add_command(deployment_create, "create")

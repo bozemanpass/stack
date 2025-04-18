@@ -33,7 +33,7 @@ from stack.util import (
     warn_exit,
 )
 
-from stack.util import get_dev_root_path
+from stack.util import get_dev_root_path, check_if_stack_exists
 
 from stack.build.build_util import get_containers_in_scope, host_and_path_for_repo, branch_strip
 
@@ -182,21 +182,8 @@ def parse_branches(branches_string):
         return None
 
 
-@click.command(hidden=True)
-@click.option("--include", help="only clone these repositories")
-@click.option("--exclude", help="don't clone these repositories")
-@click.option("--git-ssh", is_flag=True, default=False)
-@click.option("--check-only", is_flag=True, default=False)
-@click.option("--pull", is_flag=True, default=False)
-@click.option("--branches", help="override branches for repositories")
-@click.pass_context
-def legacy_command(ctx, include, exclude, git_ssh, check_only, pull, branches):
-    """clone the repositories needed by the stack"""
-
-    return _command(ctx, include, exclude, git_ssh, check_only, pull, branches)
-
-
 @click.command()
+@click.option("--stack", help="path to the stack", required=True)
 @click.option("--include", help="only clone these repositories")
 @click.option("--exclude", help="don't clone these repositories")
 @click.option("--git-ssh", is_flag=True, default=False)
@@ -204,17 +191,12 @@ def legacy_command(ctx, include, exclude, git_ssh, check_only, pull, branches):
 @click.option("--pull", is_flag=True, default=False)
 @click.option("--branches", help="override branches for repositories")
 @click.pass_context
-def command(ctx, include, exclude, git_ssh, check_only, pull, branches):
+def command(ctx, stack, include, exclude, git_ssh, check_only, pull, branches):
     """clone the repositories needed by the stack"""
+    check_if_stack_exists(stack)
 
-    return _command(ctx, include, exclude, git_ssh, check_only, pull, branches)
-
-
-def _command(ctx, include, exclude, git_ssh, check_only, pull, branches):
-    """clone the repositories needed by the stack"""
     quiet = opts.o.quiet
     verbose = opts.o.verbose
-    stack = opts.o.stack
 
     branches_array = []
 

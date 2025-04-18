@@ -23,6 +23,8 @@ from dotenv import dotenv_values
 from typing import Mapping, Set, List
 from stack.constants import stack_file_name, deployment_file_name
 
+STACK_USE_BUILTIN_STACK = "true" == os.environ.get("STACK_USE_BUILTIN_STACK", "false")
+
 
 def include_exclude_check(s, include, exclude):
     if include is None and exclude is None:
@@ -239,3 +241,8 @@ def warn_exit(s):
 
 def env_var_map_from_file(file: Path, expand=True) -> Mapping[str, str]:
     return dotenv_values(file, interpolate=expand)
+
+
+def check_if_stack_exists(stack):
+    if stack and not stack_is_external(stack) and not STACK_USE_BUILTIN_STACK:
+        error_exit(f"Stack {stack} does not exist")

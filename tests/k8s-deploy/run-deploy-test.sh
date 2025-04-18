@@ -65,8 +65,8 @@ echo "Version reported is: ${reported_version_string}"
 echo "Cloning repositories into: $BPI_REPO_BASE_DIR"
 rm -rf $BPI_REPO_BASE_DIR
 mkdir -p $BPI_REPO_BASE_DIR
-$TEST_TARGET_SO --stack test fetch repositories
-$TEST_TARGET_SO --stack test build containers
+$TEST_TARGET_SO fetch repositories --stack test
+$TEST_TARGET_SO build containers --stack test
 # Test basic stack deploy to k8s
 test_deployment_dir=$BPI_REPO_BASE_DIR/test-deployment-dir
 test_deployment_spec=$BPI_REPO_BASE_DIR/test-deployment-spec.yml
@@ -82,7 +82,7 @@ echo "deploy init test: passed"
 # Switch to a full path for bind mount.
 sed -i "s|^\(\s*test-data-bind:$\)$|\1 ${test_deployment_dir}/data/test-data-bind|" $test_deployment_spec
 
-$TEST_TARGET_SO --stack test init create --spec-file $test_deployment_spec --deployment-dir $test_deployment_dir
+$TEST_TARGET_SO --stack test deploy create --spec-file $test_deployment_spec --deployment-dir $test_deployment_dir
 # Check the deployment dir exists
 if [ ! -d "$test_deployment_dir" ]; then
     echo "deploy create test: deployment directory not present"

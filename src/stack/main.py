@@ -15,30 +15,24 @@
 # along with this program.  If not, see <http:#www.gnu.org/licenses/>.
 
 import click
-import os
 import sys
 
 from stack.cli_util import StackCLI, load_subcommands_from_stack
 from stack.command_types import CommandOptions
 from stack.repos import fetch
-from stack.repos import setup_repositories
 from stack.build import build
-from stack.build import prepare_containers
 from stack.deploy import deploy
 from stack import version
 from stack.deploy import deployment
 from stack import opts
 from stack import update
 from stack.webapp import webapp
-from stack.util import stack_is_external, error_exit
+from stack.util import STACK_USE_BUILTIN_STACK
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
-STACK_USE_BUILTIN_STACK = "true" == os.environ.get("STACK_USE_BUILTIN_STACK", "false")
-
 
 @click.group(context_settings=CONTEXT_SETTINGS, cls=StackCLI)
-@click.option("--stack", help="path to the stack to build/deploy")
 @click.option("--verbose", help="more detailed output", is_flag=True, default=False)
 @click.option("--debug", help="enable debug logging", is_flag=True, default=False)
 # TEL: Hide these for now, until we make sure they are consistently implemented.
@@ -46,27 +40,20 @@ STACK_USE_BUILTIN_STACK = "true" == os.environ.get("STACK_USE_BUILTIN_STACK", "f
 @click.option("--dry-run", is_flag=True, default=False, hidden=True)
 @click.option("--continue-on-error", is_flag=True, default=False, hidden=True)
 @click.pass_context
-def cli(ctx, stack, quiet, verbose, dry_run, debug, continue_on_error):
+def cli(ctx, quiet, verbose, dry_run, debug, continue_on_error):
     """BPI stack"""
-    if stack and not stack_is_external(stack) and not STACK_USE_BUILTIN_STACK:
-        error_exit(f"Stack {stack} does not exist")
-
-    command_options = CommandOptions(stack, quiet, verbose, dry_run, debug, continue_on_error)
+    command_options = CommandOptions(quiet, verbose, dry_run, debug, continue_on_error)
     opts.opts.o = command_options
     ctx.obj = command_options
 
 
 cli.add_command(build.command, "build")
+cli.add_command(deploy.command, "deploy")
 cli.add_command(deployment.command, "deployment")
 cli.add_command(fetch.command, "fetch")
-cli.add_command(deploy.command, "init")
 cli.add_command(update.command, "update")
 cli.add_command(version.command, "version")
 cli.add_command(webapp.command, "webapp")
-
-# Hidden commands
-cli.add_command(prepare_containers.legacy_command, "build-containers")
-cli.add_command(setup_repositories.legacy_command, "fetch repositories")
 
 # We only try to load external commands from an external stack.
 if not STACK_USE_BUILTIN_STACK:
