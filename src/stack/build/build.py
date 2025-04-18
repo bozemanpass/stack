@@ -21,7 +21,7 @@ from stack.build.prepare_containers import command as prepare_containers
 @click.group()
 @click.pass_context
 def command(ctx):
-    """build stack components (containers, npms, etc)"""
+    """build stack components (containers, etc.)"""
     pass
 
 
