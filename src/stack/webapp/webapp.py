@@ -29,5 +29,5 @@ def command(ctx):
 
 
 command.add_command(build_webapp, "build")
-command.add_command(deploy_webapp, "init")
+command.add_command(deploy_webapp, "deploy")
 command.add_command(run_webapp, "run")

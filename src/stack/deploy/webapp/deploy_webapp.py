@@ -100,7 +100,7 @@ def create_deployment(ctx, deployment_dir, image, url, kube_config, image_regist
 @click.group()
 @click.pass_context
 def command(ctx):
-    """manage a webapp setupment"""
+    """manage a webapp deployment"""
 
     pass
 
