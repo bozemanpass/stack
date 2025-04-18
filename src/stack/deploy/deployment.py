@@ -40,7 +40,7 @@ from stack.deploy.deployment_context import DeploymentContext
 @click.option("--dir", required=True, help="path to deployment directory")
 @click.pass_context
 def command(ctx, dir):
-    """manage a deployment"""
+    """manage an existing stack deployment"""
 
     # Check that --stack wasn't supplied
     if ctx.parent.obj.stack:

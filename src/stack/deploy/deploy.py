@@ -52,9 +52,9 @@ from stack.deploy.deployment_create import init as deployment_init
 @click.option("--deploy-to", help="cluster system to deploy to (compose or k8s or k8s-kind)")
 @click.pass_context
 def command(ctx, include, exclude, env_file, cluster, deploy_to):
-    """deploy a stack"""
+    """create and configure a new stack deployment"""
 
-    # Although in theory for some subcommands (e.g. deploy create) the stack can be inferred,
+    # Although in theory for some subcommands (e.g. setup create) the stack can be inferred,
     # Click doesn't allow us to know that here, so we make providing the stack mandatory
     stack = global_options2(ctx).stack
     if stack:

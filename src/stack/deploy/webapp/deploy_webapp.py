@@ -100,11 +100,11 @@ def create_deployment(ctx, deployment_dir, image, url, kube_config, image_regist
 @click.group()
 @click.pass_context
 def command(ctx):
-    """manage a webapp deployment"""
+    """manage a webapp setupment"""
 
     # Check that --stack wasn't supplied
     if ctx.parent.obj.stack:
-        error_exit("--stack can't be supplied with the webapp deploy command")
+        error_exit("--stack can't be supplied with the webapp setup command")
 
 
 @command.command()

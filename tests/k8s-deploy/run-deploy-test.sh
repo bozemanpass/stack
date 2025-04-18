@@ -66,48 +66,48 @@ echo "Cloning repositories into: $BPI_REPO_BASE_DIR"
 rm -rf $BPI_REPO_BASE_DIR
 mkdir -p $BPI_REPO_BASE_DIR
 $TEST_TARGET_SO --stack test fetch repositories
-$TEST_TARGET_SO --stack test prepare-containers
+$TEST_TARGET_SO --stack test build containers
 # Test basic stack deploy to k8s
 test_deployment_dir=$BPI_REPO_BASE_DIR/test-deployment-dir
 test_deployment_spec=$BPI_REPO_BASE_DIR/test-deployment-spec.yml
 $TEST_TARGET_SO --stack test deploy --deploy-to k8s-kind init --output $test_deployment_spec --config BPI_TEST_PARAM_1=PASSED
 # Check the file now exists
 if [ ! -f "$test_deployment_spec" ]; then
-    echo "deploy init test: spec file not present"
-    echo "deploy init test: FAILED"
+    echo "setup init test: spec file not present"
+    echo "setup init test: FAILED"
     exit 1
 fi
-echo "deploy init test: passed"
+echo "setup init test: passed"
 
 # Switch to a full path for bind mount.
 sed -i "s|^\(\s*test-data-bind:$\)$|\1 ${test_deployment_dir}/data/test-data-bind|" $test_deployment_spec
 
-$TEST_TARGET_SO --stack test deploy create --spec-file $test_deployment_spec --deployment-dir $test_deployment_dir
+$TEST_TARGET_SO --stack test setup create --spec-file $test_deployment_spec --deployment-dir $test_deployment_dir
 # Check the deployment dir exists
 if [ ! -d "$test_deployment_dir" ]; then
-    echo "deploy create test: deployment directory not present"
-    echo "deploy create test: FAILED"
+    echo "setup create test: deployment directory not present"
+    echo "setup create test: FAILED"
     exit 1
 fi
-echo "deploy create test: passed"
+echo "setup create test: passed"
 # Check the file writted by the create command in the stack now exists
 if [ ! -f "$test_deployment_dir/create-file" ]; then
-    echo "deploy create test: create output file not present"
-    echo "deploy create test: FAILED"
+    echo "setup create test: create output file not present"
+    echo "setup create test: FAILED"
     exit 1
 fi
 # And has the right content
 create_file_content=$(<$test_deployment_dir/create-file)
 if [ ! "$create_file_content" == "create-command-output-data"  ]; then
-    echo "deploy create test: create output file contents not correct"
-    echo "deploy create test: FAILED"
+    echo "setup create test: create output file contents not correct"
+    echo "setup create test: FAILED"
     exit 1
 fi
 
 # Add a config file to be picked up by the ConfigMap before starting.
 echo "dbfc7a4d-44a7-416d-b5f3-29842cc47650" > $test_deployment_dir/configmaps/test-config/test_config
 
-echo "deploy create output file test: passed"
+echo "setup create output file test: passed"
 # Try to start the deployment
 $TEST_TARGET_SO deployment --dir $test_deployment_dir start
 wait_for_pods_started

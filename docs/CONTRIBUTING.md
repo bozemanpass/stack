@@ -56,7 +56,7 @@ In addition to the pre-requisites listed in the [README](/README.md), the follow
          deploy              deploy a stack
          deployment          manage a deployment
          fetch stack         clone a stack repository
-         prepare-containers  build or download stack containers
+         build containers  build or download stack containers
          fetch repositories  clone the repositories needed by the stack
          update              update shiv binary from a distribution url
          version             print tool version

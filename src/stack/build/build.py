@@ -1,6 +1,5 @@
 # Copyright © 2025 Bozeman Pass, Inc.
 
-
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
@@ -16,18 +15,14 @@
 
 import click
 
-from stack.build.build_webapp import command as build_webapp
-from stack.deploy.webapp.deploy_webapp import command as deploy_webapp
-from stack.deploy.webapp.run_webapp import command as run_webapp
+from stack.build.prepare_containers import command as prepare_containers
 
 
 @click.group()
 @click.pass_context
 def command(ctx):
-    """build, run, and deploy webapps"""
+    """build stack components (containers, npms, etc)"""
     pass
 
 
-command.add_command(build_webapp, "build")
-command.add_command(deploy_webapp, "setup")
-command.add_command(run_webapp, "run")
+command.add_command(prepare_containers, "containers")

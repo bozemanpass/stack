@@ -22,6 +22,7 @@ from stack.cli_util import StackCLI, load_subcommands_from_stack
 from stack.command_types import CommandOptions
 from stack.repos import fetch
 from stack.repos import setup_repositories
+from stack.build import build
 from stack.build import prepare_containers
 from stack.deploy import deploy
 from stack import version
@@ -55,10 +56,10 @@ def cli(ctx, stack, quiet, verbose, dry_run, debug, continue_on_error):
     ctx.obj = command_options
 
 
-cli.add_command(deploy.command, "deploy")
+cli.add_command(build.command, "build")
 cli.add_command(deployment.command, "deployment")
 cli.add_command(fetch.command, "fetch")
-cli.add_command(prepare_containers.command, "prepare-containers")
+cli.add_command(deploy.command, "setup")
 cli.add_command(update.command, "update")
 cli.add_command(version.command, "version")
 cli.add_command(webapp.command, "webapp")

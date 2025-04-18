@@ -1,1 +1,1 @@
-# Template stack for webapp deployments
+# Template stack for webapp setupments

@@ -297,6 +297,7 @@ def init(
     output,
     map_ports_to_host,
 ):
+    '''initialize a new stack specification file'''
     stack = global_options(ctx).stack
     if not stack:
         error_exit("Error: --stack option is required")
@@ -507,6 +508,7 @@ def _check_volume_definitions(spec):
 @click.option("--deployment-dir", help="Create deployment files in this directory")
 @click.pass_context
 def create(ctx, spec_file, deployment_dir):
+    '''create a deployment from a stack specification file'''
     global_context = ctx.parent.parent.obj
 
     if len(spec_file) == 1:

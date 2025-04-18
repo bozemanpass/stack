@@ -120,7 +120,7 @@ class ClusterInfo:
             http_proxy_info = http_proxy_info_list[0]
             if opts.o.debug:
                 print(f"http-proxy: {http_proxy_info}")
-            # TODO: good enough parsing for webapp deployment for now
+            # TODO: good enough parsing for webapp setupment for now
             host_name = http_proxy_info[constants.host_name_key]
             rules = []
             tls = (

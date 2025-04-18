@@ -1,7 +1,7 @@
 # Fetching pre-built container images
 When BPI stack deploys a stack containing a suite of one or more containers it expects images for those containers to be
 on the local machine with a tag of the form `<image-name>:stack` Images for these containers can be built from source
-(and optionally base container images from public registries) with the `prepare-containers` subcommand. 
+(and optionally base container images from public registries) with the `build containers` subcommand. 
 
 However, the task of building a large number of containers from source may consume considerable time and machine resources.
 The default build policy `as-needed` will fetch pre-built containers from an image registry if they are available, and
@@ -28,11 +28,11 @@ stack from an `arm64` laptop but intending to deploy to an `x64` Kubernetes clus
 ## Usage
 ```
 # Build locally and then publish remotely.
-$ stack --stack ~/bpi/path/to/my/stack prepare-containers --build-policy build-force --publish-images --image-registry registry.digitalocean.com/example
+$ stack --stack ~/bpi/path/to/my/stack build containers --build-policy build-force --publish-images --image-registry registry.digitalocean.com/example
 
 # Download remote images.
-$ stack --stack ~/bpi/path/to/my/stack prepare-containers --build-policy prebuilt-remote --image-registry registry.digitalocean.com/example
+$ stack --stack ~/bpi/path/to/my/stack build containers --build-policy prebuilt-remote --image-registry registry.digitalocean.com/example
 
 # Check if a remote image is available but don't pull it.
-$ stack --stack ~/bpi/path/to/my/stack prepare-containers --build-policy prebuilt-remote --no-pull --target-arch x64 --image-registry registry.digitalocean.com/example
+$ stack --stack ~/bpi/path/to/my/stack build containers --build-policy prebuilt-remote --no-pull --target-arch x64 --image-registry registry.digitalocean.com/example
 ```
