@@ -304,6 +304,7 @@ def init(
 
     deployer_type = ctx.obj.deployer.type
     deploy_command_context = ctx.obj
+    deploy_command_context.stack = stack
     return init_operation(
         deploy_command_context,
         stack,

@@ -54,12 +54,6 @@ from stack.deploy.deployment_create import init as deployment_init
 def command(ctx, include, exclude, env_file, cluster, deploy_to):
     """create and configure a new stack deployment"""
 
-    # Although in theory for some subcommands (e.g. init create) the stack can be inferred,
-    # Click doesn't allow us to know that here, so we make providing the stack mandatory
-    stack = global_options2(ctx).stack
-    if stack:
-        stack = get_stack_path(stack)
-
     if ctx.parent.obj.debug:
         print(f"ctx.parent.obj: {ctx.parent.obj}")
 
@@ -69,7 +63,7 @@ def command(ctx, include, exclude, env_file, cluster, deploy_to):
     ctx.obj = create_deploy_context(
         global_options2(ctx),
         None,
-        stack,
+        None,
         include,
         exclude,
         cluster,
