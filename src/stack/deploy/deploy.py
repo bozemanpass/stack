@@ -28,7 +28,6 @@ from pathlib import Path
 from stack import constants
 from stack.opts import opts
 from stack.util import (
-    get_stack_path,
     include_exclude_check,
     get_parsed_stack_config,
     global_options2,
