@@ -1,0 +1,80 @@
+# Copyright © 2025 Bozeman Pass, Inc.
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <http:#www.gnu.org/licenses/>.
+
+import click
+
+from stack.deploy.deployment_create import init_operation
+from stack.util import check_if_stack_exists
+
+@click.group()
+@click.pass_context
+def command(ctx):
+    """build, run, and deploy webapps"""
+    pass
+
+@click.command()
+@click.option("--stack", help="path to the stack", required=True)
+@click.option("--config", help="Provide config variables for the deployment")
+@click.option("--config-file", help="Provide config variables in a file for the deployment")
+@click.option("--kube-config", help="Provide a config file for a k8s deployment")
+@click.option(
+    "--image-registry",
+    help="Provide a container image registry url for this k8s cluster",
+)
+@click.option(
+    "--http-proxy",
+    required=False,
+    help="k8s http proxy settings in the form: [cluster-issuer~]<host>[/path]:<target_svc>:<target_port>",
+)
+@click.option("--output", required=True, help="Write yaml spec file here")
+@click.option(
+    "--map-ports-to-host",
+    required=False,
+    help="Map ports to the host as one of: any-variable-random (docker default), "
+         "localhost-same, any-same, localhost-fixed-random, any-fixed-random, "
+         "k8s-clusterip-same (k8s default)",
+)
+@click.pass_context
+def init(
+        ctx,
+        stack,
+        config,
+        config_file,
+        kube_config,
+        image_registry,
+        http_proxy,
+        output,
+        map_ports_to_host,
+):
+    """output a stack specification file"""
+    check_if_stack_exists(stack)
+
+    deployer_type = ctx.obj.deployer.type
+    deploy_command_context = ctx.obj
+    deploy_command_context.stack = stack
+    return init_operation(
+        deploy_command_context,
+        stack,
+        deployer_type,
+        config,
+        config_file,
+        kube_config,
+        image_registry,
+        http_proxy,
+        output,
+        map_ports_to_host,
+    )
+
+command.add_command(init)

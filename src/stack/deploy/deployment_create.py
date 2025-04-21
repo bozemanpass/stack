@@ -265,58 +265,6 @@ def _parse_config_variables(variable_values: str):
     return result
 
 
-@click.command()
-@click.option("--stack", help="path to the stack", required=True)
-@click.option("--config", help="Provide config variables for the deployment")
-@click.option("--config-file", help="Provide config variables in a file for the deployment")
-@click.option("--kube-config", help="Provide a config file for a k8s deployment")
-@click.option(
-    "--image-registry",
-    help="Provide a container image registry url for this k8s cluster",
-)
-@click.option(
-    "--http-proxy",
-    required=False,
-    help="k8s http proxy settings in the form: [cluster-issuer~]<host>[/path]:<target_svc>:<target_port>",
-)
-@click.option("--output", required=True, help="Write yaml spec file here")
-@click.option(
-    "--map-ports-to-host",
-    required=False,
-    help="Map ports to the host as one of: any-variable-random (docker default), "
-    "localhost-same, any-same, localhost-fixed-random, any-fixed-random, "
-    "k8s-clusterip-same (k8s default)",
-)
-@click.pass_context
-def init(
-    ctx,
-    stack,
-    config,
-    config_file,
-    kube_config,
-    image_registry,
-    http_proxy,
-    output,
-    map_ports_to_host,
-):
-    """output a stack specification file"""
-    check_if_stack_exists(stack)
-
-    deployer_type = ctx.obj.deployer.type
-    deploy_command_context = ctx.obj
-    deploy_command_context.stack = stack
-    return init_operation(
-        deploy_command_context,
-        stack,
-        deployer_type,
-        config,
-        config_file,
-        kube_config,
-        image_registry,
-        http_proxy,
-        output,
-        map_ports_to_host,
-    )
 
 
 # The init command's implementation is in a separate function so that we can
