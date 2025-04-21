@@ -36,10 +36,12 @@ from stack.util import (
     env_var_map_from_file,
     resolve_config_dir,
 )
+from stack.deploy.deploy import create_deploy_context
 from stack.deploy.spec import Spec, MergedSpec
 from stack.deploy.stack import Stack
 from stack.deploy.deployer_factory import getDeployerConfigGenerator
 from stack.deploy.deployment_context import DeploymentContext
+from stack.util import global_options2
 
 
 def _make_default_deployment_dir():
@@ -432,9 +434,10 @@ def _copy_files_to_directory(file_paths: List[Path], directory: Path):
         copy(path, os.path.join(directory, os.path.basename(path)))
 
 
-def _create_deployment_file(deployment_dir: Path):
+def _create_deployment_file(deployment_dir: Path, cluster=None):
     deployment_file_path = deployment_dir.joinpath(constants.deployment_file_name)
-    cluster = f"{constants.cluster_name_prefix}{token_hex(8)}"
+    if not cluster:
+        cluster = f"{constants.cluster_name_prefix}{token_hex(8)}"
     with open(deployment_file_path, "w") as output_file:
         output_file.write(f"{constants.cluster_id_key}: {cluster}\n")
 
@@ -451,13 +454,29 @@ def _check_volume_definitions(spec):
 
 
 @click.command()
+@click.option("--cluster", help="specify a non-default cluster name")
 @click.option("--spec-file", required=True, help="Spec file to use to create this deployment", multiple=True)
 @click.option("--deployment-dir", help="Create deployment files in this directory")
 @click.pass_context
-def create(ctx, spec_file, deployment_dir):
-    """create a deployment from a stack specification file"""
-    global_context = ctx.parent.parent.obj
+def create(ctx, cluster, spec_file, deployment_dir):
+    """create a deployment from a specification file"""
 
+    if ctx.parent.obj.debug:
+        print(f"ctx.parent.obj: {ctx.parent.obj}")
+
+    ctx.obj = create_deploy_context(
+        global_options2(ctx),
+        None,
+        None,
+        None,
+        None,
+        cluster,
+        None,
+        None,
+    )
+
+    global_context = ctx.parent.obj
+    print(ctx.obj.cluster_context)
     if len(spec_file) == 1:
         spec = Spec().init_from_file(spec_file[0])
     else:
@@ -499,7 +518,7 @@ def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec,
     destination_pods_dir = deployment_dir_path.joinpath("pods")
     os.mkdir(destination_pods_dir)
 
-    _create_deployment_file(deployment_dir_path)
+    _create_deployment_file(deployment_dir_path, deployment_command_context.cluster_context.cluster)
 
     # Copy spec file into the deployment dir
     parsed_spec.dump(deployment_dir_path.joinpath(constants.spec_file_name))

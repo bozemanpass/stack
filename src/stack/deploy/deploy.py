@@ -23,14 +23,12 @@ import sys
 from dataclasses import dataclass
 from importlib import resources
 import subprocess
-import click
 from pathlib import Path
 from stack import constants
 from stack.opts import opts
 from stack.util import (
     include_exclude_check,
     get_parsed_stack_config,
-    global_options2,
     get_dev_root_path,
     stack_is_in_deployment,
     resolve_compose_file,
@@ -39,30 +37,6 @@ from stack.deploy.deployer import Deployer, DeployerException
 from stack.deploy.deployer_factory import getDeployer
 from stack.deploy.deploy_types import ClusterContext, DeployCommandContext
 from stack.deploy.deployment_context import DeploymentContext
-from stack.deploy.deployment_create import create as deployment_create
-
-
-@click.group()
-@click.option("--include", help="only start these components")
-@click.option("--exclude", help="don't start these components")
-@click.pass_context
-def command(ctx, include, exclude):
-    """create and configure a new stack deployment"""
-
-    if ctx.parent.obj.debug:
-        print(f"ctx.parent.obj: {ctx.parent.obj}")
-
-    ctx.obj = create_deploy_context(
-        global_options2(ctx),
-        None,
-        None,
-        include,
-        exclude,
-        None,
-        None,
-        None,
-    )
-    # Subcommand is executed now, by the magic of click
 
 
 def create_deploy_context(
@@ -440,6 +414,3 @@ def _orchestrate_cluster_config(ctx, cluster_config, deployer, container_exec_en
                         waiting_for_data = False
                     if ctx.debug and not waiting_for_data:
                         print(f"destination output: {destination_output}")
-
-
-command.add_command(deployment_create, "create")

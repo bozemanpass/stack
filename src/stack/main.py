@@ -22,7 +22,7 @@ from stack.command_types import CommandOptions
 from stack.repos import fetch
 from stack.build import build
 from stack.config import config
-from stack.deploy import deploy
+from stack.deploy import deployment_create
 from stack import version
 from stack.deploy import deployment
 from stack import opts
@@ -51,7 +51,7 @@ def cli(ctx, quiet, verbose, dry_run, debug, continue_on_error):
 cli.add_command(fetch.command, "fetch")
 cli.add_command(build.command, "build")
 cli.add_command(config.command, "config")
-cli.add_command(deploy.command, "deploy")
+cli.add_command(deployment_create.create, "deploy")
 cli.add_command(deployment.command, "manage")
 cli.add_command(update.command, "update")
 cli.add_command(version.command, "version")

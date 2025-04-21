@@ -70,12 +70,12 @@ else
 fi
 
 echo "Running deployment create test"
-# Note: this is not a full test -- all we're testing here is that the webapp deploy create command doesn't crash
+# Note: this is not a full test -- all we're testing here is that the webapp deploy command doesn't crash
 test_deployment_dir=$BPI_REPO_BASE_DIR/test-deployment-dir
 fake_k8s_config_file=$BPI_REPO_BASE_DIR/kube-config.yml
 touch ${fake_k8s_config_file}
 
-$TEST_TARGET_SO webapp deploy create --kube-config ${fake_k8s_config_file} --deployment-dir ${test_deployment_dir} --image ${app_image_name} --url https://my-test-app.example.com
+$TEST_TARGET_SO webapp deploy --kube-config ${fake_k8s_config_file} --deployment-dir ${test_deployment_dir} --image ${app_image_name} --url https://my-test-app.example.com
 if [ -d ${test_deployment_dir} ]; then
   echo "PASSED"
 else

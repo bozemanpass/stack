@@ -32,7 +32,7 @@ test_deployment_dir=$BPI_REPO_BASE_DIR/test-deployment-dir
 test_deployment_spec=$BPI_REPO_BASE_DIR/test-deployment-spec.yml
 # Deploy the test container
 $TEST_TARGET_SO config init --stack test --output $test_deployment_spec
-$TEST_TARGET_SO deploy create --spec-file $test_deployment_spec --deployment-dir $test_deployment_dir
+$TEST_TARGET_SO deploy --spec-file $test_deployment_spec --deployment-dir $test_deployment_dir
 # Up
 $TEST_TARGET_SO manage --dir $test_deployment_dir start
 # Down
