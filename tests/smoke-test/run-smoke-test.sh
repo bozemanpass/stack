@@ -34,9 +34,9 @@ test_deployment_spec=$BPI_REPO_BASE_DIR/test-deployment-spec.yml
 $TEST_TARGET_SO deploy init --stack test --output $test_deployment_spec
 $TEST_TARGET_SO deploy create --spec-file $test_deployment_spec --deployment-dir $test_deployment_dir
 # Up
-$TEST_TARGET_SO deployment --dir $test_deployment_dir start
+$TEST_TARGET_SO manage --dir $test_deployment_dir start
 # Down
-$TEST_TARGET_SO deployment --dir $test_deployment_dir stop
+$TEST_TARGET_SO manage --dir $test_deployment_dir stop
 # Run same test but not using the stack definition
 # Test building the a stack container
 $TEST_TARGET_SO build containers --stack test --include bpi/test-container

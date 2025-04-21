@@ -8,7 +8,7 @@ echo "Environment variables:"
 env
 
 delete_cluster_exit () {
-    $TEST_TARGET_SO deployment --dir $test_deployment_dir stop --delete-volumes
+    $TEST_TARGET_SO manage --dir $test_deployment_dir stop --delete-volumes
     exit 1
 }
 
@@ -69,9 +69,9 @@ echo "dbfc7a4d-44a7-416d-b5f3-29842cc47650" > $test_deployment_dir/data/test-con
 
 echo "deploy create output file test: passed"
 # Try to start the deployment
-$TEST_TARGET_SO deployment --dir $test_deployment_dir start
+$TEST_TARGET_SO manage --dir $test_deployment_dir start
 # Check logs command works
-log_output_3=$( $TEST_TARGET_SO deployment --dir $test_deployment_dir logs )
+log_output_3=$( $TEST_TARGET_SO manage --dir $test_deployment_dir logs )
 if [[ "$log_output_3" == *"filesystem is fresh"* ]]; then
     echo "deployment logs test: passed"
 else
@@ -101,7 +101,7 @@ else
 fi
 
 # Check that the ConfigMap is mounted and contains the expected content.
-log_output_4=$( $TEST_TARGET_SO deployment --dir $test_deployment_dir logs )
+log_output_4=$( $TEST_TARGET_SO manage --dir $test_deployment_dir logs )
 if [[ "$log_output_4" == *"/config/test_config:"* ]] && [[ "$log_output_4" == *"dbfc7a4d-44a7-416d-b5f3-29842cc47650"* ]]; then
     echo "deployment ConfigMap test: passed"
 else
@@ -110,12 +110,12 @@ else
 fi
 
 # Stop then start again and check the volume was preserved
-$TEST_TARGET_SO deployment --dir $test_deployment_dir stop
+$TEST_TARGET_SO manage --dir $test_deployment_dir stop
 # Sleep a bit just in case
 # sleep for longer to check if that's why the subsequent create cluster fails
 sleep 20
-$TEST_TARGET_SO deployment --dir $test_deployment_dir start
-log_output_5=$( $TEST_TARGET_SO deployment --dir $test_deployment_dir logs )
+$TEST_TARGET_SO manage --dir $test_deployment_dir start
+log_output_5=$( $TEST_TARGET_SO manage --dir $test_deployment_dir logs )
 if [[ "$log_output_5" == *"filesystem is old"* ]]; then
     echo "Retain volumes test: passed"
 else
@@ -124,5 +124,5 @@ else
 fi
 
 # Stop and clean up
-$TEST_TARGET_SO deployment --dir $test_deployment_dir stop --delete-volumes
+$TEST_TARGET_SO manage --dir $test_deployment_dir stop --delete-volumes
 echo "Test passed"

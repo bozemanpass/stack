@@ -17,7 +17,7 @@ fi
 wait_for_pods_started () {
     for i in {1..50}
     do
-        local ps_output=$( $TEST_TARGET_SO deployment --dir $test_deployment_dir ps )
+        local ps_output=$( $TEST_TARGET_SO manage --dir $test_deployment_dir ps )
 
         if [[ "$ps_output" == *"Running containers:"* ]]; then
             # if ready, return
@@ -36,7 +36,7 @@ wait_for_log_output () {
     for i in {1..50}
     do
 
-        local log_output=$( $TEST_TARGET_SO deployment --dir $test_deployment_dir logs )
+        local log_output=$( $TEST_TARGET_SO manage --dir $test_deployment_dir logs )
 
         if [[ ! -z "$log_output" ]]; then
             # if ready, return
@@ -52,7 +52,7 @@ wait_for_log_output () {
 }
 
 delete_cluster_exit () {
-    $TEST_TARGET_SO deployment --dir $test_deployment_dir stop --delete-volumes
+    $TEST_TARGET_SO manage --dir $test_deployment_dir stop --delete-volumes
     exit 1
 }
 
@@ -191,12 +191,12 @@ EOF
 deployment_id=$(cat ${test_deployment_dir}/deployment.yml | cut -d ' ' -f 2)
 
 # Try to start the deployment
-$TEST_TARGET_SO deployment --dir $test_deployment_dir start
+$TEST_TARGET_SO manage --dir $test_deployment_dir start
 wait_for_pods_started
 # Check logs command works
 wait_for_log_output
 sleep 1
-log_output_1=$( $TEST_TARGET_SO deployment --dir $test_deployment_dir logs )
+log_output_1=$( $TEST_TARGET_SO manage --dir $test_deployment_dir logs )
 if [[ "$log_output_1" == *"filesystem is fresh"* ]]; then
     echo "deployment of pod test: passed"
 else
@@ -220,5 +220,5 @@ else
 fi
 
 # Stop and clean up
-$TEST_TARGET_SO deployment --dir $test_deployment_dir stop --delete-volumes
+$TEST_TARGET_SO manage --dir $test_deployment_dir stop --delete-volumes
 echo "Test passed"
