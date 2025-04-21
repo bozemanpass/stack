@@ -97,15 +97,7 @@ def create_deployment(ctx, deployment_dir, image, url, kube_config, image_regist
     os.remove(spec_file_name)
 
 
-@click.group()
-@click.pass_context
-def command(ctx):
-    """manage a webapp deployment"""
-
-    pass
-
-
-@command.command()
+@click.command()
 @click.option("--kube-config", help="Provide a config file for a k8s deployment")
 @click.option(
     "--image-registry",

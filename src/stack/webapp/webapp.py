@@ -17,7 +17,7 @@
 import click
 
 from stack.build.build_webapp import command as build_webapp
-from stack.deploy.webapp.deploy_webapp import command as deploy_webapp
+from stack.deploy.webapp.deploy_webapp import create as deploy_webapp
 from stack.deploy.webapp.run_webapp import command as run_webapp
 
 
