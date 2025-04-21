@@ -45,9 +45,7 @@ from stack.deploy.deployment_create import create as deployment_create
 @click.group()
 @click.option("--include", help="only start these components")
 @click.option("--exclude", help="don't start these components")
-@click.option("--env-file", help="env file to be used")
 @click.option("--cluster", help="specify a non-default cluster name")
-@click.option("--deploy-to", help="cluster system to deploy to (compose or k8s or k8s-kind)")
 @click.pass_context
 def command(ctx, include, exclude, env_file, cluster, deploy_to):
     """create and configure a new stack deployment"""

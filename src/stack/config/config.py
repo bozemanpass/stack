@@ -15,15 +15,36 @@
 
 import click
 
+from stack.deploy.deploy import create_deploy_context
 from stack.deploy.deployment_create import init_operation
-from stack.util import check_if_stack_exists
+from stack.util import check_if_stack_exists, global_options2
 
 
 @click.group()
+@click.option("--env-file", help="env file to be used")
+@click.option("--cluster", help="specify a non-default cluster name")
+@click.option("--deploy-to", help="cluster system to deploy to (compose or k8s or k8s-kind)")
 @click.pass_context
-def command(ctx):
-    """build, run, and deploy webapps"""
-    pass
+def command(ctx, include, exclude, env_file, cluster, deploy_to):
+    """create and configure a new stack deployment"""
+
+    if ctx.parent.obj.debug:
+        print(f"ctx.parent.obj: {ctx.parent.obj}")
+
+    if deploy_to is None:
+        deploy_to = "compose"
+
+    ctx.obj = create_deploy_context(
+        global_options2(ctx),
+        None,
+        None,
+        include,
+        exclude,
+        cluster,
+        env_file,
+        deploy_to,
+    )
+    # Subcommand is executed now, by the magic of click
 
 
 @click.command()
