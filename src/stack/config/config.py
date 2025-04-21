@@ -18,11 +18,13 @@ import click
 from stack.deploy.deployment_create import init_operation
 from stack.util import check_if_stack_exists
 
+
 @click.group()
 @click.pass_context
 def command(ctx):
     """build, run, and deploy webapps"""
     pass
+
 
 @click.command()
 @click.option("--stack", help="path to the stack", required=True)
@@ -43,20 +45,20 @@ def command(ctx):
     "--map-ports-to-host",
     required=False,
     help="Map ports to the host as one of: any-variable-random (docker default), "
-         "localhost-same, any-same, localhost-fixed-random, any-fixed-random, "
-         "k8s-clusterip-same (k8s default)",
+    "localhost-same, any-same, localhost-fixed-random, any-fixed-random, "
+    "k8s-clusterip-same (k8s default)",
 )
 @click.pass_context
 def init(
-        ctx,
-        stack,
-        config,
-        config_file,
-        kube_config,
-        image_registry,
-        http_proxy,
-        output,
-        map_ports_to_host,
+    ctx,
+    stack,
+    config,
+    config_file,
+    kube_config,
+    image_registry,
+    http_proxy,
+    output,
+    map_ports_to_host,
 ):
     """output a stack specification file"""
     check_if_stack_exists(stack)
@@ -76,5 +78,6 @@ def init(
         output,
         map_ports_to_host,
     )
+
 
 command.add_command(init)

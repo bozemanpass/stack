@@ -40,7 +40,6 @@ from stack.deploy.spec import Spec, MergedSpec
 from stack.deploy.stack import Stack
 from stack.deploy.deployer_factory import getDeployerConfigGenerator
 from stack.deploy.deployment_context import DeploymentContext
-from stack.util import check_if_stack_exists
 
 
 def _make_default_deployment_dir():
@@ -263,8 +262,6 @@ def _parse_config_variables(variable_values: str):
                 result_values[variable_name] = variable_value
             result = result_values
     return result
-
-
 
 
 # The init command's implementation is in a separate function so that we can
