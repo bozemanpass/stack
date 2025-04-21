@@ -25,7 +25,7 @@ from stack.util import check_if_stack_exists, global_options2
 @click.option("--cluster", help="specify a non-default cluster name")
 @click.option("--deploy-to", help="cluster system to deploy to (compose or k8s or k8s-kind)")
 @click.pass_context
-def command(ctx, include, exclude, env_file, cluster, deploy_to):
+def command(ctx, env_file, cluster, deploy_to):
     """create and configure a new stack deployment"""
 
     if ctx.parent.obj.debug:
@@ -38,8 +38,8 @@ def command(ctx, include, exclude, env_file, cluster, deploy_to):
         global_options2(ctx),
         None,
         None,
-        include,
-        exclude,
+        None,
+        None,
         cluster,
         env_file,
         deploy_to,

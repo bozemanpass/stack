@@ -45,16 +45,12 @@ from stack.deploy.deployment_create import create as deployment_create
 @click.group()
 @click.option("--include", help="only start these components")
 @click.option("--exclude", help="don't start these components")
-@click.option("--cluster", help="specify a non-default cluster name")
 @click.pass_context
-def command(ctx, include, exclude, env_file, cluster, deploy_to):
+def command(ctx, include, exclude):
     """create and configure a new stack deployment"""
 
     if ctx.parent.obj.debug:
         print(f"ctx.parent.obj: {ctx.parent.obj}")
-
-    if deploy_to is None:
-        deploy_to = "compose"
 
     ctx.obj = create_deploy_context(
         global_options2(ctx),
@@ -62,9 +58,9 @@ def command(ctx, include, exclude, env_file, cluster, deploy_to):
         None,
         include,
         exclude,
-        cluster,
-        env_file,
-        deploy_to,
+        None,
+        None,
+        None,
     )
     # Subcommand is executed now, by the magic of click
 
