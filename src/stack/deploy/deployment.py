@@ -77,7 +77,6 @@ def make_deploy_context(ctx) -> DeployCommandContext:
     )
 
 
-# start is the preferred alias for up
 @command.command()
 @click.option(
     "--stay-attached/--detatch-terminal",
@@ -89,7 +88,7 @@ def make_deploy_context(ctx) -> DeployCommandContext:
     default=False,
     help="Skip cluster initialization/tear-down (only for kind-k8s deployments)",
 )
-@click.argument("extra_args", nargs=-1)  # help: command: up <service1> <service2>
+@click.argument("extra_args", nargs=-1)  # help: command: start <service1> <service2>
 @click.pass_context
 def start(ctx, stay_attached, skip_cluster_management, extra_args):
     ctx.obj = make_deploy_context(ctx)
@@ -97,24 +96,6 @@ def start(ctx, stay_attached, skip_cluster_management, extra_args):
     up_operation(ctx, services_list, stay_attached, skip_cluster_management)
 
 
-# TODO: remove legacy up command since it's an alias for stop
-@command.command()
-@click.option("--delete-volumes/--preserve-volumes", default=False, help="delete data volumes")
-@click.option(
-    "--skip-cluster-management/--perform-cluster-management",
-    default=False,
-    help="Skip cluster initialization/tear-down (only for kind-k8s deployments)",
-)
-@click.argument("extra_args", nargs=-1)  # help: command: down <service1> <service2>
-@click.pass_context
-def down(ctx, delete_volumes, skip_cluster_management, extra_args):
-    # Get the stack config file name
-    # TODO: add cluster name and env file here
-    ctx.obj = make_deploy_context(ctx)
-    down_operation(ctx, delete_volumes, extra_args, skip_cluster_management)
-
-
-# stop is the preferred alias for down
 @command.command()
 @click.option("--delete-volumes/--preserve-volumes", default=False, help="delete data volumes")
 @click.option(
