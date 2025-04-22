@@ -40,7 +40,7 @@ from stack.deploy.deployment_context import DeploymentContext
 @click.option("--dir", required=True, help="path to deployment directory")
 @click.pass_context
 def command(ctx, dir):
-    """manage an existing stack deployment"""
+    """manage a deployed stack (start, stop, etc.)"""
 
     # Check dir is valid
     dir_path = Path(dir)

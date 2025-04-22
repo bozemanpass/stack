@@ -26,7 +26,7 @@ from stack.util import check_if_stack_exists, global_options2
 @click.option("--deploy-to", help="cluster system to deploy to (compose or k8s or k8s-kind)")
 @click.pass_context
 def command(ctx, env_file, cluster, deploy_to):
-    """make configuration files for a new stack deployment"""
+    """make configuration files for deploying a stack"""
 
     if ctx.parent.obj.debug:
         print(f"ctx.parent.obj: {ctx.parent.obj}")
