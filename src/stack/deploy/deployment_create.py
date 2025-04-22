@@ -459,7 +459,7 @@ def _check_volume_definitions(spec):
 @click.option("--deployment-dir", help="Create deployment files in this directory")
 @click.pass_context
 def create(ctx, cluster, spec_file, deployment_dir):
-    """create a deployment from a specification file"""
+    """deploy a stack from a configuration files"""
 
     if ctx.parent.obj.debug:
         print(f"ctx.parent.obj: {ctx.parent.obj}")
