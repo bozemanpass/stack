@@ -8,7 +8,7 @@ echo "Environment variables:"
 env
 
 delete_cluster_exit () {
-    $TEST_TARGET_SO deployment --dir $test_deployment_dir stop --delete-volumes
+    $TEST_TARGET_SO manage --dir $test_deployment_dir stop --delete-volumes
     exit 1
 }
 
@@ -29,12 +29,12 @@ rm -rf $BPI_REPO_BASE_DIR
 mkdir -p $BPI_REPO_BASE_DIR
 # Test bringing the test container up and down
 # with and without volume removal
-$TEST_TARGET_SO --stack test setup-repositories
-$TEST_TARGET_SO --stack test prepare-containers
+$TEST_TARGET_SO fetch repositories --stack test
+$TEST_TARGET_SO build containers --stack test
 # Basic test of creating a deployment
 test_deployment_dir=$BPI_REPO_BASE_DIR/test-deployment-dir
 test_deployment_spec=$BPI_REPO_BASE_DIR/test-deployment-spec.yml
-$TEST_TARGET_SO --stack test deploy init --output $test_deployment_spec --config BPI_TEST_PARAM_1=PASSED,BPI_TEST_PARAM_3=FAST
+$TEST_TARGET_SO config init --stack test --output $test_deployment_spec --config BPI_TEST_PARAM_1=PASSED,BPI_TEST_PARAM_3=FAST
 # Check the file now exists
 if [ ! -f "$test_deployment_spec" ]; then
     echo "deploy init test: spec file not present"
@@ -42,7 +42,7 @@ if [ ! -f "$test_deployment_spec" ]; then
     exit 1
 fi
 echo "deploy init test: passed"
-$TEST_TARGET_SO --stack test deploy create --spec-file $test_deployment_spec --deployment-dir $test_deployment_dir
+$TEST_TARGET_SO deploy --spec-file $test_deployment_spec --deployment-dir $test_deployment_dir
 # Check the deployment dir exists
 if [ ! -d "$test_deployment_dir" ]; then
     echo "deploy create test: deployment directory not present"
@@ -69,9 +69,9 @@ echo "dbfc7a4d-44a7-416d-b5f3-29842cc47650" > $test_deployment_dir/data/test-con
 
 echo "deploy create output file test: passed"
 # Try to start the deployment
-$TEST_TARGET_SO deployment --dir $test_deployment_dir start
+$TEST_TARGET_SO manage --dir $test_deployment_dir start
 # Check logs command works
-log_output_3=$( $TEST_TARGET_SO deployment --dir $test_deployment_dir logs )
+log_output_3=$( $TEST_TARGET_SO manage --dir $test_deployment_dir logs )
 if [[ "$log_output_3" == *"filesystem is fresh"* ]]; then
     echo "deployment logs test: passed"
 else
@@ -101,7 +101,7 @@ else
 fi
 
 # Check that the ConfigMap is mounted and contains the expected content.
-log_output_4=$( $TEST_TARGET_SO deployment --dir $test_deployment_dir logs )
+log_output_4=$( $TEST_TARGET_SO manage --dir $test_deployment_dir logs )
 if [[ "$log_output_4" == *"/config/test_config:"* ]] && [[ "$log_output_4" == *"dbfc7a4d-44a7-416d-b5f3-29842cc47650"* ]]; then
     echo "deployment ConfigMap test: passed"
 else
@@ -110,12 +110,12 @@ else
 fi
 
 # Stop then start again and check the volume was preserved
-$TEST_TARGET_SO deployment --dir $test_deployment_dir stop
+$TEST_TARGET_SO manage --dir $test_deployment_dir stop
 # Sleep a bit just in case
 # sleep for longer to check if that's why the subsequent create cluster fails
 sleep 20
-$TEST_TARGET_SO deployment --dir $test_deployment_dir start
-log_output_5=$( $TEST_TARGET_SO deployment --dir $test_deployment_dir logs )
+$TEST_TARGET_SO manage --dir $test_deployment_dir start
+log_output_5=$( $TEST_TARGET_SO manage --dir $test_deployment_dir logs )
 if [[ "$log_output_5" == *"filesystem is old"* ]]; then
     echo "Retain volumes test: passed"
 else
@@ -124,5 +124,5 @@ else
 fi
 
 # Stop and clean up
-$TEST_TARGET_SO deployment --dir $test_deployment_dir stop --delete-volumes
+$TEST_TARGET_SO manage --dir $test_deployment_dir stop --delete-volumes
 echo "Test passed"

@@ -1,6 +1,6 @@
 # Stack
 
-Stack allows building and deployment of a suite of related applications as a single "stack".  It is a fork of https://git.vdb.to/cerc-io/stack intended for general use.
+Stack allows building and deployment of a suite of related applications as a single "stack".  It is a fork of https://git.vdb.to/cerc-io/stack intended for more general use.
 
 ## Install
 
@@ -45,16 +45,17 @@ Verify operation (your version will probably be different, just check here that 
 
 ```
 stack version
-Version: 1.1.0-7a607c2-202304260513
+Version: 2.0.0-fb86d3c-202503251632
 ```
 Save the distribution url to `~/.stack/config.yml`:
+> Note: You only need to do this if you are using a fork from a different URL, rather than the main release from https://github.com/bozemanpass/stack
 ```bash
 mkdir ~/.stack
 echo "distribution-url: https://github.com/bozemanpass/stack/releases/latest/download/stack" >  ~/.stack/config.yml
 ```
 
 ### Update
-If BPI stack was installed using the process described above, it is able to subsequently self-update to the current latest version by running:
+If `stack` was installed using the process above, it is able to self-update to the current latest version by running:
 
 ```bash
 stack update
@@ -66,4 +67,4 @@ See the [CONTRIBUTING.md](/docs/CONTRIBUTING.md) for developer mode install.
 
 ## Platform Support
 
-Native aarm64 is _not_ currently supported. x64 emulation on ARM64 macos should work (not yet tested).
+Native aarm64 is _not_ currently supported.

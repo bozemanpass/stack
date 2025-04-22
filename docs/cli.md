@@ -2,46 +2,46 @@
 
 Sub-commands and flags
 
-## setup-repositories
+## fetch repositories
 
 Clone a single repository:
 ```
-$ stack setup-repositories --include github.com/cerc-io/go-ethereum
+$ stack fetch repositories --include github.com/cerc-io/go-ethereum
 ```
 Clone the repositories for a stack:
 ```
-$ stack --stack fixturenet-eth setup-repositories
+$ stack --stack fixturenet-eth fetch repositories
 ```
 Pull latest commits from origin:
 ```
-$ stack --stack fixturenet-eth setup-repositories --pull
+$ stack --stack fixturenet-eth fetch repositories --pull
 ```
 Use SSH rather than https:
 ```
-$ stack --stack fixturenet-eth setup-repositories --git-ssh
+$ stack --stack fixturenet-eth fetch repositories --git-ssh
 ```
 
-## prepare-containers
+## build containers
 
 Build a single container:
 ```
-$ stack prepare-containers --include <container-name>
+$ stack build containers --include <container-name>
 ```
 e.g.
 ```
-$ stack prepare-containers --include bpi/go-ethereum
+$ stack build containers --include bpi/go-ethereum
 ```
 Build the containers for a stack:
 ```
-$ stack --stack <stack-name> prepare-containers
+$ stack --stack <stack-name> build containers
 ```
 e.g.
 ```
-$ stack --stack fixturenet-eth prepare-containers
+$ stack --stack fixturenet-eth build containers
 ```
 Force full rebuild of container images:
 ```
-$ stack prepare-containers --include <container-name> --force-rebuild
+$ stack build containers --include <container-name> --force-rebuild
 ```
 ## build-npms
 

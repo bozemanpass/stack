@@ -23,7 +23,7 @@ deployment_dir=${stack}-deployment
 wait_for_pods_started () {
     for i in {1..50}
     do
-        local ps_output=$( $TEST_TARGET_SO deployment --dir $test_deployment_dir ps )
+        local ps_output=$( $TEST_TARGET_SO manage --dir $test_deployment_dir ps )
 
         if [[ "$ps_output" == *"Running containers:"* ]]; then
             # if ready, return
@@ -42,7 +42,7 @@ wait_for_test_complete () {
     for i in {1..50}
     do
 
-        local log_output=$( $TEST_TARGET_SO deployment --dir $test_deployment_dir logs )
+        local log_output=$( $TEST_TARGET_SO manage --dir $test_deployment_dir logs )
 
     if [[ "${log_output}" == *"Database test client: test complete"* ]]; then
             # if ready, return
@@ -59,7 +59,7 @@ wait_for_test_complete () {
 
 
 delete_cluster_exit () {
-    $TEST_TARGET_SO deployment --dir $test_deployment_dir stop --delete-volumes
+    $TEST_TARGET_SO manage --dir $test_deployment_dir stop --delete-volumes
     exit 1
 }
 
@@ -72,8 +72,8 @@ echo "Version reported is: ${reported_version_string}"
 echo "Cloning repositories into: $BPI_REPO_BASE_DIR"
 rm -rf $BPI_REPO_BASE_DIR
 mkdir -p $BPI_REPO_BASE_DIR
-$TEST_TARGET_SO --stack ${stack} setup-repositories
-$TEST_TARGET_SO --stack ${stack} prepare-containers
+$TEST_TARGET_SO fetch repositories --stack ${stack}
+$TEST_TARGET_SO build containers --stack ${stack}
 # Test basic stack deploy to k8s
 test_deployment_dir=$BPI_REPO_BASE_DIR/${deployment_dir}
 test_deployment_spec=$BPI_REPO_BASE_DIR/${spec_file}
@@ -90,7 +90,7 @@ echo "deploy init test: passed"
 # Switch to a full path for the data dir so it gets provisioned as a host bind mounted volume and preserved beyond cluster lifetime
 sed -i "s|^\(\s*db-data:$\)$|\1 ${test_deployment_dir}/data/db-data|" $test_deployment_spec
 
-$TEST_TARGET_SO --stack ${stack} deploy create --spec-file $test_deployment_spec --deployment-dir $test_deployment_dir
+$TEST_TARGET_SO --stack ${stack} deploy --spec-file $test_deployment_spec --deployment-dir $test_deployment_dir
 # Check the deployment dir exists
 if [ ! -d "$test_deployment_dir" ]; then
     echo "deploy create test: deployment directory not present"
@@ -100,11 +100,11 @@ fi
 echo "deploy create test: passed"
 
 # Try to start the deployment
-$TEST_TARGET_SO deployment --dir $test_deployment_dir start
+$TEST_TARGET_SO manage --dir $test_deployment_dir start
 wait_for_pods_started
 # Check logs command works
 wait_for_test_complete
-log_output_1=$( $TEST_TARGET_SO deployment --dir $test_deployment_dir logs )
+log_output_1=$( $TEST_TARGET_SO manage --dir $test_deployment_dir logs )
 if [[ "$log_output_1" == *"Database test client: test data does not exist"* ]]; then
     echo "Create database content test: passed"
 else
@@ -113,14 +113,14 @@ else
 fi
 
 # Stop then start again and check the volume was preserved
-$TEST_TARGET_SO deployment --dir $test_deployment_dir stop
+$TEST_TARGET_SO manage --dir $test_deployment_dir stop
 # Sleep a bit just in case
 sleep 20
-$TEST_TARGET_SO deployment --dir $test_deployment_dir start
+$TEST_TARGET_SO manage --dir $test_deployment_dir start
 wait_for_pods_started
 wait_for_test_complete
 
-log_output_2=$( $TEST_TARGET_SO deployment --dir $test_deployment_dir logs )
+log_output_2=$( $TEST_TARGET_SO manage --dir $test_deployment_dir logs )
 if [[ "$log_output_2" == *"Database test client: test data already exists"* ]]; then
     echo "Retain database content test: passed"
 else
@@ -129,5 +129,5 @@ else
 fi
 
 # Stop and clean up
-$TEST_TARGET_SO deployment --dir $test_deployment_dir stop --delete-volumes
+$TEST_TARGET_SO manage --dir $test_deployment_dir stop --delete-volumes
 echo "Test passed"

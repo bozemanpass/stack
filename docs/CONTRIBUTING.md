@@ -29,84 +29,55 @@ In addition to the pre-requisites listed in the [README](/README.md), the follow
    $ git clone https://github.com/bozemanpass/stack.git
    ```
 
-2. Enter the project directory:
+   2. Enter the project directory:
    ```
    $ cd stack
    ```
 
-3. (This and the next step can be done by running `source ./scripts/developer-mode-setup.sh`)
-
-   Create and activate a venv:
+   3. Setup the virtualenv:
    ```
-   $ python3 -m venv venv
-   $ source ./venv/bin/activate
-   (venv) $
+   $ source ./scripts/developer-mode-setup.sh
    ```
 
-4. Install the cli in edit mode:
+   4. Verify installation:
    ```
-   $ pip install --editable .
-   ```
-
-   5. Verify installation:
-      ```
-      (venv) $ stack
+   $ (venv)  stack
       Usage: stack [OPTIONS] COMMAND [ARGS]...
 
-       BPI stack
+      BPI stack
 
       Options:
-       --quiet
-       --verbose
-       --dry-run
-       -h, --help  Show this message and exit.
+         --stack TEXT  path to the stack to build/deploy
+         --verbose     more detailed output
+         --debug       enable debug logging
+         -h, --help    Show this message and exit.
 
-      Commands:
-       prepare-containers    build the set of containers required for a complete...
-       deploy              deploy a stack
-       setup-repositories  git clone the set of repositories required to build...
-      ```
+      Core Commands:
+         deploy              deploy a stack
+         deployment          manage a deployment
+         fetch stack         clone a stack repository
+         build containers  build or download stack containers
+         fetch repositories  clone the repositories needed by the stack
+         update              update shiv binary from a distribution url
+         version             print tool version
+         webapp              build, run, and deploy webapps
+   ```
 
 ## Build a zipapp (single file distributable script)
 
 Use shiv to build a single file Python executable zip archive of stack:
 
-1. Install [shiv](https://github.com/linkedin/shiv):
+1. Run shiv to create a zipapp file:
    ```
-   $ (venv) pip install shiv
-   $ (venv) pip install wheel
+   $ (venv)  ./scripts/build_shiv_package.sh
    ```
+   This creates a file under `./package/` that is executable outside of any venv, and on other machines and OSes and architectures, and requiring only the system Python3:
 
-2. Run shiv to create a zipapp file:
+2. Verify it works:
    ```
-   $ (venv)  shiv -c stack -o stack .
-   ```
-   This creates a file `./stack` that is executable outside of any venv, and on other machines and OSes and architectures, and requiring only the system Python3:
-
-3. Verify it works:
-   ```
-   $ cp stack-orchetrator/stack ~/bin
+   $ cp  ~/bin
    $ stack
       Usage: stack [OPTIONS] COMMAND [ARGS]...
 
-      BPI stack
-
-   Options:
-      --stack TEXT         specify a stack to build/deploy
-      --quiet
-      --verbose
-      --dry-run
-      --local-stack
-      --debug
-      --continue-on-error
-      -h, --help           Show this message and exit.
-
-   Commands:
-      prepare-containers    build the set of containers required for a complete...
-      build-npms          build the set of npm packages required for a...
-      deploy              deploy a stack
-      setup-repositories  git clone the set of repositories required to build...
-      version             print tool version
+   ...
    ```
-
-For cutting releases, use the [shiv build script](/scripts/build_shiv_package.sh).

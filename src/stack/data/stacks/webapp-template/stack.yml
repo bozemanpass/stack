@@ -1,0 +1,7 @@
+version: "1.0"
+name: test
+description: "webapp setupment stack"
+containers:
+  - bpi/webapp-template-container
+pods:
+  - webapp-template
