@@ -5,7 +5,7 @@ It is possible to build and run Next.js webapps using the `webapp build` and `we
 To make it easier to build once and deploy into different environments and with different configuration,
 compilation and static page generation are separated in the `webapp build` and `webapp run` steps.
 
-This offers much more flexibilty than standard Next.js build methods, since any environment variables accessed
+This offers much more flexibility than standard Next.js build methods, since any environment variables accessed
 via `process.env`, whether for pages or for API, will have values drawn from their runtime deployment environment,
 not their build environment. 
 

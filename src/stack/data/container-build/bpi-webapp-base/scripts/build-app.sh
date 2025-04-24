@@ -12,12 +12,12 @@ BPI_BUILD_OUTPUT_DIR="${BPI_BUILD_OUTPUT_DIR}"
 WORK_DIR="${1:-/app}"
 DEST_DIR="${2:-/data}"
 
-if [ -f "${WORK_DIR}/webapp build.sh" ]; then
-  echo "Building webapp with ${WORK_DIR}/webapp build.sh ..."
+if [ -f "${WORK_DIR}/webapp-build.sh" ]; then
+  echo "Building webapp with ${WORK_DIR}/webapp-build.sh ..."
   cd "${WORK_DIR}" || exit 1
 
   rm -rf "${DEST_DIR}"
-  ./webapp build.sh "${DEST_DIR}" || exit 1
+  ./webapp-build.sh "${DEST_DIR}" || exit 1
 elif [ -f "${WORK_DIR}/package.json" ]; then
   echo "Building node-based webapp ..."
   cd "${WORK_DIR}" || exit 1
