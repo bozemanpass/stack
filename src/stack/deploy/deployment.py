@@ -91,6 +91,7 @@ def make_deploy_context(ctx) -> DeployCommandContext:
 @click.argument("extra_args", nargs=-1)  # help: command: start <service1> <service2>
 @click.pass_context
 def start(ctx, stay_attached, skip_cluster_management, extra_args):
+    """start the stack"""
     ctx.obj = make_deploy_context(ctx)
     services_list = list(extra_args) or None
     up_operation(ctx, services_list, stay_attached, skip_cluster_management)
@@ -106,6 +107,7 @@ def start(ctx, stay_attached, skip_cluster_management, extra_args):
 @click.argument("extra_args", nargs=-1)  # help: command: down <service1> <service2>
 @click.pass_context
 def stop(ctx, delete_volumes, skip_cluster_management, extra_args):
+    """stop the stack and remove the containers"""
     # TODO: add cluster name and env file here
     ctx.obj = make_deploy_context(ctx)
     down_operation(ctx, delete_volumes, extra_args, skip_cluster_management)
@@ -114,6 +116,7 @@ def stop(ctx, delete_volumes, skip_cluster_management, extra_args):
 @command.command()
 @click.pass_context
 def ps(ctx):
+    """list running containers in the stack"""
     ctx.obj = make_deploy_context(ctx)
     ps_operation(ctx)
 
@@ -121,6 +124,7 @@ def ps(ctx):
 @command.command()
 @click.pass_context
 def push_images(ctx):
+    """push container images/tags to the image registry"""
     deploy_command_context: DeployCommandContext = make_deploy_context(ctx)
     deployment_context: DeploymentContext = ctx.obj
     push_images_operation(deploy_command_context, deployment_context)
@@ -130,6 +134,7 @@ def push_images(ctx):
 @click.argument("extra_args", nargs=-1)  # help: command: port <service1> <service2>
 @click.pass_context
 def port(ctx, extra_args):
+    """list mapped ports"""
     ctx.obj = make_deploy_context(ctx)
     port_operation(ctx, extra_args)
 
@@ -138,6 +143,7 @@ def port(ctx, extra_args):
 @click.argument("extra_args", nargs=-1)  # help: command: exec <service> <command>
 @click.pass_context
 def exec(ctx, extra_args):
+    """execute a command inside a container"""
     ctx.obj = make_deploy_context(ctx)
     exec_operation(ctx, extra_args)
 
@@ -148,6 +154,7 @@ def exec(ctx, extra_args):
 @click.argument("extra_args", nargs=-1)  # help: command: logs <service1> <service2>
 @click.pass_context
 def logs(ctx, tail, follow, extra_args):
+    """get logs for running containers"""
     ctx.obj = make_deploy_context(ctx)
     logs_operation(ctx, tail, follow, extra_args)
 
@@ -155,6 +162,7 @@ def logs(ctx, tail, follow, extra_args):
 @command.command()
 @click.pass_context
 def status(ctx):
+    """report stack and container status"""
     ctx.obj = make_deploy_context(ctx)
     status_operation(ctx)
 
@@ -162,5 +170,6 @@ def status(ctx):
 @command.command()
 @click.pass_context
 def update(ctx):
+    """trigger an update of the deployed stack"""
     ctx.obj = make_deploy_context(ctx)
     update_operation(ctx)

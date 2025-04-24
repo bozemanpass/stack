@@ -186,9 +186,9 @@ def parse_branches(branches_string):
 @click.option("--stack", help="path to the stack", required=True)
 @click.option("--include", help="only clone these repositories")
 @click.option("--exclude", help="don't clone these repositories")
-@click.option("--git-ssh", is_flag=True, default=False)
-@click.option("--check-only", is_flag=True, default=False)
-@click.option("--pull", is_flag=True, default=False)
+@click.option("--git-ssh", is_flag=True, default=False, help="use SSH for git rather than HTTPS")
+@click.option("--check-only", is_flag=True, default=False, help="just check that the repo is available")
+@click.option("--pull", is_flag=True, default=False, help="pull the latest changes for an existing stack")
 @click.option("--branches", help="override branches for repositories")
 @click.pass_context
 def command(ctx, stack, include, exclude, git_ssh, check_only, pull, branches):

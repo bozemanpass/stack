@@ -146,7 +146,7 @@ def process_container(build_context: BuildContext) -> bool:
 @click.option("--stack", help="path to the stack", required=True)
 @click.option("--include", help="only build these containers")
 @click.option("--exclude", help="don't build these containers")
-@click.option("--git-ssh", is_flag=True, default=False)
+@click.option("--git-ssh", is_flag=True, default=False, help="use SSH for git rather than HTTPS")
 @click.option("--build-policy", default=BUILD_POLICIES[0], help=f"Available policies: {BUILD_POLICIES}")
 @click.option("--extra-build-args", help="Supply extra arguments to build")
 @click.option("--no-pull", is_flag=True, default=False, help="Don't pull remote images (useful with k8s deployments).")

@@ -31,9 +31,9 @@ from stack.util import get_dev_root_path
 
 @click.command()
 @click.argument("stack-locator")
-@click.option("--git-ssh", is_flag=True, default=False)
-@click.option("--check-only", is_flag=True, default=False)
-@click.option("--pull", is_flag=True, default=False)
+@click.option("--git-ssh", is_flag=True, default=False, help="use SSH for git rather than HTTPS")
+@click.option("--check-only", is_flag=True, default=False, help="just check that the repo is available")
+@click.option("--pull", is_flag=True, default=False, help="pull the latest changes for an existing stack")
 @click.pass_context
 def command(ctx, stack_locator, git_ssh, check_only, pull):
     """clone a stack repository"""

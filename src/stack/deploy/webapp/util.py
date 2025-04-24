@@ -554,7 +554,7 @@ def build_container_image(app_record, tag, extra_build_args=None, logger=None):
 def push_container_image(deployment_dir, logger):
     logger.log("Pushing images ...")
     result = subprocess.run(
-        [sys.argv[0], "deployment", "--dir", deployment_dir, "push-images"],
+        [sys.argv[0], "manage", "--dir", deployment_dir, "push-images"],
         stdout=logger.file,
         stderr=logger.file,
     )
