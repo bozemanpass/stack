@@ -476,7 +476,6 @@ def create(ctx, cluster, spec_file, deployment_dir):
     )
 
     global_context = ctx.parent.obj
-    print(ctx.obj.cluster_context)
     if len(spec_file) == 1:
         spec = Spec().init_from_file(spec_file[0])
     else:
