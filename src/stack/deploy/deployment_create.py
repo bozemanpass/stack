@@ -554,7 +554,9 @@ def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec,
             services = parsed_pod_file["services"]
             for service_name in services:
                 service_info = services[service_name]
-                shared_cfg_file = os.path.join(deployment_dir, constants.config_file_name)
+                shared_cfg_file = os.path.join(
+                    "../" * len(destination_compose_dir.relative_to(deployment_dir_path).parts), constants.config_file_name
+                )
                 if "env_file" in service_info:
                     env_files = service_info["env_file"]
                     if isinstance(env_files, list):
