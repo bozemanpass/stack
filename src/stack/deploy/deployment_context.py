@@ -42,7 +42,7 @@ class DeploymentContext:
         return self.deployment_dir.joinpath(constants.compose_dir_name)
 
     def get_compose_files(self):
-        return glob.glob(f"{self.get_compose_dir()}/docker-compose-*.yml")
+        return glob.glob(f"{self.get_compose_dir()}/{constants.compose_file_prefix}-*.yml")
 
     def get_cluster_id(self):
         return self.id

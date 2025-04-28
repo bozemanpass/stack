@@ -565,7 +565,7 @@ def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec,
                 else:
                     service_info["env_file"] = [shared_cfg_file]
 
-        with open(destination_compose_dir.joinpath("docker-compose-%s.yml" % pod), "w") as output_file:
+        with open(destination_compose_dir.joinpath("{constants.compose_file_prefix}-%s.yml" % pod), "w") as output_file:
             yaml.dump(parsed_pod_file, output_file)
 
         parsed_stack = parsed_spec.stack_for_pod(pod) if isinstance(parsed_spec, MergedSpec) else parsed_spec.load_stack()

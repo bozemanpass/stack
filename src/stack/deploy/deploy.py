@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from importlib import resources
 import subprocess
 from pathlib import Path
-from stack import constants
+from stack.constants import compose_file_prefix, cluster_name_prefix
 from stack.opts import opts
 from stack.util import (
     include_exclude_check,
@@ -218,7 +218,7 @@ def _make_default_cluster_name(deployment, compose_dir, stack, include, exclude)
     if opts.o.debug:
         print(f"pre-hash descriptor: {unique_cluster_descriptor}")
     hash = hashlib.md5(unique_cluster_descriptor.encode()).hexdigest()[:16]
-    cluster = f"{constants.cluster_name_prefix}{hash}"
+    cluster = f"{cluster_name_prefix}{hash}"
     if opts.o.debug:
         print(f"Using cluster name: {cluster}")
     return cluster
@@ -275,12 +275,12 @@ def _make_cluster_context(ctx, stack, include, exclude, cluster, env_file):
         if include_exclude_check(pod_name, include, exclude):
             if pod_repository is None or pod_repository == "internal":
                 if deployment:
-                    compose_file_name = os.path.join(compose_dir, f"docker-compose-{pod_path}.yml")
+                    compose_file_name = os.path.join(compose_dir, f"{compose_file_prefix}-{pod_path}.yml")
                 else:
                     compose_file_name = resolve_compose_file(stack, pod_name)
             else:
                 if deployment:
-                    compose_file_name = os.path.join(compose_dir, f"docker-compose-{pod_name}.yml")
+                    compose_file_name = os.path.join(compose_dir, f"{compose_file_prefix}-{pod_name}.yml")
                     pod_pre_start_command = pod.get("pre_start_command")
                     pod_post_start_command = pod.get("post_start_command")
                     script_dir = compose_dir.parent.joinpath("pods", pod_name, "scripts")
@@ -291,7 +291,7 @@ def _make_cluster_context(ctx, stack, include, exclude, cluster, env_file):
                 else:
                     # TODO: fix this code for external stack with scripts
                     pod_root_dir = os.path.join(dev_root_path, pod_repository.split("/")[-1], pod["path"])
-                    compose_file_name = os.path.join(pod_root_dir, f"docker-compose-{pod_name}.yml")
+                    compose_file_name = os.path.join(pod_root_dir, f"{compose_file_prefix}-{pod_name}.yml")
                     pod_pre_start_command = pod.get("pre_start_command")
                     pod_post_start_command = pod.get("post_start_command")
                     if pod_pre_start_command is not None:
