@@ -30,6 +30,7 @@ from pathlib import Path
 from stack.build import prepare_containers
 from stack.build.build_types import BuildContext
 from stack.build.build_util import ContainerSpec
+from stack.deploy.stack import Stack
 from stack.deploy.webapp.util import determine_base_container, TimedLogger
 from stack.util import get_dev_root_path
 
@@ -69,7 +70,7 @@ def command(ctx, base_container, source_repo, force_rebuild, extra_build_args, t
         logger.log(f"Building base container: {base_container}")
 
     build_context_1 = BuildContext(
-        None,
+        Stack(None),
         ContainerSpec(base_container),
         container_build_dir,
         container_build_env,
@@ -99,7 +100,7 @@ def command(ctx, base_container, source_repo, force_rebuild, extra_build_args, t
         logger.log(f"Building app container: {tag}")
 
     build_context_2 = BuildContext(
-        None,
+        Stack(None),
         ContainerSpec(base_container),
         container_build_dir,
         container_build_env,
