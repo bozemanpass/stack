@@ -73,7 +73,7 @@ class Stack:
         if repo:
             if repo.startswith("https://") or repo.startswith("http://"):
                 repo = repo.split("://", 2)[1]
-            repo = repo.split(":", 2)[1]
+            repo = repo.split(":", 2)[-1]
             if repo.endswith(".git"):
                 repo = repo[:-4]
             return repo
