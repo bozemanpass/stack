@@ -58,15 +58,25 @@ class Stack:
             file_path = Path(file_path)
         self.obj = get_yaml().load(open(file_path, "rt"))
         self.file_path = file_path.absolute()
-
-        parent = self.file_path.parent
-        while not self.repo_path and parent and parent.absolute().as_posix() != "/":
-            if is_git_repo(parent):
-                self.repo_path = parent
-            else:
-                parent = parent.parent
-
+        self._determine_repo_path()
         return self
+
+    def _determine_repo_path(self):
+        if self.repo_path:
+            return self.repo_path
+
+        if self.file_path:
+            check_path = self.file_path
+        else:
+            check_path = Path(self.name)
+
+        while not self.repo_path and check_path and check_path.absolute().as_posix() != "/":
+            if is_git_repo(check_path):
+                self.repo_path = check_path
+            else:
+                check_path = check_path.parent
+
+        return self.repo_path
 
     def get_repo_name(self):
         repo = self.get_repo_url()
@@ -80,7 +90,7 @@ class Stack:
         return None
 
     def get_repo_url(self):
-        if self.repo_path:
+        if self._determine_repo_path():
             repo = git.Repo(self.repo_path)
             return repo.remotes[0].url
         return None

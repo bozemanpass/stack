@@ -20,9 +20,10 @@ import hashlib
 import copy
 import os
 import sys
+import subprocess
+
 from dataclasses import dataclass
 from importlib import resources
-import subprocess
 from pathlib import Path
 from stack import constants
 from stack.opts import opts
