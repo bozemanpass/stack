@@ -33,7 +33,8 @@ from stack.base import get_npm_registry_url
 from stack.build.build_types import BuildContext
 from stack.build.build_util import ContainerSpec, get_containers_in_scope, container_exists_locally, container_exists_remotely, local_container_arch, host_and_path_for_repo, image_registry_for_repo
 from stack.build.publish import publish_image
-from stack.constants import container_file_name, container_lock_file_name
+from stack.constants import container_file_name, container_lock_file_name, stack_file_name
+from stack.deploy.stack import Stack
 from stack.opts import opts
 from stack.repos.setup_repositories import fs_path_for_repo, process_repo
 from stack.util import get_dev_root_path, include_exclude_check, stack_is_external, error_exit, get_yaml, check_if_stack_exists
@@ -87,12 +88,12 @@ def process_container(build_context: BuildContext) -> bool:
     build_script_filename = None
 
     # Check if this is in an external stack
-    if stack_is_external(build_context.stack):
+    if stack_is_external(build_context.stack.name):
         if build_context.container.build:
             build_script_filename = Path(build_context.container.file_path).parent.joinpath(build_context.container.build)
             build_dir = build_script_filename.parent
         else:
-            container_build_script_dir = Path(build_context.stack).parent.parent.joinpath("container-build")
+            container_build_script_dir = Path(build_context.stack.name).parent.parent.joinpath("container-build")
             if os.path.exists(container_build_script_dir):
                 temp_build_dir = container_build_script_dir.joinpath(build_context.container.name.replace("/", "-"))
                 temp_build_script_filename = temp_build_dir.joinpath("build.sh")
@@ -159,6 +160,7 @@ def process_container(build_context: BuildContext) -> bool:
 def command(ctx, stack, include, exclude, git_ssh, build_policy, extra_build_args, no_pull, publish_images, image_registry, target_arch):
     """build (or fetch pre-built) stack containers"""
     check_if_stack_exists(stack)
+    stack = Stack(stack).init_from_file(os.path.join(stack, stack_file_name))
 
     if build_policy not in BUILD_POLICIES:
         error_exit(f"{build_policy} is not one of {BUILD_POLICIES}")
@@ -186,18 +188,17 @@ def command(ctx, stack, include, exclude, git_ssh, build_policy, extra_build_arg
     )
 
     # check if we have any repos that specify the container targets / build info
-    containers_in_scope = [c for c in get_containers_in_scope(stack) if include_exclude_check(c, include, exclude)]
+    containers_in_scope = [c for c in get_containers_in_scope(stack.name) if include_exclude_check(c, include, exclude)]
     for stack_container in containers_in_scope:
-        if not include_exclude_check(stack_container.name, include, exclude):
-            print(f"Skipping container {stack_container.name}, it was excluded.")
-            continue
+        # No container ref means use the stack repo.
+        if (not stack_container.ref or stack_container.ref == ".") and stack_container.path and stack.get_repo_name():
+            stack_container.ref = stack.get_repo_name()
 
         container_needs_built = True
         container_was_built = False
         container_needs_pulled = False
         container_tag = None
-        # TODO: Handle stack_container.path
-        container_spec = ContainerSpec(stack_container.name, stack_container.ref)
+        container_spec = ContainerSpec(stack_container.name, stack_container.ref, path=stack_container.path)
         stack_local_tag = f"{container_spec.name}:stack"
         stack_legacy_tag = f"{container_spec.name}:local"
         image_registry_to_pull_this_container = image_registry
@@ -208,11 +209,6 @@ def command(ctx, stack, include, exclude, git_ssh, build_policy, extra_build_arg
             if not os.path.exists(fs_path_for_container_specs):
                 print(f"Error: Missing container repo for {fs_path_for_container_specs}, run fetch repositories")
                 sys.exit(1)
-
-            if stack_container.path:
-                container_spec.path = Path(os.path.join(fs_path_for_container_specs, stack_container.path)).absolute().as_posix()
-            else:
-                container_spec.path = fs_path_for_container_specs.absolute().as_posix()
 
             image_registries_to_check = [r for r in [image_registry, image_registry_for_repo(stack_container.ref)] if r]
 

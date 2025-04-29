@@ -18,6 +18,9 @@ import json
 import typing
 
 from pathlib import Path
+
+import git
+from stack.repos.setup_repositories import is_git_repo
 from stack.util import get_yaml, get_pod_file_path
 from stack import constants
 
@@ -26,10 +29,13 @@ class Stack:
     name: str
     file_path: Path
     obj: typing.Any
+    repo_path: Path
 
     def __init__(self, name: str) -> None:
         self.name = name
         self.obj = {}
+        self.file_path = None
+        self.repo_path = None
 
     def __getitem__(self, item):
         return self.obj[item]
@@ -46,7 +52,31 @@ class Stack:
         self.obj = get_yaml().load(open(file_path, "rt"))
         self.file_path = file_path.absolute()
 
+        parent = self.file_path.parent
+        while not self.repo_path and parent and parent.absolute().as_posix() != "/":
+            if is_git_repo(parent):
+                self.repo_path = parent
+            else:
+                parent = parent.parent
+
         return self
+
+    def get_repo_name(self):
+        repo = self.get_repo_url()
+        if repo:
+            if repo.startswith("https://") or repo.startswith("http://"):
+                repo = repo.split("://", 2)[1]
+            repo = repo.split(":", 2)[1]
+            if repo.endswith(".git"):
+                repo = repo[:-4]
+            return repo
+        return None
+
+    def get_repo_url(self):
+        if self.repo_path:
+            repo = git.Repo(self.repo_path)
+            return repo.remotes[0].url
+        return None
 
     def get_pods(self):
         return self.obj.get("pods", [])

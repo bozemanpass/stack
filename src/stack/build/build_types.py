@@ -18,12 +18,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping
 
+from stack.deploy.stack import Stack
 from stack.build.build_util import ContainerSpec
 
 
 @dataclass
 class BuildContext:
-    stack: str
+    stack: Stack
     container: ContainerSpec
     default_container_base_dir: Path
     container_build_env: Mapping[str,str]
