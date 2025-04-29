@@ -25,7 +25,7 @@ from stack.build.build_util import ContainerSpec
 class BuildContext:
     stack: str
     container: ContainerSpec
-    container_build_dir: Path
+    default_container_base_dir: Path
     container_build_env: Mapping[str,str]
     dev_root_path: str
 

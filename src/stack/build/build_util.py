@@ -50,23 +50,27 @@ class ContainerSpec:
     name: str
     ref: str
     build: str
+    path: str
     file_path: str
 
-    def __init__(self, name: str=None, ref=None, build=None):
+    def __init__(self, name: str=None, ref=None, build=None, path=None):
         self.name = name
         self.ref = ref
         self.build = build
+        self.path = path
         self.file_path = None
 
     def __repr__(self):
         return str(self)
 
     def __str__(self):
-        ret = { "name": self.name, "ref": self.ref, "build": self.build, "file_path": self.file_path }
+        ret = { "name": self.name, "ref": self.ref, "build": self.build, "path": self.path, "file_path": self.file_path }
         return json.dumps(ret)
 
     def init_from_file(self, file_path: Path):
-        self.file_path = file_path
+        self.file_path = Path(file_path).as_posix()
+        self.path = Path(self.file_path).parent.as_posix()
+
         y = get_yaml().load(open(file_path, "r"))
         self.name = y["container"]["name"]
         self.ref = y["container"].get("ref")
