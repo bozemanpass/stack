@@ -31,14 +31,13 @@ from stack.util import (
     get_yaml,
     pod_has_scripts,
     get_pod_script_paths,
-    get_plugin_code_paths,
     error_exit,
     env_var_map_from_file,
     resolve_config_dir,
 )
 from stack.deploy.deploy import create_deploy_context
 from stack.deploy.spec import Spec, MergedSpec
-from stack.deploy.stack import Stack
+from stack.deploy.stack import Stack, get_plugin_code_paths
 from stack.deploy.deployer_factory import getDeployerConfigGenerator
 from stack.deploy.deployment_context import DeploymentContext
 from stack.util import global_options2

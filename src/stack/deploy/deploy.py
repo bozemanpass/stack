@@ -28,7 +28,6 @@ from stack import constants
 from stack.opts import opts
 from stack.util import (
     include_exclude_check,
-    get_parsed_stack_config,
     get_dev_root_path,
     stack_is_in_deployment,
     resolve_compose_file,
@@ -37,6 +36,7 @@ from stack.deploy.deployer import Deployer, DeployerException
 from stack.deploy.deployer_factory import getDeployer
 from stack.deploy.deploy_types import ClusterContext, DeployCommandContext
 from stack.deploy.deployment_context import DeploymentContext
+from stack.deploy.stack import get_parsed_stack_config
 
 
 def create_deploy_context(

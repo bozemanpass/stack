@@ -14,14 +14,17 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http:#www.gnu.org/licenses/>.
 
-from decouple import config
+import git
 import os.path
 import sys
 import ruamel.yaml
+
+from decouple import config
 from pathlib import Path
 from dotenv import dotenv_values
-from typing import Mapping, Set, List
-from stack.constants import stack_file_name, deployment_file_name
+from typing import Mapping
+
+from stack.constants import deployment_file_name
 
 STACK_USE_BUILTIN_STACK = "true" == os.environ.get("STACK_USE_BUILTIN_STACK", "false")
 
@@ -52,18 +55,6 @@ def get_dev_root_path(ctx):
     return dev_root_path
 
 
-# Caller can pass either the name of a stack, or a path to a stack file
-def get_parsed_stack_config(stack):
-    stack_file_path = get_stack_path(stack).joinpath(stack_file_name)
-    if stack_file_path.exists():
-        return get_yaml().load(open(stack_file_path, "r"))
-    # We try here to generate a useful diagnostic error
-    # First check if the stack directory is present
-    if stack_file_path.parent.exists():
-        error_exit(f"{stack_file_name} file is missing from: {stack}")
-    error_exit(f"stack {stack} does not exist")
-
-
 def get_pod_list(parsed_stack):
     # Handle both old and new format
     pods = parsed_stack["pods"]
@@ -74,19 +65,6 @@ def get_pod_list(parsed_stack):
         for pod in pods:
             result.append(pod["name"])
     return result
-
-
-def get_plugin_code_paths(stack) -> List[Path]:
-    parsed_stack = get_parsed_stack_config(stack)
-    pods = parsed_stack["pods"]
-    result: Set[Path] = set()
-    for pod in pods:
-        if type(pod) is str:
-            result.add(get_stack_path(stack))
-        else:
-            pod_root_dir = os.path.join(get_dev_root_path(None), pod["repository"].split("@")[0].split("/")[-1], pod["path"])
-            result.add(Path(os.path.join(pod_root_dir, "stack")))
-    return list(result)
 
 
 # # Find a config directory, looking first in any external stack
@@ -115,23 +93,6 @@ def resolve_compose_file(stack, pod_name: str):
         # If we don't find it fall through to the internal case
     compose_base = get_internal_compose_file_dir()
     return compose_base.joinpath(f"docker-compose-{pod_name}.yml")
-
-
-def get_pod_file_path(stack, parsed_stack, pod_name: str):
-    result = None
-    pods = parsed_stack["pods"]
-    if type(pods[0]) is str:
-        result = resolve_compose_file(stack, pod_name)
-    else:
-        for pod in pods:
-            if pod["name"] == pod_name:
-                pod_root_dir = os.path.join(
-                    get_dev_root_path(None),
-                    pod["repository"].split("@")[0].split("/")[-1],
-                    pod["path"],
-                )
-                result = os.path.join(pod_root_dir, "docker-compose.yml")
-    return result
 
 
 def get_pod_script_paths(parsed_stack, pod_name: str):
@@ -246,3 +207,11 @@ def env_var_map_from_file(file: Path, expand=True) -> Mapping[str, str]:
 def check_if_stack_exists(stack):
     if stack and not stack_is_external(stack) and not STACK_USE_BUILTIN_STACK:
         error_exit(f"Stack {stack} does not exist")
+
+
+def is_git_repo(path):
+    try:
+        _ = git.Repo(path).git_dir
+        return True
+    except git.exc.InvalidGitRepositoryError:
+        return False

@@ -24,8 +24,9 @@ import subprocess
 from pathlib import Path
 from python_on_whales import DockerClient
 
+from stack.deploy.stack import get_parsed_stack_config
 from stack.opts import opts
-from stack.util import get_parsed_stack_config, warn_exit, get_yaml, error_exit
+from stack.util import warn_exit, get_yaml, error_exit
 
 
 class StackContainer:
