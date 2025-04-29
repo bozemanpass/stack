@@ -15,7 +15,6 @@
 # along with this program.  If not, see <http:#www.gnu.org/licenses/>.
 
 import git
-import json
 import os
 import typing
 
@@ -178,7 +177,12 @@ class Stack:
         return named_volumes
 
     def dump(self, output_file_path):
-        get_yaml().dump(self.obj, open(output_file_path, "wt"))
+        enhanced = self.obj.copy()
+        if self.get_repo_name():
+            for pod in enhanced["pods"]:
+                if "repository" not in pod:
+                    pod["repository"] = self.get_repo_name()
+        get_yaml().dump(enhanced, open(output_file_path, "wt"))
 
     def get_plugin_code_paths(self) -> List[Path]:
         result: Set[Path] = set()
@@ -196,7 +200,7 @@ class Stack:
         return list(result)
 
     def __str__(self):
-        return json.dumps(self, default=vars, indent=2)
+        return str(self.__dict__)
 
 
 # Caller can pass either the name of a stack, or a path to a stack file
