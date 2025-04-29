@@ -160,7 +160,10 @@ def process_container(build_context: BuildContext) -> bool:
 def command(ctx, stack, include, exclude, git_ssh, build_policy, extra_build_args, no_pull, publish_images, image_registry, target_arch):
     """build (or fetch pre-built) stack containers"""
     check_if_stack_exists(stack)
-    stack = Stack(stack).init_from_file(os.path.join(stack, stack_file_name))
+    if stack_is_external(stack):
+        stack = Stack(stack).init_from_file(os.path.join(stack, stack_file_name))
+    else:
+        stack = Stack(stack)
 
     if build_policy not in BUILD_POLICIES:
         error_exit(f"{build_policy} is not one of {BUILD_POLICIES}")
