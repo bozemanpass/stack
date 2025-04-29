@@ -213,7 +213,7 @@ def is_git_repo(path):
     try:
         _ = git.Repo(path).git_dir
         return True
-    except:
+    except:  # noqa: E722
         pass
 
     return False
