@@ -94,7 +94,6 @@ def resolve_compose_file(stack, pod_name: str):
     return compose_base.joinpath(f"{compose_file_prefix}-{pod_name}.yml")
 
 
-<<<<<<< HEAD
 def get_pod_file_path(stack, parsed_stack, pod_name: str):
     result = None
     pods = parsed_stack["pods"]
