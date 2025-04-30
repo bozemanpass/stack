@@ -112,8 +112,6 @@ def get_pod_file_path(stack, parsed_stack, pod_name: str):
     return result
 
 
-=======
->>>>>>> main
 def get_pod_script_paths(parsed_stack, pod_name: str):
     pods = parsed_stack["pods"]
     result = []
