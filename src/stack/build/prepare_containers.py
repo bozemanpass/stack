@@ -114,7 +114,7 @@ def process_container(build_context: BuildContext) -> bool:
     else:
         if opts.o.verbose:
             print(f"No script file found: {build_script_filename}, using default build script")
-        repo_dir = build_context.container.ref.split("/")[1] if build_context.container.ref else build_context.container.name.split("/")[1]
+        repo_dir = build_context.container.ref.split("/")[-1] if build_context.container.ref else build_context.container.name.split("/")[-1]
         # TODO: make this less of a hack -- should be specified in some metadata somewhere
         # Check if we have a repo for this container. If not, set the context dir to the container-build subdir
         repo_full_path = os.path.join(build_context.dev_root_path, repo_dir)
