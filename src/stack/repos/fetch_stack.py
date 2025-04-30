@@ -42,7 +42,7 @@ def command(ctx, stack_locator, git_ssh, check_only, pull):
 
     try:
         _, _, _ = host_and_path_for_repo(stack_locator)
-    except:
+    except:  # noqa: E722
         error_exit(f"{stack_locator} is not a valid stack locator")
 
     try:
