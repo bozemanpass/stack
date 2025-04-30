@@ -19,7 +19,6 @@ if [ -f "${WORK_DIR}/webapp-build.sh" ]; then
 
   rm -rf "${DEST_DIR}"
   ./webapp-build.sh "${DEST_DIR}" || exit 1
-   mv .env-list.json "${DEST_DIR}/"
 elif [ -f "${WORK_DIR}/package.json" ]; then
   echo "Building package.json based webapp ..."
   cd "${WORK_DIR}" || exit 1
