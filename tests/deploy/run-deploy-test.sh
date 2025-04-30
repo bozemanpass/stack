@@ -12,6 +12,8 @@ delete_cluster_exit () {
     exit 1
 }
 
+export STACK_USE_BUILTIN_STACK=true
+
 # Test basic stack deploy
 echo "Running stack deploy test"
 # Bit of a hack, test the most recent package
@@ -27,45 +29,38 @@ rm -rf $BPI_REPO_BASE_DIR
 mkdir -p $BPI_REPO_BASE_DIR
 # Test bringing the test container up and down
 # with and without volume removal
-
-STACK_NAME=example-todo-list
-STACK_REPO_NAME=bozemanpass/${STACK_NAME}
-STACK_TAG=v1.0.0
-STACK_DIR=${BPI_REPO_BASE_DIR}/${STACK_NAME}/stacks/todo
-
-$TEST_TARGET_SO fetch stack --stack ${STACK_REPO_NAME}@${STACK_TAG}
-$TEST_TARGET_SO fetch repositories --stack ${STACK_DIR}
-$TEST_TARGET_SO build containers --stack ${STACK_DIR}
+$TEST_TARGET_SO fetch repositories --stack test
+$TEST_TARGET_SO build containers --stack test
 # Basic test of creating a deployment
 test_deployment_dir=$BPI_REPO_BASE_DIR/test-deployment-dir
 test_deployment_spec=$BPI_REPO_BASE_DIR/test-deployment-spec.yml
-$TEST_TARGET_SO config init --stack ${STACK_DIR} --output $test_deployment_spec --config BPI_TEST_PARAM_1=PASSED,BPI_TEST_PARAM_3=FAST
+$TEST_TARGET_SO config init --stack test --output $test_deployment_spec --config BPI_TEST_PARAM_1=PASSED,BPI_TEST_PARAM_3=FAST
 # Check the file now exists
 if [ ! -f "$test_deployment_spec" ]; then
-    echo "deploy config init test: spec file not present"
-    echo "deploy config init test: FAILED"
+    echo "deploy init test: spec file not present"
+    echo "deploy init test: FAILED"
     exit 1
 fi
 echo "deploy init test: passed"
 $TEST_TARGET_SO deploy --spec-file $test_deployment_spec --deployment-dir $test_deployment_dir
 # Check the deployment dir exists
 if [ ! -d "$test_deployment_dir" ]; then
-    echo "deploy deploy test: deployment directory not present"
-    echo "deploy deploy test: FAILED"
+    echo "deploy create test: deployment directory not present"
+    echo "deploy create test: FAILED"
     exit 1
 fi
 echo "deploy create test: passed"
-# Check the file written by the create command in the stack now exists
+# Check the file writted by the create command in the stack now exists
 if [ ! -f "$test_deployment_dir/create-file" ]; then
-    echo "deploy deploy test: create output file not present"
-    echo "deploy deploy test: FAILED"
+    echo "deploy create test: create output file not present"
+    echo "deploy create test: FAILED"
     exit 1
 fi
 # And has the right content
 create_file_content=$(<$test_deployment_dir/create-file)
 if [ ! "$create_file_content" == "create-command-output-data"  ]; then
-    echo "deploy deploy test: create output file contents not correct"
-    echo "deploy deploy test: FAILED"
+    echo "deploy create test: create output file contents not correct"
+    echo "deploy create test: FAILED"
     exit 1
 fi
 
