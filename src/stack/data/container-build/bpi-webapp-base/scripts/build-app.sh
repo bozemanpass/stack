@@ -19,8 +19,11 @@ if [ -f "${WORK_DIR}/webapp-build.sh" ]; then
   rm -rf "${DEST_DIR}"
   ./webapp-build.sh "${DEST_DIR}" || exit 1
 elif [ -f "${WORK_DIR}/package.json" ]; then
-  echo "Building node-based webapp ..."
+  echo "Building package.json based webapp ..."
   cd "${WORK_DIR}" || exit 1
+
+  BPI_BUILD_TOOL_INSTALL_SUBCOMMAND="${BPI_BUILD_TOOL_INSTALL_SUBCOMMAND:-install}"
+  BPI_BUILD_TOOL_BUILD_SUBCOMMAND="${BPI_BUILD_TOOL_BUILD_SUBCOMMAND:-build}"
 
   if [ -z "$BPI_BUILD_TOOL" ]; then
     if [ -f "pnpm-lock.yaml" ]; then
@@ -31,11 +34,12 @@ elif [ -f "${WORK_DIR}/package.json" ]; then
       BPI_BUILD_TOOL=bun
     else
       BPI_BUILD_TOOL=npm
+      BPI_BUILD_TOOL_BUILD_SUBCOMMAND="run build"
     fi
   fi
 
-  time $BPI_BUILD_TOOL install || exit 1
-  time $BPI_BUILD_TOOL build || exit 1
+  time $BPI_BUILD_TOOL $BPI_BUILD_TOOL_INSTALL_SUBCOMMAND || exit 1
+  time $BPI_BUILD_TOOL $BPI_BUILD_TOOL_BUILD_SUBCOMMAND || exit 1
 
   rm -rf "${DEST_DIR}"
   if [ -z "${BPI_BUILD_OUTPUT_DIR}" ]; then
