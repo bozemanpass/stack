@@ -10,6 +10,8 @@ BPI_DEFAULT_WEBPACK_VER="5.93.0"
 BPI_NEXT_VERSION="${BPI_NEXT_VERSION:-keep}"
 BPI_WEBPACK_VERSION="${BPI_WEBPACK_VERSION:-keep}"
 
+BPI_BUILD_TOOL_INSTALL_SUBCOMMAND="${BPI_BUILD_TOOL_INSTALL_SUBCOMMAND:-install}"
+
 BPI_BUILD_TOOL="${BPI_BUILD_TOOL}"
 if [ -z "$BPI_BUILD_TOOL" ]; then
   if [ -f "pnpm-lock.yaml" ]; then
@@ -20,6 +22,7 @@ if [ -z "$BPI_BUILD_TOOL" ]; then
     BPI_BUILD_TOOL=bun
   else
     BPI_BUILD_TOOL=npm
+    BPI_BUILD_TOOL_BUILD_SUBCOMMAND="run build"
   fi
 fi
 
@@ -197,7 +200,7 @@ if [ "${BPI_WEBPACK_VERSION}" != "keep" ] || [ "${CUR_WEBPACK_VERSION}" == "null
   mv package.json.$$ package.json
 fi
 
-time $BPI_BUILD_TOOL install || exit 1
+time $BPI_BUILD_TOOL $BPI_BUILD_TOOL_INSTALL_SUBCOMMAND || exit 1
 
 CUR_NEXT_VERSION=`jq -r '.version' node_modules/next/package.json`
 
@@ -235,7 +238,7 @@ to use for the build with:
 EOF
   cat package.json | jq ".dependencies.next = \"^$BPI_MIN_NEXTVER\"" > package.json.$$
   mv package.json.$$ package.json
-  time $BPI_BUILD_TOOL install || exit 1
+  time $BPI_BUILD_TOOL $BPI_BUILD_TOOL_INSTALL_SUBCOMMAND || exit 1
 fi
 
 time $BPI_BUILD_TOOL run bpi_compile || exit 1

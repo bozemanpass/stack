@@ -15,12 +15,14 @@ DEST_DIR="${2:-/data}"
 if [ -f "${WORK_DIR}/webapp-build.sh" ]; then
   echo "Building webapp with ${WORK_DIR}/webapp-build.sh ..."
   cd "${WORK_DIR}" || exit 1
+  eval $(${SCRIPT_DIR}/convert-to-runtime-env.sh .)
 
   rm -rf "${DEST_DIR}"
   ./webapp-build.sh "${DEST_DIR}" || exit 1
 elif [ -f "${WORK_DIR}/package.json" ]; then
   echo "Building package.json based webapp ..."
   cd "${WORK_DIR}" || exit 1
+  eval $(${SCRIPT_DIR}/convert-to-runtime-env.sh .)
 
   BPI_BUILD_TOOL_INSTALL_SUBCOMMAND="${BPI_BUILD_TOOL_INSTALL_SUBCOMMAND:-install}"
   BPI_BUILD_TOOL_BUILD_SUBCOMMAND="${BPI_BUILD_TOOL_BUILD_SUBCOMMAND:-build}"
