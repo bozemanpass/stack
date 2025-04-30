@@ -348,18 +348,23 @@ class ClusterInfo:
                 if "healthcheck" in service_info:
                     healthcheck = service_info["healthcheck"]
                     # TODO: Support other probe types
-                    liveness_probe = client.V1Probe(
-                        _exec=client.V1ExecAction(
-                            # In a compose file, this will be something like:
-                            #   test: ["CMD", "wget", "--tries=1", "--connect-timeout=1", "-q", "-O", "-", "http://localhost"]
-                            # We want to strip of the initial CMD, but keep the rest.
-                            command=healthcheck["test"][1:],
-                        ),
-                        initial_delay_seconds=convert_to_seconds(healthcheck.get("start_period", "0s")),
-                        period_seconds=convert_to_seconds(healthcheck.get("interval", "30s")),
-                        timeout_seconds=convert_to_seconds(healthcheck.get("timeout", "30s")),
-                        failure_threshold=int(healthcheck.get("retries", "3")),
-                    )
+                    test = healthcheck.get("test")
+                    if test:
+                        # In a compose file, this will be something like:
+                        #   test: ["CMD", "wget", "--tries=1", "--connect-timeout=1", "-q", "-O", "-", "http://localhost"]
+                        # We want to strip off the type, but keep the command and arguments.
+                        if test[0] == "CMD-SHELL":
+                            command = ["/bin/sh", "-c"] + test[1:]
+                        else:
+                            command = test[1:]
+
+                        liveness_probe = client.V1Probe(
+                            _exec=client.V1ExecAction(command=command),
+                            initial_delay_seconds=convert_to_seconds(healthcheck.get("start_period", "0s")),
+                            period_seconds=convert_to_seconds(healthcheck.get("interval", "30s")),
+                            timeout_seconds=convert_to_seconds(healthcheck.get("timeout", "30s")),
+                            failure_threshold=int(healthcheck.get("retries", "3")),
+                        )
 
                 # Re-write the image tag for remote deployment
                 # Note self.app_name has the same value as deployment_id

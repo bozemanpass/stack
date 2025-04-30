@@ -14,11 +14,21 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http:#www.gnu.org/licenses/>.
 
-import json
+import git
+import os
 import typing
 
 from pathlib import Path
-from stack.util import get_yaml, get_pod_file_path
+from typing import Set, List
+
+from stack.util import (
+    get_yaml,
+    get_stack_path,
+    is_git_repo,
+    error_exit,
+    get_dev_root_path,
+    resolve_compose_file,
+)
 from stack import constants
 
 
@@ -26,10 +36,13 @@ class Stack:
     name: str
     file_path: Path
     obj: typing.Any
+    repo_path: Path
 
     def __init__(self, name: str) -> None:
         self.name = name
         self.obj = {}
+        self.file_path = None
+        self.repo_path = None
 
     def __getitem__(self, item):
         return self.obj[item]
@@ -45,8 +58,42 @@ class Stack:
             file_path = Path(file_path)
         self.obj = get_yaml().load(open(file_path, "rt"))
         self.file_path = file_path.absolute()
-
+        self._determine_repo_path()
         return self
+
+    def _determine_repo_path(self):
+        if self.repo_path:
+            return self.repo_path
+
+        if self.file_path:
+            check_path = self.file_path
+        else:
+            check_path = Path(self.name)
+
+        while not self.repo_path and check_path and check_path.absolute().as_posix() != "/":
+            if is_git_repo(check_path):
+                self.repo_path = check_path
+            else:
+                check_path = check_path.parent
+
+        return self.repo_path
+
+    def get_repo_name(self):
+        repo = self.get_repo_url()
+        if repo:
+            if repo.startswith("https://") or repo.startswith("http://"):
+                repo = repo.split("://", 2)[1]
+            repo = repo.split(":", 2)[-1]
+            if repo.endswith(".git"):
+                repo = repo[:-4]
+            return repo
+        return None
+
+    def get_repo_url(self):
+        if self._determine_repo_path():
+            repo = git.Repo(self.repo_path)
+            return repo.remotes[0].url
+        return None
 
     def get_pods(self):
         return self.obj.get("pods", [])
@@ -61,13 +108,13 @@ class Stack:
         return [p["name"] for p in pods]
 
     def load_pod_file(self, pod_name):
-        pod_file_path = get_pod_file_path(self.name, self, pod_name)
+        pod_file_path = get_pod_file_path(self, pod_name)
         if pod_file_path:
             return get_yaml().load(open(pod_file_path, "rt"))
         return None
 
     def get_pod_file_path(self, pod_name):
-        return get_pod_file_path(self.name, self, pod_name)
+        return get_pod_file_path(self, pod_name)
 
     def get_services(self):
         services = {}
@@ -140,7 +187,61 @@ class Stack:
         return named_volumes
 
     def dump(self, output_file_path):
-        get_yaml().dump(self.obj, open(output_file_path, "wt"))
+        enhanced = self.obj.copy()
+        if self.get_repo_name():
+            for pod in enhanced["pods"]:
+                if "repository" not in pod:
+                    pod["repository"] = self.get_repo_name()
+        get_yaml().dump(enhanced, open(output_file_path, "wt"))
+
+    def get_plugin_code_paths(self) -> List[Path]:
+        result: Set[Path] = set()
+        for pod in self.get_pods():
+            if type(pod) is str:
+                result.add(get_stack_path(self.name))
+            else:
+                pod_root_dir = os.path.join(
+                    get_dev_root_path(None),
+                    pod.get("repository", self.get_repo_name()).split("@")[0].split("/")[-1],
+                    pod.get("path", "."),
+                )
+                result.add(Path(os.path.join(pod_root_dir, "stack")))
+
+        return list(result)
 
     def __str__(self):
-        return json.dumps(self, default=vars, indent=2)
+        return str(self.__dict__)
+
+
+# Caller can pass either the name of a stack, or a path to a stack file
+def get_parsed_stack_config(stack):
+    stack_file_path = get_stack_path(stack).joinpath(constants.stack_file_name)
+    if stack_file_path.exists():
+        return Stack(stack).init_from_file(stack_file_path)
+    # We try here to generate a useful diagnostic error
+    # First check if the stack directory is present
+    if stack_file_path.parent.exists():
+        error_exit(f"{constants.stack_file_name} file is missing from: {stack}")
+    error_exit(f"stack {stack} does not exist")
+
+
+def get_plugin_code_paths(stack) -> List[Path]:
+    parsed_stack = get_parsed_stack_config(stack)
+    return parsed_stack.get_plugin_code_paths()
+
+
+def get_pod_file_path(stack, pod_name: str):
+    result = None
+    pods = stack.get_pods()
+    if type(pods[0]) is str:
+        result = resolve_compose_file(stack.name, pod_name)
+    else:
+        for pod in pods:
+            if pod["name"] == pod_name:
+                pod_root_dir = os.path.join(
+                    get_dev_root_path(None),
+                    pod.get("repository", stack.get_repo_name()).split("@")[0].split("/")[-1],
+                    pod.get("path", "."),
+                )
+                result = os.path.join(pod_root_dir, "docker-compose.yml")
+    return result

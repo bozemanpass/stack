@@ -94,6 +94,8 @@ def command(ctx, check_only):
                 print("Installing...")
             if ctx.obj.verbose:
                 print(f"Replacing: {shiv_binary_path} with {temp_download_path}")
+            current_permissions = stat.S_IMODE(os.lstat(shiv_binary_path).st_mode)
             os.replace(temp_download_path, shiv_binary_path)
+            os.chmod(shiv_binary_path, current_permissions)
             if not ctx.obj.quiet:
                 print('Run "stack version" to see the newly installed version')

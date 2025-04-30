@@ -31,14 +31,13 @@ from stack.util import (
     get_yaml,
     pod_has_scripts,
     get_pod_script_paths,
-    get_plugin_code_paths,
     error_exit,
     env_var_map_from_file,
     resolve_config_dir,
 )
 from stack.deploy.deploy import create_deploy_context
 from stack.deploy.spec import Spec, MergedSpec
-from stack.deploy.stack import Stack
+from stack.deploy.stack import Stack, get_plugin_code_paths
 from stack.deploy.deployer_factory import getDeployerConfigGenerator
 from stack.deploy.deployment_context import DeploymentContext
 from stack.util import global_options2
@@ -476,7 +475,6 @@ def create(ctx, cluster, spec_file, deployment_dir):
     )
 
     global_context = ctx.parent.obj
-    print(ctx.obj.cluster_context)
     if len(spec_file) == 1:
         spec = Spec().init_from_file(spec_file[0])
     else:
@@ -555,7 +553,9 @@ def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec,
             services = parsed_pod_file["services"]
             for service_name in services:
                 service_info = services[service_name]
-                shared_cfg_file = os.path.join(deployment_dir, constants.config_file_name)
+                shared_cfg_file = os.path.join(
+                    "../" * len(destination_compose_dir.relative_to(deployment_dir_path).parts), constants.config_file_name
+                )
                 if "env_file" in service_info:
                     env_files = service_info["env_file"]
                     if isinstance(env_files, list):

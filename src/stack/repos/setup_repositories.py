@@ -25,17 +25,18 @@ import git
 
 from git.exc import GitCommandError
 from tqdm import tqdm
+
+from stack.build.build_util import get_containers_in_scope, host_and_path_for_repo, branch_strip
+from stack.deploy.stack import get_parsed_stack_config
 from stack.opts import opts
 from stack.util import (
-    get_parsed_stack_config,
+    is_git_repo,
+    check_if_stack_exists,
+    get_dev_root_path,
     include_exclude_check,
     error_exit,
     warn_exit,
 )
-
-from stack.util import get_dev_root_path, check_if_stack_exists
-
-from stack.build.build_util import get_containers_in_scope, host_and_path_for_repo, branch_strip
 
 
 class GitProgress(git.RemoteProgress):
@@ -47,14 +48,6 @@ class GitProgress(git.RemoteProgress):
         self.pbar.total = max_count
         self.pbar.n = cur_count
         self.pbar.refresh()
-
-
-def is_git_repo(path):
-    try:
-        _ = git.Repo(path).git_dir
-        return True
-    except git.exc.InvalidGitRepositoryError:
-        return False
 
 
 # TODO: find a place for this in the context of click

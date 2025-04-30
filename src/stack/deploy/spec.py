@@ -234,6 +234,12 @@ class MergedSpec(Spec):
             ret.extend(spec.get_pod_list())
         return ret
 
+    def get_services(self):
+        services = {}
+        for stack in self.load_stacks():
+            merge(services, stack.get_services(), strategy=Strategy.REPLACE)
+        return services
+
     def load_pod_file(self, pod_name):
         for spec in self._specs:
             pod_file = spec.load_pod_file(pod_name)

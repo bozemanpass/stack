@@ -20,15 +20,15 @@ import hashlib
 import copy
 import os
 import sys
+import subprocess
+
 from dataclasses import dataclass
 from importlib import resources
-import subprocess
 from pathlib import Path
 from stack.constants import compose_file_prefix, cluster_name_prefix
 from stack.opts import opts
 from stack.util import (
     include_exclude_check,
-    get_parsed_stack_config,
     get_dev_root_path,
     stack_is_in_deployment,
     resolve_compose_file,
@@ -37,6 +37,7 @@ from stack.deploy.deployer import Deployer, DeployerException
 from stack.deploy.deployer_factory import getDeployer
 from stack.deploy.deploy_types import ClusterContext, DeployCommandContext
 from stack.deploy.deployment_context import DeploymentContext
+from stack.deploy.stack import Stack, get_parsed_stack_config
 
 
 def create_deploy_context(
@@ -248,10 +249,10 @@ def _make_cluster_context(ctx, stack, include, exclude, cluster, env_file):
         all_pods = pod_list_file.read().splitlines()
 
     pods_in_scope = []
+    stack_config = Stack(stack)
     if stack:
         stack_config = get_parsed_stack_config(stack)
-        # TODO: syntax check the input here
-        pods_in_scope = stack_config["pods"]
+        pods_in_scope = stack_config.get_pods()
         cluster_config = stack_config["config"] if "config" in stack_config else None
     else:
         pods_in_scope = all_pods
@@ -259,7 +260,6 @@ def _make_cluster_context(ctx, stack, include, exclude, cluster, env_file):
 
     # Convert all pod definitions to v1.1 format
     pods_in_scope = _convert_to_new_format(pods_in_scope)
-
     if ctx.verbose:
         print(f"Pods: {pods_in_scope}")
 
@@ -270,8 +270,8 @@ def _make_cluster_context(ctx, stack, include, exclude, cluster, env_file):
     post_start_commands = []
     for pod in pods_in_scope:
         pod_name = pod["name"]
-        pod_repository = pod["repository"]
-        pod_path = pod["path"]
+        pod_repository = pod.get("repository", stack_config.get_repo_name())
+        pod_path = pod.get("path", ".")
         if include_exclude_check(pod_name, include, exclude):
             if pod_repository is None or pod_repository == "internal":
                 if deployment:

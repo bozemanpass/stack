@@ -33,7 +33,8 @@ from stack.base import get_npm_registry_url
 from stack.build.build_types import BuildContext
 from stack.build.build_util import ContainerSpec, get_containers_in_scope, container_exists_locally, container_exists_remotely, local_container_arch, host_and_path_for_repo, image_registry_for_repo
 from stack.build.publish import publish_image
-from stack.constants import container_file_name, container_lock_file_name
+from stack.constants import container_file_name, container_lock_file_name, stack_file_name
+from stack.deploy.stack import Stack
 from stack.opts import opts
 from stack.repos.setup_repositories import fs_path_for_repo, process_repo
 from stack.util import get_dev_root_path, include_exclude_check, stack_is_external, error_exit, get_yaml, check_if_stack_exists
@@ -54,13 +55,13 @@ BUILD_POLICIES = [
 #    epilog="Config provided either in .env or settings.ini or env vars: BPI_REPO_BASE_DIR (defaults to ~/bpi)"
 
 
-def make_container_build_env(dev_root_path: str, container_build_dir: str, debug: bool, force_rebuild: bool, extra_build_args: str):
+def make_container_build_env(dev_root_path: str, default_container_base_dir: str, debug: bool, force_rebuild: bool, extra_build_args: str):
     container_build_env = {
         "BPI_NPM_REGISTRY_URL": get_npm_registry_url(),
         "BPI_GO_AUTH_TOKEN": config("BPI_GO_AUTH_TOKEN", default=""),
         "BPI_NPM_AUTH_TOKEN": config("BPI_NPM_AUTH_TOKEN", default=""),
         "BPI_REPO_BASE_DIR": dev_root_path,
-        "BPI_CONTAINER_BASE_DIR": container_build_dir,
+        "BPI_CONTAINER_BASE_DIR": default_container_base_dir,
         "BPI_HOST_UID": f"{os.getuid()}",
         "BPI_HOST_GID": f"{os.getgid()}",
         "BPI_IMAGE_LOCAL_TAG": "stack",
@@ -87,23 +88,23 @@ def process_container(build_context: BuildContext) -> bool:
     build_script_filename = None
 
     # Check if this is in an external stack
-    if stack_is_external(build_context.stack):
+    if stack_is_external(build_context.stack.name):
         if build_context.container.build:
             build_script_filename = Path(build_context.container.file_path).parent.joinpath(build_context.container.build)
             build_dir = build_script_filename.parent
         else:
-            container_build_script_dir = Path(build_context.stack).parent.parent.joinpath("container-build")
+            container_build_script_dir = Path(build_context.stack.name).parent.parent.joinpath("container-build")
             if os.path.exists(container_build_script_dir):
                 temp_build_dir = container_build_script_dir.joinpath(build_context.container.name.replace("/", "-"))
                 temp_build_script_filename = temp_build_dir.joinpath("build.sh")
                 # Now check if the container exists in the external stack.
                 if not temp_build_script_filename.exists():
                     # If not, revert to building an internal container
-                    container_build_script_dir = build_context.container_build_dir
+                    container_build_script_dir = build_context.default_container_base_dir
                 build_dir = container_build_script_dir.joinpath(build_context.container.name.replace("/", "-"))
                 build_script_filename = build_dir.joinpath("build.sh")
     if not build_dir:
-        build_dir = build_context.container_build_dir.joinpath(build_context.container.name.replace("/", "-"))
+        build_dir = build_context.default_container_base_dir.joinpath(build_context.container.name.replace("/", "-"))
         build_script_filename = build_dir.joinpath("build.sh")
 
     if opts.o.verbose:
@@ -117,9 +118,11 @@ def process_container(build_context: BuildContext) -> bool:
         # TODO: make this less of a hack -- should be specified in some metadata somewhere
         # Check if we have a repo for this container. If not, set the context dir to the container-build subdir
         repo_full_path = os.path.join(build_context.dev_root_path, repo_dir)
+        if build_context.container.path:
+            repo_full_path = os.path.join(repo_full_path, build_context.container.path)
         repo_dir_or_build_dir = repo_full_path if os.path.exists(repo_full_path) else build_dir
         build_command = (
-            os.path.join(build_context.container_build_dir, "default-build.sh")
+            os.path.join(build_context.default_container_base_dir, "default-build.sh")
             + f" {default_container_tag} {repo_dir_or_build_dir}"
         )
 
@@ -157,12 +160,16 @@ def process_container(build_context: BuildContext) -> bool:
 def command(ctx, stack, include, exclude, git_ssh, build_policy, extra_build_args, no_pull, publish_images, image_registry, target_arch):
     """build (or fetch pre-built) stack containers"""
     check_if_stack_exists(stack)
+    if stack_is_external(stack):
+        stack = Stack(stack).init_from_file(os.path.join(stack, stack_file_name))
+    else:
+        stack = Stack(stack)
 
     if build_policy not in BUILD_POLICIES:
         error_exit(f"{build_policy} is not one of {BUILD_POLICIES}")
 
     # See: https://stackoverflow.com/questions/25389095/python-get-path-of-root-project-structure
-    container_build_dir = Path(__file__).absolute().parent.parent.joinpath("data", "container-build")
+    default_container_base_dir = Path(__file__).absolute().parent.parent.joinpath("data", "container-build")
 
     dev_root_path = get_dev_root_path(ctx)
 
@@ -180,22 +187,21 @@ def command(ctx, stack, include, exclude, git_ssh, build_policy, extra_build_arg
 
 
     container_build_env = make_container_build_env(
-        dev_root_path, container_build_dir, opts.o.debug, "build-force" == build_policy, extra_build_args
+        dev_root_path, default_container_base_dir, opts.o.debug, "build-force" == build_policy, extra_build_args
     )
 
     # check if we have any repos that specify the container targets / build info
-    containers_in_scope = [c for c in get_containers_in_scope(stack) if include_exclude_check(c, include, exclude)]
+    containers_in_scope = [c for c in get_containers_in_scope(stack.name) if include_exclude_check(c, include, exclude)]
     for stack_container in containers_in_scope:
-        if not include_exclude_check(stack_container.name, include, exclude):
-            print(f"Skipping container {stack_container.name}, it was excluded.")
-            continue
+        # No container ref means use the stack repo.
+        if (not stack_container.ref or stack_container.ref == ".") and stack_container.path and stack.get_repo_name():
+            stack_container.ref = stack.get_repo_name()
 
         container_needs_built = True
         container_was_built = False
         container_needs_pulled = False
         container_tag = None
-        # TODO: Handle stack_container.path
-        container_spec = ContainerSpec(stack_container.name, stack_container.ref)
+        container_spec = ContainerSpec(stack_container.name, stack_container.ref, path=stack_container.path)
         stack_local_tag = f"{container_spec.name}:stack"
         stack_legacy_tag = f"{container_spec.name}:local"
         image_registry_to_pull_this_container = image_registry
@@ -310,7 +316,8 @@ def command(ctx, stack, include, exclude, git_ssh, build_policy, extra_build_arg
         elif container_needs_built:
             if build_policy in ["prebuilt", "prebuilt-local", "prebuilt-remote"]:
                 error_exit(f"No prebuilt image available for: {container_spec.name}")
-            build_context = BuildContext(stack, container_spec, container_build_dir, container_build_env, dev_root_path)
+
+            build_context = BuildContext(stack, container_spec, default_container_base_dir, container_build_env, dev_root_path)
 
             for tag in [stack_legacy_tag, stack_local_tag, container_tag]:
                 try:

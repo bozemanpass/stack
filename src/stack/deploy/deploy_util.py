@@ -18,8 +18,8 @@ from datetime import timedelta
 from typing import List, Any
 
 from stack.deploy.deploy_types import DeployCommandContext, VolumeMapping
+from stack.deploy.stack import get_parsed_stack_config
 from stack.util import (
-    get_parsed_stack_config,
     get_yaml,
     get_pod_list,
     resolve_compose_file,
