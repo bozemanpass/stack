@@ -22,8 +22,8 @@ import ruamel.yaml
 from decouple import config
 from pathlib import Path
 from dotenv import dotenv_values
-from typing import Mapping, Set, List
-from stack.constants import stack_file_name, deployment_file_name, compose_file_prefix
+from typing import Mapping
+from stack.constants import deployment_file_name, compose_file_prefix
 
 STACK_USE_BUILTIN_STACK = "true" == os.environ.get("STACK_USE_BUILTIN_STACK", "false")
 
