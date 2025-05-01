@@ -188,6 +188,4 @@ if [ "$todo_title" != "$(curl -s http://localhost/api/todos | jq -r '.[] | selec
     exit 1
 fi
 
-# Stop and clean up
-$TEST_TARGET_SO manage --dir $test_deployment_dir stop --delete-volumes
 echo "Test passed"
