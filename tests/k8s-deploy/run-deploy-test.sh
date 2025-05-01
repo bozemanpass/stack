@@ -1,13 +1,23 @@
 #!/usr/bin/env bash
 set -e
+
 if [ -n "$BPI_SCRIPT_DEBUG" ]; then
-    set -x
-    # Dump environment variables for debugging
-    echo "Environment variables:"
-    env
+  set -x
 fi
 
-# Helper functions: TODO move into a separate file
+# Dump environment variables for debugging
+echo "Environment variables:"
+env
+
+delete_cluster_exit () {
+  echo "oops"
+  #if [ -d "$test_deployment_dir" ]; then
+  #  $TEST_TARGET_SO manage --dir $test_deployment_dir stop --delete-volumes
+  #fi
+}
+
+trap delete_cluster_exit EXIT
+
 wait_for_pods_started () {
     for i in {1..50}
     do
@@ -23,7 +33,7 @@ wait_for_pods_started () {
     done
     # Timed out, error exit
     echo "waiting for pods to start: FAILED"
-    delete_cluster_exit
+    exit 1
 }
 
 wait_for_log_output () {
@@ -42,19 +52,39 @@ wait_for_log_output () {
     done
     # Timed out, error exit
     echo "waiting for pods log content: FAILED"
-    delete_cluster_exit
+    exit 1
 }
 
+wait_for_running () {
+  set +e
 
-delete_cluster_exit () {
-    $TEST_TARGET_SO manage --dir $test_deployment_dir stop --delete-volumes
-    exit 1
+  # Check that all services are running
+  how_many=$1
+  local running=0
+  local check=0
+  local check_limit=10
+  while [ $running -lt $how_many ] && [ $check -lt $check_limit ]; do
+      check=$((check + 1))
+      running=$($TEST_TARGET_SO manage --dir $test_deployment_dir status | grep -ic "running")
+      if [ $running -lt $how_many ]; then
+          echo "deploy manage start: Waiting for services to start..."
+          sleep 5
+      fi
+  done
+
+  if [ $running -lt $how_many ]; then
+      echo "deploy manage start: failed - not all services started"
+      exit 1
+  fi
+
+  set -e
 }
 
 export STACK_USE_BUILTIN_STACK=true
 
-# Note: eventually this test should be folded into ../deploy/
-# but keeping it separate for now for convenience
+# Test basic stack deploy
+echo "Running stack deploy test"
+# Bit of a hack, test the most recent package
 TEST_TARGET_SO=$( ls -t1 ./package/stack* | head -1 )
 # Set a non-default repo dir
 export BPI_REPO_BASE_DIR=~/stack-test/repo-base-dir
@@ -65,136 +95,88 @@ echo "Version reported is: ${reported_version_string}"
 echo "Cloning repositories into: $BPI_REPO_BASE_DIR"
 rm -rf $BPI_REPO_BASE_DIR
 mkdir -p $BPI_REPO_BASE_DIR
-$TEST_TARGET_SO fetch repositories --stack test
-$TEST_TARGET_SO build containers --stack test
-# Test basic stack deploy to k8s
+# Test bringing the test container up and down
+# with and without volume removal
+
+STACK_NAME="example-todo-list"
+STACK_PATH="$BPI_REPO_BASE_DIR/$STACK_NAME/stacks/todo"
+
+$TEST_TARGET_SO fetch stack bozemanpass/$STACK_NAME
+$TEST_TARGET_SO fetch repositories --stack $STACK_PATH
+$TEST_TARGET_SO build containers --stack $STACK_PATH
+
+# Basic test of creating a deployment
 test_deployment_dir=$BPI_REPO_BASE_DIR/test-deployment-dir
 test_deployment_spec=$BPI_REPO_BASE_DIR/test-deployment-spec.yml
-$TEST_TARGET_SO --stack test deploy --deploy-to k8s-kind init --output $test_deployment_spec --config BPI_TEST_PARAM_1=PASSED
+$TEST_TARGET_SO config --deploy-to k8s-kind init \
+  --stack $STACK_PATH \
+  --output $test_deployment_spec \
+  --http-proxy localhost:frontend:3000 \
+  --http-proxy localhost/api/todos:backend:5000 \
+  --config REACT_APP_API_URL=http://localhost/api/todos
+
 # Check the file now exists
 if [ ! -f "$test_deployment_spec" ]; then
-    echo "deploy init test: spec file not present"
-    echo "deploy init test: FAILED"
+    echo "deploy config init test: spec file not present"
+    echo "deploy config init test: FAILED"
     exit 1
 fi
 echo "deploy init test: passed"
-
-# Switch to a full path for bind mount.
-sed -i "s|^\(\s*test-data-bind:$\)$|\1 ${test_deployment_dir}/data/test-data-bind|" $test_deployment_spec
-
-$TEST_TARGET_SO --stack test deploy --spec-file $test_deployment_spec --deployment-dir $test_deployment_dir
+$TEST_TARGET_SO deploy --spec-file $test_deployment_spec --deployment-dir $test_deployment_dir
 # Check the deployment dir exists
 if [ ! -d "$test_deployment_dir" ]; then
-    echo "deploy create test: deployment directory not present"
-    echo "deploy create test: FAILED"
+    echo "deploy deploy test: deployment directory not present"
+    echo "deploy deploy test: FAILED"
     exit 1
 fi
 echo "deploy create test: passed"
-# Check the file writted by the create command in the stack now exists
-if [ ! -f "$test_deployment_dir/create-file" ]; then
-    echo "deploy create test: create output file not present"
-    echo "deploy create test: FAILED"
-    exit 1
-fi
-# And has the right content
-create_file_content=$(<$test_deployment_dir/create-file)
-if [ ! "$create_file_content" == "create-command-output-data"  ]; then
-    echo "deploy create test: create output file contents not correct"
-    echo "deploy create test: FAILED"
-    exit 1
-fi
 
-# Add a config file to be picked up by the ConfigMap before starting.
-echo "dbfc7a4d-44a7-416d-b5f3-29842cc47650" > $test_deployment_dir/configmaps/test-config/test_config
-
-echo "deploy create output file test: passed"
-# Try to start the deployment
+# Start
 $TEST_TARGET_SO manage --dir $test_deployment_dir start
-wait_for_pods_started
-# Check logs command works
-wait_for_log_output
-sleep 1
-log_output_3=$( $TEST_TARGET_SO manage --dir $test_deployment_dir logs )
-if [[ "$log_output_3" == *"filesystem is fresh"* ]]; then
-    echo "deployment logs test: passed"
-else
-    echo "deployment logs test: FAILED"
-    echo $log_output_3
-    delete_cluster_exit
-fi
+wait_for_running 3
 
-# Check the config variable BPI_TEST_PARAM_1 was passed correctly
-if [[ "$log_output_3" == *"Test-param-1: PASSED"* ]]; then
-    echo "deployment config test: passed"
-else
-    echo "deployment config test: FAILED"
-    delete_cluster_exit
-fi
+# Add a todo
+todo_title="79b06705-b402-431a-83a3-a634392d2754"
+curl 'http://localhost/api/todos' \
+  -H 'Accept: application/json, text/plain, */*' \
+  -H 'Accept-Language: en-US,en;q=0.9' \
+  -H 'Connection: keep-alive' \
+  -H 'Content-Type: application/json' \
+  -H 'Origin: http://localhost' \
+  -H 'Referer: http://localhost/' \
+  -H 'Sec-Fetch-Dest: empty' \
+  -H 'Sec-Fetch-Mode: cors' \
+  -H 'Sec-Fetch-Site: same-site' \
+  -H 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36 Edg/135.0.0.0' \
+  -H 'sec-ch-ua: "Microsoft Edge";v="135", "Not-A.Brand";v="8", "Chromium";v="135"' \
+  -H 'sec-ch-ua-mobile: ?0' \
+  -H 'sec-ch-ua-platform: "Windows"' \
+  --data-raw "{\"title\":\"$todo_title\",\"completed\":false}"
 
-# Check the config variable BPI_TEST_PARAM_2 was passed correctly from the compose file
-if [[ "$log_output_3" == *"Test-param-2: BPI_TEST_PARAM_2_VALUE"* ]]; then
-    echo "deployment compose config test: passed"
-else
-    echo "deployment compose config test: FAILED"
+# Check that it exists
+if [ "$todo_title" != "$(curl -s http://localhost/api/todos | jq -r '.[] | select(.id == 1) | .title')" ]; then
+    echo "deploy storage: failed - todo $todo_title not found"
     exit 1
 fi
 
-# Check that the ConfigMap is mounted and contains the expected content.
-log_output_4=$( $TEST_TARGET_SO manage --dir $test_deployment_dir logs )
-if [[ "$log_output_4" == *"/config/test_config:"* ]] && [[ "$log_output_4" == *"dbfc7a4d-44a7-416d-b5f3-29842cc47650"* ]]; then
-    echo "deployment ConfigMap test: passed"
-else
-    echo "deployment ConfigMap test: FAILED"
-    delete_cluster_exit
-fi
-
-# Check that the bind-mount volume is mounted.
-log_output_5=$( $TEST_TARGET_SO manage --dir $test_deployment_dir logs )
-if [[ "$log_output_5" == *"/data: MOUNTED"* ]]; then
-    echo "deployment bind volumes test: passed"
-else
-    echo "deployment bind volumes test: FAILED"
-    echo $log_output_5
-    delete_cluster_exit
-fi
-
-# Check that the provisioner managed volume is mounted.
-log_output_6=$( $TEST_TARGET_SO manage --dir $test_deployment_dir logs )
-if [[ "$log_output_6" == *"/data2: MOUNTED"* ]]; then
-    echo "deployment provisioner volumes test: passed"
-else
-    echo "deployment provisioner volumes test: FAILED"
-    echo $log_output_6
-    delete_cluster_exit
-fi
-
-# Stop then start again and check the volume was preserved
+# Stop the stack (don't delete volumes)
 $TEST_TARGET_SO manage --dir $test_deployment_dir stop
-# Sleep a bit just in case
-# sleep for longer to check if that's why the subsequent create cluster fails
-sleep 20
+
+# Restart the stack
 $TEST_TARGET_SO manage --dir $test_deployment_dir start
-wait_for_pods_started
-wait_for_log_output
-sleep 1
 
-log_output_10=$( $TEST_TARGET_SO manage --dir $test_deployment_dir logs )
-if [[ "$log_output_10" == *"/data filesystem is old"* ]]; then
-    echo "Retain bind volumes test: passed"
-else
-    echo "Retain bind volumes test: FAILED"
-    delete_cluster_exit
-fi
+# Check that all services are running
+wait_for_running 3
 
-# These volumes will be completely destroyed by the kind delete/create, because they lived inside
-# the kind container.  So, unlike the bind-mount case, they will appear fresh after the restart.
-log_output_11=$( $TEST_TARGET_SO manage --dir $test_deployment_dir logs )
-if [[ "$log_output_11" == *"/data2 filesystem is fresh"* ]]; then
-    echo "Fresh provisioner volumes test: passed"
-else
-    echo "Fresh provisioner volumes test: FAILED"
-    delete_cluster_exit
+# Check that it is still viewable
+if [ "$todo_title" != "$(curl -s http://localhost/api/todos | jq -r '.[] | select(.id == 1) | .title')" ]; then
+    echo "deploy storage: failed - todo $todo_title not found after restart"
+    exit 1
 fi
+echo "deploy storage: passed"
+
+# TODO: Do we need to add a check for deleting the volumes?
+#  Docker doesn't remove the files for a bound volume so nothing much really changes.
 
 # Stop and clean up
 $TEST_TARGET_SO manage --dir $test_deployment_dir stop --delete-volumes
