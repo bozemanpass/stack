@@ -78,7 +78,14 @@ def create_deployment(ctx, deployment_dir, image, url, kube_config, image_regist
         deployment_type = "k8s"
 
     deploy_command_context: DeployCommandContext = create_deploy_context(
-        global_options2(ctx), None, stack, None, None, None, env_file, deployment_type,
+        global_options2(ctx),
+        None,
+        stack,
+        None,
+        None,
+        None,
+        env_file,
+        deployment_type,
     )
     init_operation(
         deploy_command_context,

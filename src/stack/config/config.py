@@ -60,6 +60,7 @@ def command(ctx, env_file, cluster, deploy_to):
     "--http-proxy",
     required=False,
     help="k8s http proxy settings in the form: [cluster-issuer~]<host>[/path]:<target_svc>:<target_port>",
+    multiple=True,
 )
 @click.option("--output", required=True, help="Write yaml spec file here")
 @click.option(
