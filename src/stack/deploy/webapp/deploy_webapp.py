@@ -105,14 +105,20 @@ def create_deployment(ctx, deployment_dir, image, url, kube_config, image_regist
 @click.option("--kube-config", help="Provide a config file for a k8s deployment")
 @click.option(
     "--image-registry",
-    help="Provide a container image registry url for this k8s cluster",
+    help="Provide a container image registry url (required for k8s)",
 )
 @click.option("--deployment-dir", help="Create deployment files in this directory", required=True)
 @click.option("--image", help="image to deploy", required=True)
-@click.option("--url", help="url to serve", required=True)
+@click.option("--url", help="url to serve (required for k8s)", required=False)
 @click.option("--env-file", help="environment file for webapp")
 @click.pass_context
 def create(ctx, deployment_dir, image, url, kube_config, image_registry, env_file):
     """create a deployment for the specified webapp container"""
+
+    if kube_config and not url:
+        error_exit("--url is required for k8s deployments")
+
+    if kube_config and not image_registry:
+        error_exit("--image-registry is required for k8s deployments")
 
     return create_deployment(ctx, deployment_dir, image, url, kube_config, image_registry, env_file)
