@@ -72,14 +72,18 @@ def create_deployment(ctx, deployment_dir, image, url, kube_config, image_regist
     spec_file_name = tf.name
     # Specify the webapp template stack
     stack = "webapp-template"
-    # TODO: support env file
+
+    deployment_type = "compose"
+    if kube_config:
+        deployment_type = "k8s"
+
     deploy_command_context: DeployCommandContext = create_deploy_context(
-        global_options2(ctx), None, stack, None, None, None, env_file, "k8s"
+        global_options2(ctx), None, stack, None, None, None, env_file, deployment_type,
     )
     init_operation(
         deploy_command_context,
         stack,
-        "k8s",
+        deployment_type,
         None,
         env_file,
         kube_config,
