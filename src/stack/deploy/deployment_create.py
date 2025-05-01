@@ -219,24 +219,25 @@ def _get_mapped_ports(stack: Stack, map_recipe: str):
                     for x in range(0, len(ports_array)):
                         orig_port = ports_array[x]
                         # Strip /udp suffix if present
-                        bare_orig_port = orig_port.replace("/udp", "").split(":")[-1]
+                        unmapped_port = orig_port.split(":")[-1]
+                        bare_port = unmapped_port.replace("/udp", "")
                         # limit to k8s NodePort range
                         random_port = random.randint(30000, 32767)  # Beware: we're relying on luck to not collide
                         if map_recipe in ["any-variable-random", "k8s-clusterip-same"]:
                             # default for docker and k8s
-                            ports_array[x] = f"{bare_orig_port}"
+                            ports_array[x] = f"{unmapped_port}"
                         elif map_recipe == "localhost-same":
                             # Replace instances of "- XX" with "- 127.0.0.1:XX"
-                            ports_array[x] = f"127.0.0.1:{bare_orig_port}:{orig_port}"
+                            ports_array[x] = f"127.0.0.1:{bare_port}:{unmapped_port}"
                         elif map_recipe == "any-same":
                             # Replace instances of "- XX" with "- 0.0.0.0:XX"
-                            ports_array[x] = f"0.0.0.0:{bare_orig_port}:{orig_port}"
+                            ports_array[x] = f"0.0.0.0:{bare_port}:{unmapped_port}"
                         elif map_recipe == "localhost-fixed-random":
                             # Replace instances of "- XX" with "- 127.0.0.1:<rnd>:XX"
-                            ports_array[x] = f"127.0.0.1:{random_port}:{orig_port}"
+                            ports_array[x] = f"127.0.0.1:{bare_port}:{unmapped_port}"
                         elif map_recipe == "any-fixed-random":
                             # Replace instances of "- XX" with "- 0.0.0.0:<rnd>:XX"
-                            ports_array[x] = f"0.0.0.0:{random_port}:{orig_port}"
+                            ports_array[x] = f"0.0.0.0:{bare_port}:{unmapped_port}"
                         else:
                             print("Error: bad map_recipe")
             else:
