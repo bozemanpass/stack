@@ -291,21 +291,27 @@ def init_operation(  # noqa: C901
         else:
             print("WARNING: --image-registry not specified, only default container registries (eg, Docker Hub) will be available")
         if k8s_http_proxy:
-            http_proxies = {}
-            for pxy in k8s_http_proxy:
-                cluster_issuer, host, path, proxy_to = _parse_http_proxy(pxy)
-                if not cluster_issuer:
-                    cluster_issuer = "letsencrypt-prod"
-                if f"{host}{path}" in http_proxies:
-                    error_exit(f"Duplicate host/path http-proxy combination: {host} {path}")
-                http_proxies[f"{host}{path}"] = {
-                    constants.host_name_key: host,
-                    constants.cluster_issuer_key: cluster_issuer,
-                    constants.routes_key: [{constants.path_key: path, constants.proxy_to_key: proxy_to}],
-                }
+            proxy_hosts = {host for _, host, _, _ in map(_parse_http_proxy, k8s_http_proxy)}
+            if len(proxy_hosts) != 1:
+                error_exit(f"Only one host is allowed in --http-proxy at this time: {proxy_hosts}")
+
+            issuers = {issuer if issuer else "letsencrypt-prod" for issuer, _, _, _ in map(_parse_http_proxy, k8s_http_proxy)}
+            if len(issuers) != 1:
+                error_exit(f"Only one cluster issuer is allowed in --http-proxy at this time: {issuers}")
+
+            routes = [
+                {constants.path_key: path, constants.proxy_to_key: proxy_to}
+                for _, _, path, proxy_to in map(_parse_http_proxy, k8s_http_proxy)
+            ]
+
+            http_proxy = {
+                constants.host_name_key: proxy_hosts.pop(),
+                constants.cluster_issuer_key: issuers.pop(),
+                constants.routes_key: routes,
+            }
             if constants.network_key not in spec_file_content:
                 spec_file_content[constants.network_key] = {}
-            spec_file_content[constants.network_key].update({constants.http_proxy_key: list(http_proxies.values())})
+            spec_file_content[constants.network_key].update({constants.http_proxy_key: [http_proxy]})
         else:
             print("WARNING: --http-proxy not specified, no external HTTP access will be configured.")
     else:
