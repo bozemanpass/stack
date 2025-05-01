@@ -299,9 +299,9 @@ def init_operation(  # noqa: C901
                 if f"{host}{path}" in http_proxies:
                     error_exit(f"Duplicate host/path http-proxy combination: {host} {path}")
                 http_proxies[f"{host}{path}"] = {
-                        constants.host_name_key: host,
-                        constants.cluster_issuer_key: cluster_issuer,
-                        constants.routes_key: [{constants.path_key: path, constants.proxy_to_key: proxy_to}],
+                    constants.host_name_key: host,
+                    constants.cluster_issuer_key: cluster_issuer,
+                    constants.routes_key: [{constants.path_key: path, constants.proxy_to_key: proxy_to}],
                 }
             if constants.network_key not in spec_file_content:
                 spec_file_content[constants.network_key] = {}
