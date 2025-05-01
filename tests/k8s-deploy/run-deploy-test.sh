@@ -188,4 +188,7 @@ if [ "$todo_title" != "$(curl -s http://localhost/api/todos | jq -r '.[] | selec
     exit 1
 fi
 
+wget -O - http://localhost | grep 'bundle.js'
+echo "deploy http: passed"
+
 echo "Test passed"

@@ -157,4 +157,7 @@ echo "deploy storage: passed"
 # TODO: Do we need to add a check for deleting the volumes?
 #  Docker doesn't remove the files for a bound volume so nothing much really changes.
 
+wget -O - http://localhost:3000 | grep 'bundle.js'
+echo "deploy http: passed"
+
 echo "Test passed"
