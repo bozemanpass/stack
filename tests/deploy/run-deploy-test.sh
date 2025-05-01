@@ -29,6 +29,7 @@ add_todo() {
   while [ $rc -ne 0 ] && [ $try -lt 10 ]; do
     try=$((try + 1))
     curl "$url" \
+      --fail-with-body \
       -H 'Accept: application/json, text/plain, */*' \
       -H 'Accept-Language: en-US,en;q=0.9' \
       -H 'Connection: keep-alive' \
