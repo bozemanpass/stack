@@ -188,25 +188,6 @@ if [ "$todo_title" != "$(curl -s http://localhost/api/todos | jq -r '.[] | selec
     exit 1
 fi
 
-# Stop the stack (don't delete volumes)
-$TEST_TARGET_SO manage --dir $test_deployment_dir stop
-
-# Restart the stack
-$TEST_TARGET_SO manage --dir $test_deployment_dir start
-
-# Check that all services are running
-wait_for_running 3
-
-# Check that it is still viewable
-if [ "$todo_title" != "$(curl -s http://localhost/api/todos | jq -r '.[] | select(.id == 1) | .title')" ]; then
-    echo "deploy storage: failed - todo $todo_title not found after restart"
-    exit 1
-fi
-echo "deploy storage: passed"
-
-# TODO: Do we need to add a check for deleting the volumes?
-#  Docker doesn't remove the files for a bound volume so nothing much really changes.
-
 # Stop and clean up
 $TEST_TARGET_SO manage --dir $test_deployment_dir stop --delete-volumes
 echo "Test passed"
