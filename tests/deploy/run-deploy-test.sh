@@ -13,6 +13,23 @@ delete_cluster_exit () {
 
 trap delete_cluster_exit EXIT
 
+retry () {
+  local try=0
+  local max=5
+  local delay=5
+  while [ $try -lt $max ]; do
+    try=$((try + 1))
+    echo "Try $try of $* ..."
+    $* && RC=$? || RC=$?
+    if [ $RC -eq 0 ]; then
+      return 0
+    else
+      sleep $delay
+    fi
+  done
+  return 1
+}
+
 wait_for_running () {
   # Check that all services are running
   local how_many=$1
@@ -85,7 +102,7 @@ wait_for_running 3
 
 # Add a todo
 todo_title="79b06705-b402-431a-83a3-a634392d2754"
-curl 'http://localhost:5000/api/todos' \
+retry curl 'http://localhost:5000/api/todos' \
   -H 'Accept: application/json, text/plain, */*' \
   -H 'Accept-Language: en-US,en;q=0.9' \
   -H 'Connection: keep-alive' \
