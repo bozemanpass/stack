@@ -291,19 +291,21 @@ def init_operation(  # noqa: C901
         else:
             print("WARNING: --image-registry not specified, only default container registries (eg, Docker Hub) will be available")
         if k8s_http_proxy:
-            cluster_issuer, host, path, proxy_to = _parse_http_proxy(k8s_http_proxy)
-            if not cluster_issuer:
-                cluster_issuer = "letsencrypt-prod"
-            http_proxy = [
-                {
-                    constants.host_name_key: host,
-                    constants.cluster_issuer_key: cluster_issuer,
-                    constants.routes_key: [{constants.path_key: path, constants.proxy_to_key: proxy_to}],
-                }
-            ]
+            http_proxies = []
+            for pxy in k8s_http_proxy:
+                cluster_issuer, host, path, proxy_to = _parse_http_proxy(pxy)
+                if not cluster_issuer:
+                    cluster_issuer = "letsencrypt-prod"
+                http_proxies.append(
+                    {
+                        constants.host_name_key: host,
+                        constants.cluster_issuer_key: cluster_issuer,
+                        constants.routes_key: [{constants.path_key: path, constants.proxy_to_key: proxy_to}],
+                    }
+                )
             if constants.network_key not in spec_file_content:
                 spec_file_content[constants.network_key] = {}
-            spec_file_content[constants.network_key].update({constants.http_proxy_key: http_proxy})
+            spec_file_content[constants.network_key].update({constants.http_proxy_key: http_proxies})
         else:
             print("WARNING: --http-proxy not specified, no external HTTP access will be configured.")
     else:
@@ -312,7 +314,7 @@ def init_operation(  # noqa: C901
             error_exit(f"--kube-config is not allowed with a {deployer_type} deployment")
         if image_registry is not None:
             error_exit(f"--image-registry is not allowed with a {deployer_type} deployment")
-        if k8s_http_proxy is not None:
+        if k8s_http_proxy:
             error_exit(f"--http-proxy is not allowed with a {deployer_type} deployment")
     if default_spec_file_content:
         spec_file_content.update(default_spec_file_content)
