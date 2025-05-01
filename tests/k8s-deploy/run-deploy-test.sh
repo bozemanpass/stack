@@ -17,23 +17,6 @@ delete_cluster_exit () {
 
 trap delete_cluster_exit EXIT
 
-retry () {
-  local try=0
-  local max=5
-  local delay=5
-  while [ $try -lt $max ]; do
-    try=$((try + 1))
-    echo "Try $try of $* ..."
-    $* && RC=$? || RC=$?
-    if [ $RC -eq 0 ]; then
-      return 0
-    else
-      sleep $delay
-    fi
-  done
-  return 1
-}
-
 wait_for_pods_started () {
     for i in {1..50}
     do
@@ -96,6 +79,49 @@ wait_for_running () {
   set -e
 }
 
+add_todo() {
+  set +e
+
+  local running=0
+  local check=0
+  local check_limit=10
+
+  url=$1
+  title=$2
+
+  try=0
+  rc=1
+
+  while [ $rc -ne 0 ] && [ $try -lt 10 ]; do
+    try=$((try + 1))
+    curl "$url" \
+      -H 'Accept: application/json, text/plain, */*' \
+      -H 'Accept-Language: en-US,en;q=0.9' \
+      -H 'Connection: keep-alive' \
+      -H 'Content-Type: application/json' \
+      -H 'Origin: http://localhost' \
+      -H 'Referer: http://localhost/' \
+      -H 'Sec-Fetch-Dest: empty' \
+      -H 'Sec-Fetch-Mode: cors' \
+      -H 'Sec-Fetch-Site: same-site' \
+      -H 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36 Edg/135.0.0.0' \
+      -H 'sec-ch-ua: "Microsoft Edge";v="135", "Not-A.Brand";v="8", "Chromium";v="135"' \
+      -H 'sec-ch-ua-mobile: ?0' \
+      -H 'sec-ch-ua-platform: "Windows"' \
+      --data-raw "{\"title\":\"$title\",\"completed\":false}"
+    rc=$?
+
+    if [ $rc -ne 0 ]; then
+      echo "Error adding todo, retrying..."
+      sleep 5
+    fi
+  done
+
+  set -e
+
+  return $rc
+}
+
 export STACK_USE_BUILTIN_STACK=true
 
 # Test basic stack deploy
@@ -153,21 +179,7 @@ wait_for_running 3
 
 # Add a todo
 todo_title="79b06705-b402-431a-83a3-a634392d2754"
-retry curl 'http://localhost/api/todos' \
-  -H 'Accept: application/json, text/plain, */*' \
-  -H 'Accept-Language: en-US,en;q=0.9' \
-  -H 'Connection: keep-alive' \
-  -H 'Content-Type: application/json' \
-  -H 'Origin: http://localhost' \
-  -H 'Referer: http://localhost/' \
-  -H 'Sec-Fetch-Dest: empty' \
-  -H 'Sec-Fetch-Mode: cors' \
-  -H 'Sec-Fetch-Site: same-site' \
-  -H 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36 Edg/135.0.0.0' \
-  -H 'sec-ch-ua: "Microsoft Edge";v="135", "Not-A.Brand";v="8", "Chromium";v="135"' \
-  -H 'sec-ch-ua-mobile: ?0' \
-  -H 'sec-ch-ua-platform: "Windows"' \
-  --data-raw "{\"title\":\"$todo_title\",\"completed\":false}"
+add_todo http://localhost/api/todos "$todo_title"
 
 # Check that it exists
 if [ "$todo_title" != "$(curl -s http://localhost/api/todos | jq -r '.[] | select(.id == 1) | .title')" ]; then
