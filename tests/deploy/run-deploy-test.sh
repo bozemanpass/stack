@@ -123,6 +123,7 @@ if [ "$todo_title" != "$(curl -s http://localhost:5000/api/todos | jq -r '.[] | 
     echo "deploy storage: failed - todo $todo_title not found after restart"
     delete_cluster_exit
 fi
+echo "deploy storage: passed"
 
 # TODO: Do we need to add a check for deleting the volumes?
 #  Docker doesn't remove the files for a bound volume so nothing much really changes.
