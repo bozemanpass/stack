@@ -125,4 +125,8 @@ echo "distribution-url: https://github.com/example-org/my-stack-fork/releases/la
 
 ## Contributing
 
-See the [CONTRIBUTING.md](/docs/CONTRIBUTING.md) for developer mode install.d
+See the [CONTRIBUTING.md](/docs/CONTRIBUTING.md) for developer mode install.
+
+## Origin
+
+This is a fork of https://git.vdb.to/cerc-io/stack-orchestrator intended for more general use.
