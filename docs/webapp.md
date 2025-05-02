@@ -1,6 +1,6 @@
 ### Building and Running Webapps
 
-It is possible to build and run Next.js webapps using the `webapp build` and `webapp run` subcommands.
+It is possible to build and run static, React, and Next.js webapps using the `webapp build` and `webapp run` subcommands.
 
 To make it easier to build once and deploy into different environments and with different configuration,
 compilation and static page generation are separated in the `webapp build` and `webapp run` steps.
@@ -18,7 +18,7 @@ can be overidden with the build arguments `BPI_NEXT_VERSION` and `BPI_BUILD_TOOL
 **Example**:
 ```
 $ cd ~/bpi
-$ git clone git@git.vdb.to:cerc-io/test-progressive-web-app.git
+$ git clone https://github.com/bozemanpass/test-progressive-web-app
 $ stack webapp build --source-repo ~/bpi/test-progressive-web-app
 ...
 
@@ -53,12 +53,12 @@ ID: 9ab96494f563aafb6c057d88df58f9eca81b90f8721a4e068493a289a976051c
 URL: http://localhost:32769
 ```
 
-## Deploying
+## Deploy and Run
 
-Use the subcommand `webapp init create` to make a deployment directory that can be subsequently deployed to a Kubernetes cluster.
+Use the subcommand `webapp deploy` to make a deployment directory that can be subsequently deployed to a Kubernetes cluster.
 Example commands are shown below, assuming that the webapp container image `bpi/test-progressive-web-app:stack` has already been built:
 ```
-$ stack webapp init create --kube-config ~/kubectl/k8s-kubeconfig.yaml --image-registry registry.digitalocean.com/laconic-registry --deployment-dir webapp-k8s-deployment --image bpi/test-progressive-web-app:stack --url https://test-pwa-app.hosting.laconic.com/ --env-file test-webapp.env
-$ stack deployment --dir webapp-k8s-deployment push-images
-$ stack deployment --dir webapp-k8s-deployment start
+$ stack webapp deploy --kube-config ~/kubectl/k8s-kubeconfig.yaml --image-registry registry.digitalocean.com/laconic-registry --deployment-dir ~/bpi/webapp-k8s-deployment --image bpi/test-progressive-web-app:stack --url https://test-pwa-app.bpi.servesthe.world --env-file test-webapp.env
+$ stack manage --dir ~/bpi/webapp-k8s-deployment push-images
+$ stack manage --dir ~/bpi/webapp-k8s-deployment start
 ```

@@ -148,7 +148,8 @@ def port_operation(ctx, extra_args):
         if global_context.verbose:
             print(f"Running compose port {service_name} {exposed_port}")
         mapped_port_data = ctx.obj.deployer.port(service_name, exposed_port)
-        print(f"{mapped_port_data[0]}:{mapped_port_data[1]}")
+        if mapped_port_data:
+            print(f"{mapped_port_data[0]}:{mapped_port_data[1]}")
 
 
 def exec_operation(ctx, extra_args):
