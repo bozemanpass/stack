@@ -34,10 +34,10 @@ def include_exclude_check(s, include, exclude):
         return True
     if include is not None:
         include_list = include.split(",")
-        return s.name in include_list
+        return s in include_list
     if exclude is not None:
         exclude_list = exclude.split(",")
-        return s.name not in exclude_list
+        return s not in exclude_list
 
 
 def get_stack_path(stack):
