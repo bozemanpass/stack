@@ -9,26 +9,73 @@ env
 
 delete_cluster_exit () {
     $TEST_TARGET_SO manage --dir $test_deployment_dir stop --delete-volumes
-    exit 1
 }
 
-wait_for_running () {
-  # Check that all services are running
+trap delete_cluster_exit EXIT
+
+add_todo() {
+  set +e
+
   local running=0
   local check=0
   local check_limit=10
-  while [ $running -lt 3 ] && [ $check -lt $check_limit ]; do
+
+  url=$1
+  title=$2
+
+  try=0
+  rc=1
+
+  while [ $rc -ne 0 ] && [ $try -lt 10 ]; do
+    try=$((try + 1))
+    curl "$url" \
+      --fail-with-body \
+      -H 'Accept: application/json, text/plain, */*' \
+      -H 'Accept-Language: en-US,en;q=0.9' \
+      -H 'Connection: keep-alive' \
+      -H 'Content-Type: application/json' \
+      -H 'Origin: http://localhost' \
+      -H 'Referer: http://localhost/' \
+      -H 'Sec-Fetch-Dest: empty' \
+      -H 'Sec-Fetch-Mode: cors' \
+      -H 'Sec-Fetch-Site: same-site' \
+      -H 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36 Edg/135.0.0.0' \
+      -H 'sec-ch-ua: "Microsoft Edge";v="135", "Not-A.Brand";v="8", "Chromium";v="135"' \
+      -H 'sec-ch-ua-mobile: ?0' \
+      -H 'sec-ch-ua-platform: "Windows"' \
+      --data-raw "{\"title\":\"$title\",\"completed\":false}"
+    rc=$?
+
+    if [ $rc -ne 0 ]; then
+      echo "Error adding todo, retrying..."
+      sleep 5
+    fi
+  done
+
+  set -e
+
+  return $rc
+}
+
+
+wait_for_running () {
+  # Check that all services are running
+  local how_many=$1
+  local running=0
+  local check=0
+  local check_limit=10
+  while [ $running -lt $how_many ] && [ $check -lt $check_limit ]; do
       check=$((check + 1))
-      running=$($TEST_TARGET_SO manage --dir $test_deployment_dir status | grep -c "running")
-      if [ $running -lt 3 ]; then
+      running=$($TEST_TARGET_SO manage --dir $test_deployment_dir status | grep -ic "running")
+      if [ $running -lt $how_many ]; then
           echo "deploy manage start: Waiting for services to start..."
           sleep 5
       fi
   done
 
-  if [ $running -lt 3 ]; then
+  if [ $running -lt $how_many ]; then
       echo "deploy manage start: failed - not all services started"
-      delete_cluster_exit
+      exit 1
   fi
 }
 
@@ -79,34 +126,16 @@ echo "deploy create test: passed"
 
 # Start
 $TEST_TARGET_SO manage --dir $test_deployment_dir start
-wait_for_running
+wait_for_running 3
 
 # Add a todo
 todo_title="79b06705-b402-431a-83a3-a634392d2754"
-curl 'http://localhost:5000/api/todos' \
-  -H 'Accept: application/json, text/plain, */*' \
-  -H 'Accept-Language: en-US,en;q=0.9' \
-  -H 'Connection: keep-alive' \
-  -H 'Content-Type: application/json' \
-  -H 'Origin: http://localhost:3000' \
-  -H 'Referer: http://localhost:3000/' \
-  -H 'Sec-Fetch-Dest: empty' \
-  -H 'Sec-Fetch-Mode: cors' \
-  -H 'Sec-Fetch-Site: same-site' \
-  -H 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36 Edg/135.0.0.0' \
-  -H 'sec-ch-ua: "Microsoft Edge";v="135", "Not-A.Brand";v="8", "Chromium";v="135"' \
-  -H 'sec-ch-ua-mobile: ?0' \
-  -H 'sec-ch-ua-platform: "Windows"' \
-  --data-raw "{\"title\":\"$todo_title\",\"completed\":false}"
-if [ $? -ne 0 ]; then
-    echo "deploy storage: failed - todo $todo_title not added"
-    delete_cluster_exit
-fi
+add_todo http://localhost:5000/api/todos "$todo_title"
 
 # Check that it exists
 if [ "$todo_title" != "$(curl -s http://localhost:5000/api/todos | jq -r '.[] | select(.id == 1) | .title')" ]; then
     echo "deploy storage: failed - todo $todo_title not found"
-    delete_cluster_exit
+    exit 1
 fi
 
 # Stop the stack (don't delete volumes)
@@ -116,18 +145,19 @@ $TEST_TARGET_SO manage --dir $test_deployment_dir stop
 $TEST_TARGET_SO manage --dir $test_deployment_dir start
 
 # Check that all services are running
-wait_for_running
+wait_for_running 3
 
 # Check that it is still viewable
 if [ "$todo_title" != "$(curl -s http://localhost:5000/api/todos | jq -r '.[] | select(.id == 1) | .title')" ]; then
     echo "deploy storage: failed - todo $todo_title not found after restart"
-    delete_cluster_exit
+    exit 1
 fi
 echo "deploy storage: passed"
 
 # TODO: Do we need to add a check for deleting the volumes?
 #  Docker doesn't remove the files for a bound volume so nothing much really changes.
 
-# Stop and clean up
-$TEST_TARGET_SO manage --dir $test_deployment_dir stop --delete-volumes
+wget -q -O - http://localhost:3000 | grep 'bundle.js'
+echo "deploy http: passed"
+
 echo "Test passed"

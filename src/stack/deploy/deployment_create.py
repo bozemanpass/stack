@@ -281,14 +281,14 @@ def init_operation(  # noqa: C901
 ):
     default_spec_file_content = call_stack_deploy_init(deploy_command_context)
     spec_file_content = {"stack": stack, constants.deploy_to_key: deployer_type}
-    if deployer_type == "k8s":
+    if deployer_type in ["k8s", "k8s-kind"]:
         if kube_config:
             spec_file_content.update({constants.kube_config_key: kube_config})
-        else:
+        elif deployer_type == "k8s":
             error_exit("--kube-config must be supplied with --deploy-to k8s")
         if image_registry:
             spec_file_content.update({constants.image_registry_key: image_registry})
-        else:
+        elif deployer_type == "k8s":
             print("WARNING: --image-registry not specified, only default container registries (eg, Docker Hub) will be available")
         if k8s_http_proxy:
             proxy_hosts = {host for _, host, _, _ in map(_parse_http_proxy, k8s_http_proxy)}
@@ -343,7 +343,7 @@ def init_operation(  # noqa: C901
             spec_file_content.update({"config": merged_config})
 
     if not map_ports_to_host:
-        if deployer_type == "k8s":
+        if deployer_type in ["k8s", "k8s-kind"]:
             map_ports_to_host = "k8s-clusterip-same"
         elif deployer_type == "compose":
             map_ports_to_host = "any-variable-random"
@@ -364,6 +364,7 @@ def init_operation(  # noqa: C901
             matched = False
             for svc in ports:
                 for svc_port in ports[svc]:
+                    svc_port = svc_port.split(":")[-1].replace("/udp", "")
                     if f"{svc}:{svc_port}" == target:
                         matched = True
                         break

@@ -178,10 +178,8 @@ class ClusterInfo:
             for service_name in services:
                 service_info = services[service_name]
                 if "ports" in service_info:
-                    svc_ports = [
-                        client.V1ServicePort(port=int(p), target_port=int(p), name=f"{service_name}-{p}")
-                        for p in service_info["ports"]
-                    ]
+                    int_ports = [int(p.split(":")[-1].replace("/udp", "")) for p in service_info["ports"]]
+                    svc_ports = [client.V1ServicePort(port=p, target_port=p, name=f"{service_name}-{p}") for p in int_ports]
                     service = client.V1Service(
                         metadata=client.V1ObjectMeta(
                             name=f"{self.app_name}-svc-{service_name}",
