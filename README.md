@@ -1,6 +1,6 @@
 # Stack
 
-Stack allows building and deployment of a suite of related applications as a single "stack".  It is a fork of https://git.vdb.to/cerc-io/stack intended for more general use.
+Stack allows building and deployment of a suite of related applications as a single "stack".
 
 ## Quick Start
 
