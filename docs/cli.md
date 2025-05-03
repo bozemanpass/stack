@@ -131,6 +131,11 @@ Follow logs (limited to _n_ lines):
 $ stack manage --deployment-dir ~/deployments/todo logs -f -n 10
 ```
 
+List service names:
+```
+$ stack manage --dir ~/deployments/todo services
+```
+
 Execute a command in a running container:
 ```
 $ stack manage --dir ~/deployments/todo exec frontend 'node --version'
