@@ -477,31 +477,32 @@ class K8sDeployer(Deployer):
         if len(pods) == 0:
             log_data = "******* Pods not running ********\n"
 
-        service_containers = []
-        if services:
-            for service_name in services:
-                service_containers.append(f"{self.cluster_info.app_name}-deploy-{service_name}")
-
         all_logs = []
         for k8s_pod_name in pods:
-            containers = containers_in_pod(self.core_api, k8s_pod_name)
-            if service_containers:
-                containers = [c for c in containers if c in service_containers]
-            # If the pod is not yet started, the logs request below will throw an exception
-            try:
-                log_data = ""
-                for container in containers:
-                    container_log = self.core_api.read_namespaced_pod_log(
-                        k8s_pod_name, namespace=self.k8s_namespace, container=container
-                    )
-                    container_log_lines = container_log.splitlines()
-                    for line in container_log_lines:
-                        log_data += f"{container}: {line}\n"
-            except client.exceptions.ApiException as e:
-                if opts.o.debug:
-                    print(f"Error from read_namespaced_pod_log: {e}")
-                log_data = "******* No logs available ********\n"
-            all_logs.append(log_data)
+            matched = True
+            if services:
+                matched = False
+                for svc in services:
+                    if f"{self.cluster_info.app_name}-deploy-{svc}" not in k8s_pod_name:
+                        matched = True
+                        break
+            if matched:
+                containers = containers_in_pod(self.core_api, k8s_pod_name)
+                # If the pod is not yet started, the logs request below will throw an exception
+                try:
+                    log_data = ""
+                    for container in containers:
+                        container_log = self.core_api.read_namespaced_pod_log(
+                            k8s_pod_name, namespace=self.k8s_namespace, container=container
+                        )
+                        container_log_lines = container_log.splitlines()
+                        for line in container_log_lines:
+                            log_data += f"{container}: {line}\n"
+                except client.exceptions.ApiException as e:
+                    if opts.o.debug:
+                        print(f"Error from read_namespaced_pod_log: {e}")
+                    log_data = "******* No logs available ********\n"
+                all_logs.append(log_data)
         return log_stream_from_string("\n".join(all_logs))
 
     def update(self):
