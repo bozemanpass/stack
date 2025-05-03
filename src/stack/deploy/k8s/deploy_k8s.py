@@ -483,7 +483,7 @@ class K8sDeployer(Deployer):
             if services:
                 matched = False
                 for svc in services:
-                    if f"{self.cluster_info.app_name}-deploy-{svc}" not in k8s_pod_name:
+                    if f"{self.cluster_info.app_name}-deploy-{svc}" in k8s_pod_name:
                         matched = True
                         break
             if matched:
