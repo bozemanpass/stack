@@ -476,9 +476,17 @@ class K8sDeployer(Deployer):
         pods = pods_in_deployment(self.core_api, self.cluster_info.app_name)
         if len(pods) == 0:
             log_data = "******* Pods not running ********\n"
+
+        service_containers = []
+        if services:
+            for service_name in services:
+                service_containers.append(f"{self.cluster_info.app_name}-deploy-{service_name}")
+
         all_logs = []
         for k8s_pod_name in pods:
             containers = containers_in_pod(self.core_api, k8s_pod_name)
+            if service_containers:
+                containers = [c for c in containers if c in service_containers]
             # If the pod is not yet started, the logs request below will throw an exception
             try:
                 log_data = ""
