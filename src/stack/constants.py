@@ -14,11 +14,14 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http:#www.gnu.org/licenses/>.
 
+import os
+
 annotations_key = "annotations"
 cluster_id_key = "cluster-id"
 cluster_name_prefix = "bpi-"
 compose_deploy_type = "compose"
 compose_dir_name = "compose"
+compose_file_prefix = os.environ.get("BPI_COMPOSE_FILE_PREFIX", "composefile")
 config_file_name = "config.env"
 config_key = "config"
 configmaps_key = "configmaps"

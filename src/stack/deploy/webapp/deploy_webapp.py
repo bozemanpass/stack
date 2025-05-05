@@ -20,6 +20,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 from tempfile import NamedTemporaryFile
 
+from stack import constants
 from stack.util import error_exit, global_options2
 from stack.deploy.deployment_create import init_operation, create_operation
 from stack.deploy.deploy import create_deploy_context
@@ -29,7 +30,7 @@ from stack.deploy.spec import Spec
 
 def _fixup_container_tag(deployment_dir: str, image: str):
     deployment_dir_path = Path(deployment_dir)
-    compose_file = deployment_dir_path.joinpath("compose", "docker-compose-webapp-template.yml")
+    compose_file = deployment_dir_path.joinpath("compose", f"{constants.compose_file_prefix}-webapp-template.yml")
     # replace "bpi/webapp-container:stack" in the file with our image tag
     with open(compose_file) as rfile:
         contents = rfile.read()

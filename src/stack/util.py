@@ -23,8 +23,7 @@ from decouple import config
 from pathlib import Path
 from dotenv import dotenv_values
 from typing import Mapping
-
-from stack.constants import deployment_file_name
+from stack.constants import deployment_file_name, compose_file_prefix
 
 STACK_USE_BUILTIN_STACK = "true" == os.environ.get("STACK_USE_BUILTIN_STACK", "false")
 
@@ -87,12 +86,29 @@ def resolve_compose_file(stack, pod_name: str):
     if stack_is_external(stack):
         # First try looking in the external stack for the compose file
         compose_base = Path(stack).parent.parent.joinpath("compose")
-        proposed_file = compose_base.joinpath(f"docker-compose-{pod_name}.yml")
+        proposed_file = compose_base.joinpath(f"{compose_file_prefix}-{pod_name}.yml")
         if proposed_file.exists():
             return proposed_file
         # If we don't find it fall through to the internal case
     compose_base = get_internal_compose_file_dir()
-    return compose_base.joinpath(f"docker-compose-{pod_name}.yml")
+    return compose_base.joinpath(f"{compose_file_prefix}-{pod_name}.yml")
+
+
+def get_pod_file_path(stack, parsed_stack, pod_name: str):
+    result = None
+    pods = parsed_stack["pods"]
+    if type(pods[0]) is str:
+        result = resolve_compose_file(stack, pod_name)
+    else:
+        for pod in pods:
+            if pod["name"] == pod_name:
+                pod_root_dir = os.path.join(
+                    get_dev_root_path(None),
+                    pod["repository"].split("@")[0].split("/")[-1],
+                    pod["path"],
+                )
+                result = os.path.join(pod_root_dir, "{compose_file_prefix}.yml")
+    return result
 
 
 def get_pod_script_paths(parsed_stack, pod_name: str):
