@@ -24,10 +24,11 @@ from pathlib import Path
 from ruamel.yaml.comments import CommentedSeq
 from typing import Set, Mapping, List
 
-from stack.util import get_k8s_dir, error_exit
-from stack.opts import opts
+from stack.build.build_util import container_exists_locally
 from stack.deploy.deploy_util import parsed_pod_files_map_from_file_names
 from stack.deploy.deployer import DeployerException
+from stack.opts import opts
+from stack.util import get_k8s_dir, error_exit
 
 
 DEFAULT_K8S_NAMESPACE = "default"
@@ -83,6 +84,10 @@ def install_ingress_for_kind():
 
 def load_images_into_kind(kind_cluster_name: str, image_set: Set[str]):
     for image in image_set:
+        if not container_exists_locally(image):
+            result = _shell_command(f"docker pull {image}")
+            if result.returncode != 0:
+                raise DeployerException(f"kind create cluster failed: {result}")
         result = _shell_command(f"kind load docker-image {image} --name {kind_cluster_name}")
         if result.returncode != 0:
             raise DeployerException(f"kind create cluster failed: {result}")

@@ -114,7 +114,7 @@ def process_container(build_context: BuildContext) -> bool:
     else:
         if opts.o.verbose:
             print(f"No script file found: {build_script_filename}, using default build script")
-        repo_dir = build_context.container.ref.split("/")[1] if build_context.container.ref else build_context.container.name.split("/")[1]
+        repo_dir = build_context.container.ref.split("/")[-1] if build_context.container.ref else build_context.container.name.split("/")[-1]
         # TODO: make this less of a hack -- should be specified in some metadata somewhere
         # Check if we have a repo for this container. If not, set the context dir to the container-build subdir
         repo_full_path = os.path.join(build_context.dev_root_path, repo_dir)
@@ -191,7 +191,7 @@ def command(ctx, stack, include, exclude, git_ssh, build_policy, extra_build_arg
     )
 
     # check if we have any repos that specify the container targets / build info
-    containers_in_scope = [c for c in get_containers_in_scope(stack.name) if include_exclude_check(c, include, exclude)]
+    containers_in_scope = [c for c in get_containers_in_scope(stack.name) if include_exclude_check(c.name, include, exclude)]
     for stack_container in containers_in_scope:
         # No container ref means use the stack repo.
         if (not stack_container.ref or stack_container.ref == ".") and stack_container.path and stack.get_repo_name():

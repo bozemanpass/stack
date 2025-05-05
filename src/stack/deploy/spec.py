@@ -270,7 +270,7 @@ class MergedSpec(Spec):
         # Check for conflicts on HTTP proxy settings.
         if self.get_http_proxy() and other.get_http_proxy() and self.get_http_proxy() != other.get_http_proxy():
             error_exit(
-                "Merge HTTP proxy settings is not allowed: "
+                "Merging HTTP proxy settings is not yet supported: "
                 f"{self.get_http_proxy()} != {other.get_http_proxy()} in {other.file_path}"
             )
 

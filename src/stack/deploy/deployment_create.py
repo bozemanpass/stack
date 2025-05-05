@@ -218,27 +218,27 @@ def _get_mapped_ports(stack: Stack, map_recipe: str):
                     ports_array = ports[service]
                     for x in range(0, len(ports_array)):
                         orig_port = ports_array[x]
+                        # Strip off any existing port mapping (eg, 5432:5432 becomes 5432)
+                        unmapped_port = orig_port.split(":")[-1]
                         # Strip /udp suffix if present
-                        bare_orig_port = orig_port.replace("/udp", "")
+                        bare_unmapped_port = unmapped_port.replace("/udp", "")
                         # limit to k8s NodePort range
                         random_port = random.randint(30000, 32767)  # Beware: we're relying on luck to not collide
-                        if map_recipe == "any-variable-random":
-                            # This is the default so take no action
-                            pass
+                        if map_recipe in ["any-variable-random", "k8s-clusterip-same"]:
+                            # default for docker and k8s
+                            ports_array[x] = f"{unmapped_port}"
                         elif map_recipe == "localhost-same":
                             # Replace instances of "- XX" with "- 127.0.0.1:XX"
-                            ports_array[x] = f"127.0.0.1:{bare_orig_port}:{orig_port}"
+                            ports_array[x] = f"127.0.0.1:{bare_unmapped_port}:{unmapped_port}"
                         elif map_recipe == "any-same":
                             # Replace instances of "- XX" with "- 0.0.0.0:XX"
-                            ports_array[x] = f"0.0.0.0:{bare_orig_port}:{orig_port}"
+                            ports_array[x] = f"0.0.0.0:{bare_unmapped_port}:{unmapped_port}"
                         elif map_recipe == "localhost-fixed-random":
                             # Replace instances of "- XX" with "- 127.0.0.1:<rnd>:XX"
-                            ports_array[x] = f"127.0.0.1:{random_port}:{orig_port}"
+                            ports_array[x] = f"127.0.0.1:{random_port}:{unmapped_port}"
                         elif map_recipe == "any-fixed-random":
                             # Replace instances of "- XX" with "- 0.0.0.0:<rnd>:XX"
-                            ports_array[x] = f"0.0.0.0:{random_port}:{orig_port}"
-                        elif map_recipe == "k8s-clusterip-same":
-                            ports_array[x] = f"{bare_orig_port}"
+                            ports_array[x] = f"0.0.0.0:{random_port}:{unmapped_port}"
                         else:
                             print("Error: bad map_recipe")
             else:
@@ -281,29 +281,37 @@ def init_operation(  # noqa: C901
 ):
     default_spec_file_content = call_stack_deploy_init(deploy_command_context)
     spec_file_content = {"stack": stack, constants.deploy_to_key: deployer_type}
-    if deployer_type == "k8s":
+    if deployer_type in ["k8s", "k8s-kind"]:
         if kube_config:
             spec_file_content.update({constants.kube_config_key: kube_config})
-        else:
+        elif deployer_type == "k8s":
             error_exit("--kube-config must be supplied with --deploy-to k8s")
         if image_registry:
             spec_file_content.update({constants.image_registry_key: image_registry})
-        else:
+        elif deployer_type == "k8s":
             print("WARNING: --image-registry not specified, only default container registries (eg, Docker Hub) will be available")
         if k8s_http_proxy:
-            cluster_issuer, host, path, proxy_to = _parse_http_proxy(k8s_http_proxy)
-            if not cluster_issuer:
-                cluster_issuer = "letsencrypt-prod"
-            http_proxy = [
-                {
-                    constants.host_name_key: host,
-                    constants.cluster_issuer_key: cluster_issuer,
-                    constants.routes_key: [{constants.path_key: path, constants.proxy_to_key: proxy_to}],
-                }
+            proxy_hosts = {host for _, host, _, _ in map(_parse_http_proxy, k8s_http_proxy)}
+            if len(proxy_hosts) != 1:
+                error_exit(f"Only one host is allowed in --http-proxy at this time: {proxy_hosts}")
+
+            issuers = {issuer if issuer else "letsencrypt-prod" for issuer, _, _, _ in map(_parse_http_proxy, k8s_http_proxy)}
+            if len(issuers) != 1:
+                error_exit(f"Only one cluster issuer is allowed in --http-proxy at this time: {issuers}")
+
+            routes = [
+                {constants.path_key: path, constants.proxy_to_key: proxy_to}
+                for _, _, path, proxy_to in map(_parse_http_proxy, k8s_http_proxy)
             ]
+
+            http_proxy = {
+                constants.host_name_key: proxy_hosts.pop(),
+                constants.cluster_issuer_key: issuers.pop(),
+                constants.routes_key: routes,
+            }
             if constants.network_key not in spec_file_content:
                 spec_file_content[constants.network_key] = {}
-            spec_file_content[constants.network_key].update({constants.http_proxy_key: http_proxy})
+            spec_file_content[constants.network_key].update({constants.http_proxy_key: [http_proxy]})
         else:
             print("WARNING: --http-proxy not specified, no external HTTP access will be configured.")
     else:
@@ -312,7 +320,7 @@ def init_operation(  # noqa: C901
             error_exit(f"--kube-config is not allowed with a {deployer_type} deployment")
         if image_registry is not None:
             error_exit(f"--image-registry is not allowed with a {deployer_type} deployment")
-        if k8s_http_proxy is not None:
+        if k8s_http_proxy:
             error_exit(f"--http-proxy is not allowed with a {deployer_type} deployment")
     if default_spec_file_content:
         spec_file_content.update(default_spec_file_content)
@@ -335,7 +343,7 @@ def init_operation(  # noqa: C901
             spec_file_content.update({"config": merged_config})
 
     if not map_ports_to_host:
-        if deployer_type == "k8s":
+        if deployer_type in ["k8s", "k8s-kind"]:
             map_ports_to_host = "k8s-clusterip-same"
         elif deployer_type == "compose":
             map_ports_to_host = "any-variable-random"
@@ -356,6 +364,7 @@ def init_operation(  # noqa: C901
             matched = False
             for svc in ports:
                 for svc_port in ports[svc]:
+                    svc_port = svc_port.split(":")[-1].replace("/udp", "")
                     if f"{svc}:{svc_port}" == target:
                         matched = True
                         break

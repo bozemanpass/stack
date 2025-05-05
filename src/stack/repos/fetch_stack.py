@@ -22,11 +22,10 @@ import click
 
 from git import exc
 
+from stack.build.build_util import host_and_path_for_repo
 from stack.opts import opts
 from stack.repos.setup_repositories import process_repo
-from stack.util import error_exit
-
-from stack.util import get_dev_root_path
+from stack.util import error_exit, get_dev_root_path
 
 
 @click.command()
@@ -40,6 +39,12 @@ def command(ctx, stack_locator, git_ssh, check_only, pull):
     dev_root_path = get_dev_root_path(ctx)
     if not opts.o.quiet:
         print(f"Dev Root is: {dev_root_path}")
+
+    try:
+        _, _, _ = host_and_path_for_repo(stack_locator)
+    except:  # noqa: E722
+        error_exit(f"{stack_locator} is not a valid stack locator")
+
     try:
         process_repo(pull, check_only, git_ssh, dev_root_path, None, stack_locator)
     except exc.GitCommandError as error:

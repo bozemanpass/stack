@@ -15,8 +15,10 @@
 # along with this program.  If not, see <http:#www.gnu.org/licenses/>.
 
 import click
-from pathlib import Path
 import sys
+
+from pathlib import Path
+
 from stack import constants
 from stack.deploy.images import push_images_operation
 from stack.deploy.deploy import (
@@ -34,6 +36,7 @@ from stack.deploy.deploy import (
 )
 from stack.deploy.deploy_types import DeployCommandContext
 from stack.deploy.deployment_context import DeploymentContext
+from stack.deploy.stack import Stack
 
 
 @click.group()
@@ -173,3 +176,14 @@ def reload(ctx):
     """reload the stack to pick up config changes"""
     ctx.obj = make_deploy_context(ctx)
     update_operation(ctx)
+
+
+@command.command()
+@click.pass_context
+def services(ctx):
+    """list stack service names"""
+    ctx.obj = make_deploy_context(ctx)
+    stack = Stack(ctx.obj.stack).init_from_file(ctx.obj.stack.joinpath(constants.stack_file_name))
+    services = list(stack.get_services().keys())
+    services.sort()
+    print("\n".join(services))

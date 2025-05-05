@@ -190,8 +190,9 @@ class Stack:
         enhanced = self.obj.copy()
         if self.get_repo_name():
             for pod in enhanced["pods"]:
-                if "repository" not in pod:
-                    pod["repository"] = self.get_repo_name()
+                if type(pod) is not str:
+                    if "repository" not in pod:
+                        pod["repository"] = self.get_repo_name()
         get_yaml().dump(enhanced, open(output_file_path, "wt"))
 
     def get_plugin_code_paths(self) -> List[Path]:

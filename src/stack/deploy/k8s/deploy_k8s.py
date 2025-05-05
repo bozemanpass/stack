@@ -16,10 +16,12 @@
 import sys
 
 from datetime import datetime, timezone
-
 from pathlib import Path
+from threading import Thread
+
 from kubernetes import client, config
 from kubernetes.stream import stream
+from kubernetes import watch
 
 from stack import constants
 from stack.deploy.deployer import Deployer, DeployerConfigGenerator
@@ -476,25 +478,59 @@ class K8sDeployer(Deployer):
         pods = pods_in_deployment(self.core_api, self.cluster_info.app_name)
         if len(pods) == 0:
             log_data = "******* Pods not running ********\n"
-        all_logs = []
-        for k8s_pod_name in pods:
-            containers = containers_in_pod(self.core_api, k8s_pod_name)
-            # If the pod is not yet started, the logs request below will throw an exception
-            try:
-                log_data = ""
+
+        if services:
+            matched_pods = []
+            for svc in services:
+                for pod in pods:
+                    if f"{self.cluster_info.app_name}-deploy-{svc}" in pod:
+                        matched_pods.append(pod)
+            pods = matched_pods
+
+        if follow:
+
+            def log_follower(pod_name, container):
+                w = watch.Watch()
+                for line in w.stream(
+                    self.core_api.read_namespaced_pod_log,
+                    name=pod_name,
+                    container=container,
+                    tail_lines=tail,
+                    namespace=self.k8s_namespace,
+                ):
+                    print(f"{container}: {line}")
+
+            threads = []
+            for k8s_pod_name in pods:
+                containers = containers_in_pod(self.core_api, k8s_pod_name)
                 for container in containers:
-                    container_log = self.core_api.read_namespaced_pod_log(
-                        k8s_pod_name, namespace=self.k8s_namespace, container=container
-                    )
-                    container_log_lines = container_log.splitlines()
-                    for line in container_log_lines:
-                        log_data += f"{container}: {line}\n"
-            except client.exceptions.ApiException as e:
-                if opts.o.debug:
-                    print(f"Error from read_namespaced_pod_log: {e}")
-                log_data = "******* No logs available ********\n"
-            all_logs.append(log_data)
-        return log_stream_from_string("\n".join(all_logs))
+                    t = Thread(target=log_follower, args=(k8s_pod_name, container), daemon=True)
+                    t.start()
+                    threads.append(t)
+            for t in threads:
+                t.join()
+
+            return log_stream_from_string("")
+        else:
+            all_logs = []
+            for k8s_pod_name in pods:
+                containers = containers_in_pod(self.core_api, k8s_pod_name)
+                # If the pod is not yet started, the logs request below will throw an exception
+                try:
+                    log_data = ""
+                    for container in containers:
+                        container_log = self.core_api.read_namespaced_pod_log(
+                            k8s_pod_name, namespace=self.k8s_namespace, container=container, tail_lines=tail
+                        )
+                        container_log_lines = container_log.splitlines()
+                        for line in container_log_lines:
+                            log_data += f"{container}: {line}\n"
+                except client.exceptions.ApiException as e:
+                    if opts.o.debug:
+                        print(f"Error from read_namespaced_pod_log: {e}")
+                    log_data = "******* No logs available ********\n"
+                all_logs.append(log_data)
+            return log_stream_from_string("\n".join(all_logs))
 
     def update(self):
         self.connect_api()
