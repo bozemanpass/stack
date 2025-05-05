@@ -21,6 +21,7 @@ import typing
 from pathlib import Path
 from typing import Set, List
 
+from stack import constants
 from stack.util import (
     get_yaml,
     get_stack_path,
@@ -29,7 +30,6 @@ from stack.util import (
     get_dev_root_path,
     resolve_compose_file,
 )
-from stack import constants
 
 
 class Stack:
@@ -244,5 +244,5 @@ def get_pod_file_path(stack, pod_name: str):
                     pod.get("repository", stack.get_repo_name()).split("@")[0].split("/")[-1],
                     pod.get("path", "."),
                 )
-                result = os.path.join(pod_root_dir, "docker-compose.yml")
+                result = os.path.join(pod_root_dir, f"{constants.compose_file_prefix}.yml")
     return result
