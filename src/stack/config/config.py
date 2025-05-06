@@ -17,7 +17,7 @@ import click
 
 from stack.deploy.deploy import create_deploy_context
 from stack.deploy.deployment_create import init_operation
-from stack.util import check_if_stack_exists, global_options2
+from stack.util import check_if_stack_exists, global_options2, error_exit
 
 
 @click.group()
@@ -49,7 +49,7 @@ def command(ctx, env_file, cluster, deploy_to):
 
 @click.command()
 @click.option("--stack", help="path to the stack", required=True)
-@click.option("--config", help="Provide config variables for the deployment")
+@click.option("--config", help="Provide config variables for the deployment", multiple=True)
 @click.option("--config-file", help="Provide config variables in a file for the deployment")
 @click.option("--kube-config", help="Provide a config file for a k8s deployment")
 @click.option(
@@ -85,6 +85,14 @@ def init(
     """output a stack specification file"""
     check_if_stack_exists(stack)
 
+    config_variables = {}
+    for c in config:
+        if "=" in c:
+            k, v = c.split("=", 1)
+            config_variables[k] = v.strip("'").strip('"')
+        else:
+            error_exit(f"Invalid config variable: {c}")
+
     deployer_type = ctx.obj.deployer.type
     deploy_command_context = ctx.obj
     deploy_command_context.stack = stack
@@ -92,7 +100,7 @@ def init(
         deploy_command_context,
         stack,
         deployer_type,
-        config,
+        config_variables,
         config_file,
         kube_config,
         image_registry,
