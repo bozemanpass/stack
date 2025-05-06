@@ -176,7 +176,7 @@ def parse_branches(branches_string):
 
 
 @click.command()
-@click.option("--stack", help="path to the stack", required=True)
+@click.option("--stack", help="path to the stack", required=False)
 @click.option("--include", help="only clone these repositories")
 @click.option("--exclude", help="don't clone these repositories")
 @click.option("--git-ssh", is_flag=True, default=False, help="use SSH for git rather than HTTPS")
@@ -186,6 +186,8 @@ def parse_branches(branches_string):
 @click.pass_context
 def command(ctx, stack, include, exclude, git_ssh, check_only, pull, branches):
     """clone the repositories needed by the stack"""
+    if not stack:
+        stack = ctx.obj.stack_path
     check_if_stack_exists(stack)
 
     quiet = opts.o.quiet

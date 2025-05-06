@@ -48,7 +48,7 @@ def command(ctx, env_file, cluster, deploy_to):
 
 
 @click.command()
-@click.option("--stack", help="path to the stack", required=True)
+@click.option("--stack", help="path to the stack", required=False)
 @click.option("--config", help="Provide config variables for the deployment", multiple=True)
 @click.option("--config-file", help="Provide config variables in a file for the deployment")
 @click.option("--kube-config", help="Provide a config file for a k8s deployment")
@@ -83,6 +83,8 @@ def init(
     map_ports_to_host,
 ):
     """output a stack specification file"""
+    if not stack:
+        stack = ctx.obj.stack_path
     check_if_stack_exists(stack)
 
     config_variables = {}

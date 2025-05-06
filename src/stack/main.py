@@ -36,14 +36,15 @@ CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 @click.group(context_settings=CONTEXT_SETTINGS, cls=StackCLI)
 @click.option("--verbose", help="more detailed output", is_flag=True, default=False)
 @click.option("--debug", help="enable debug logging", is_flag=True, default=False)
+@click.option("--stack", help="path to the stack")
 # TEL: Hide these for now, until we make sure they are consistently implemented.
 @click.option("--quiet", is_flag=True, default=False, hidden=True)
 @click.option("--dry-run", is_flag=True, default=False, hidden=True)
 @click.option("--continue-on-error", is_flag=True, default=False, hidden=True)
 @click.pass_context
-def cli(ctx, quiet, verbose, dry_run, debug, continue_on_error):
+def cli(ctx, quiet, verbose, dry_run, debug, continue_on_error, stack):
     """BPI stack"""
-    command_options = CommandOptions(quiet, verbose, dry_run, debug, continue_on_error)
+    command_options = CommandOptions(stack, quiet, verbose, dry_run, debug, continue_on_error)
     opts.opts.o = command_options
     ctx.obj = command_options
 

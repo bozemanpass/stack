@@ -146,7 +146,7 @@ def process_container(build_context: BuildContext) -> bool:
 
 
 @click.command()
-@click.option("--stack", help="path to the stack", required=True)
+@click.option("--stack", help="path to the stack", required=False)
 @click.option("--include", help="only build these containers")
 @click.option("--exclude", help="don't build these containers")
 @click.option("--git-ssh", is_flag=True, default=False, help="use SSH for git rather than HTTPS")
@@ -159,7 +159,10 @@ def process_container(build_context: BuildContext) -> bool:
 @click.pass_context
 def command(ctx, stack, include, exclude, git_ssh, build_policy, extra_build_args, no_pull, publish_images, image_registry, target_arch):
     """build (or fetch pre-built) stack containers"""
+    if not stack:
+        stack = ctx.obj.stack_path
     check_if_stack_exists(stack)
+
     if stack_is_external(stack):
         stack = Stack(stack).init_from_file(os.path.join(stack, stack_file_name))
     else:

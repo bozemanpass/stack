@@ -221,6 +221,8 @@ def env_var_map_from_file(file: Path, expand=True) -> Mapping[str, str]:
 
 
 def check_if_stack_exists(stack):
+    if not stack:
+        error_exit("Error: Missing option '--stack'.")
     if stack and not stack_is_external(stack) and not STACK_USE_BUILTIN_STACK:
         error_exit(f"Stack {stack} does not exist")
 
