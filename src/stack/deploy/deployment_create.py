@@ -271,7 +271,7 @@ def init_operation(  # noqa: C901
     deploy_command_context,
     stack,
     deployer_type,
-    config,
+    config_variables,
     config_file,
     kube_config,
     image_registry,
@@ -324,7 +324,6 @@ def init_operation(  # noqa: C901
             error_exit(f"--http-proxy is not allowed with a {deployer_type} deployment")
     if default_spec_file_content:
         spec_file_content.update(default_spec_file_content)
-    config_variables = _parse_config_variables(config)
     # Implement merge, since update() overwrites
     if config_variables:
         orig_config = spec_file_content.get("config", {})
