@@ -13,7 +13,7 @@ description: "Gitea SCM and Actions"
 # A list of containers to be used in the stack.
 containers:
     # The name of the container in the form `<organization>/<name>`.  The pod's composefile.yml will need to use the
-    # same name in the form `<organization>/<name>:stack`
+    # same name for the image with the tag `stack`.  For example: `image: bpi/act-runner:stack`
   - name: bpi/act-runner
     # An (optional) reference to the container's repository.  The format is: [hostname/]organization/repo[@tag_or_branch]
     # The hostname is optional.  When omitted, github.com is assumed.  The tag is also optional.  If omitted,
