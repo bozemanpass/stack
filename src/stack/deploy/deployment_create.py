@@ -123,7 +123,7 @@ def _fixup_pod_file(pod, spec, compose_dir):
 
 def _commands_plugin_paths(stack_name: str):
     plugin_paths = get_plugin_code_paths(stack_name)
-    ret = [p.joinpath("deploy", "commands.py") for p in plugin_paths]
+    ret = [p.joinpath("hooks", "commands.py") for p in plugin_paths]
     return ret
 
 
@@ -132,31 +132,24 @@ def _has_method(o, name):
     return callable(getattr(o, name, None))
 
 
-def call_stack_deploy_init(deploy_command_context):
+def call_stack_config_init(deploy_command_context, config_spec: Spec):
     # Link with the python file in the stack
     # Call a function in it
     # If no function found, return None
     python_file_paths = _commands_plugin_paths(deploy_command_context.stack)
 
-    ret = None
-    init_done = False
     for python_file_path in python_file_paths:
         if python_file_path.exists():
             spec = util.spec_from_file_location("commands", python_file_path)
             imported_stack = util.module_from_spec(spec)
             spec.loader.exec_module(imported_stack)
             if _has_method(imported_stack, "init"):
-                if not init_done:
-                    ret = imported_stack.init(deploy_command_context)
-                    init_done = True
-                else:
-                    # TODO: remove this restriction
-                    print(f"Skipping init() from plugin {python_file_path}. Only one init() is allowed.")
-    return ret
+                config_spec = imported_stack.init(deploy_command_context, config_spec)
+    return config_spec
 
 
 # TODO: fold this with function above
-def call_stack_deploy_create(deploy_command_context, deployment_context, extra_args):
+def call_stack_deploy_create(deploy_command_context, deployment_context):
     # Link with the python file in the stack
     # Call a function in it
     # If no function found, return None
@@ -174,7 +167,7 @@ def call_stack_deploy_create(deploy_command_context, deployment_context, extra_a
                 imported_stack = util.module_from_spec(spec)
                 spec.loader.exec_module(imported_stack)
                 if _has_method(imported_stack, "create"):
-                    imported_stack.create(deploy_command_context, deployment_context, stack, extra_args)
+                    imported_stack.create(deploy_command_context, deployment_context, stack)
 
 
 # Inspect the pod yaml to find config files referenced in subdirectories
@@ -279,7 +272,6 @@ def init_operation(  # noqa: C901
     output,
     map_ports_to_host,
 ):
-    default_spec_file_content = call_stack_deploy_init(deploy_command_context)
     spec_file_content = {"stack": stack, constants.deploy_to_key: deployer_type}
     if deployer_type in ["k8s", "k8s-kind"]:
         if kube_config:
@@ -322,8 +314,6 @@ def init_operation(  # noqa: C901
             error_exit(f"--image-registry is not allowed with a {deployer_type} deployment")
         if k8s_http_proxy:
             error_exit(f"--http-proxy is not allowed with a {deployer_type} deployment")
-    if default_spec_file_content:
-        spec_file_content.update(default_spec_file_content)
     # Implement merge, since update() overwrites
     if config_variables:
         orig_config = spec_file_content.get("config", {})
@@ -399,11 +389,12 @@ def init_operation(  # noqa: C901
     if security_settings:
         spec_file_content[constants.security_key] = security_settings
 
-    if opts.o.debug:
-        print(f"Creating spec file for stack: {stack} with content: {spec_file_content}")
+    spec = call_stack_config_init(deploy_command_context, Spec(obj=spec_file_content))
 
-    with open(output, "w") as output_file:
-        get_yaml().dump(spec_file_content, output_file)
+    if opts.o.debug:
+        print(f"Creating spec file for stack: {stack} with content: {spec}")
+
+    spec.dump(output)
 
 
 def _parse_http_proxy(raw_val: str):
@@ -624,4 +615,4 @@ def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec,
     deployer_config_generator = getDeployerConfigGenerator(deployment_type, deployment_context)
     # TODO: make deployment_dir_path a Path above
     deployer_config_generator.generate(deployment_dir_path)
-    call_stack_deploy_create(deployment_command_context, deployment_context, [])
+    call_stack_deploy_create(deployment_command_context, deployment_context)
