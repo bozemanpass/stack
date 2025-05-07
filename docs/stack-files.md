@@ -42,7 +42,7 @@ pods:
     # a pre_start_command script to execute commands _inside_ the service containers with: 
     #     stack manage --dir ${BPI_SO_DEPLOYMENT_DIR} exec <service> <command>
     pre_start_command: "run-this-first.sh"
-    # An (optional) command to run just before the pod starts. The command is executed on the host.
+    # An (optional) command to run just _after_ the pod starts. The command is executed on the host.
     # The deployment directory will be set in the environment under ${BPI_SO_DEPLOYMENT_DIR}, allowing
     # a pre_start_command script to execute commands _inside_ the service containers with: 
     #     stack manage --dir ${BPI_SO_DEPLOYMENT_DIR} exec <service> <command>
