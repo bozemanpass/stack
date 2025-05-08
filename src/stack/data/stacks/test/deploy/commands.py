@@ -27,7 +27,8 @@ default_spec_file_content = """config:
 
 def init(deploy_cmd_ctx: DeployCommandContext, spec: Spec):
     yaml = get_yaml()
-    return yaml.load(default_spec_file_content)
+    spec.obj.update(yaml.load(default_spec_file_content))
+    return spec
 
 
 def create(deploy_cmd_ctx: DeployCommandContext, deployment_ctx: DeploymentContext, stack: Stack):
