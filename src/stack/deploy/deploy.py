@@ -16,7 +16,6 @@
 
 # Deploys the system components using a deployer (either docker-compose or k8s)
 
-import hashlib
 import copy
 import os
 import sys
@@ -25,8 +24,7 @@ import subprocess
 from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
-from stack.constants import compose_file_prefix, cluster_name_prefix
-from stack.opts import opts
+from stack.constants import compose_file_prefix
 from stack.util import (
     include_exclude_check,
     get_dev_root_path,
@@ -210,22 +208,6 @@ def _make_runtime_env(ctx):
     return container_exec_env
 
 
-def _make_default_cluster_name(deployment, compose_dir, stack, include, exclude):
-    # Create default unique, stable cluster name from confile file path and stack name if provided
-    if deployment:
-        path = os.path.realpath(os.path.abspath(compose_dir))
-    else:
-        path = "internal"
-    unique_cluster_descriptor = f"{path},{stack},{include},{exclude}"
-    if opts.o.debug:
-        print(f"pre-hash descriptor: {unique_cluster_descriptor}")
-    hash = hashlib.md5(unique_cluster_descriptor.encode()).hexdigest()[:16]
-    cluster = f"{cluster_name_prefix}{hash}"
-    if opts.o.debug:
-        print(f"Using cluster name: {cluster}")
-    return cluster
-
-
 # stack has to be either PathLike pointing to a stack yml file, or a string with the name of a known stack
 def _make_cluster_context(ctx, stack, include, exclude, cluster, env_file):
     dev_root_path = get_dev_root_path(ctx)
@@ -237,11 +219,6 @@ def _make_cluster_context(ctx, stack, include, exclude, cluster, env_file):
     else:
         # See: https://stackoverflow.com/questions/25389095/python-get-path-of-root-project-structure
         compose_dir = Path(__file__).absolute().parent.parent.joinpath("data", "compose")
-
-    if cluster is None:
-        cluster = _make_default_cluster_name(deployment, compose_dir, stack, include, exclude)
-    else:
-        _make_default_cluster_name(deployment, compose_dir, stack, include, exclude)
 
     # See: https://stackoverflow.com/a/20885799/1701505
     from stack import data
