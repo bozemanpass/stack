@@ -438,6 +438,7 @@ def _create_deployment_file(deployment_dir: Path, cluster=None):
         cluster = f"{constants.cluster_name_prefix}{token_hex(8)}"
     with open(deployment_file_path, "w") as output_file:
         output_file.write(f"{constants.cluster_id_key}: {cluster}\n")
+    return cluster
 
 
 def _check_volume_definitions(spec):
@@ -515,7 +516,9 @@ def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec,
     destination_pods_dir = deployment_dir_path.joinpath("pods")
     os.mkdir(destination_pods_dir)
 
-    _create_deployment_file(deployment_dir_path, deployment_command_context.cluster_context.cluster)
+    deployment_command_context.cluster_context.cluster = _create_deployment_file(
+        deployment_dir_path, deployment_command_context.cluster_context.cluster
+    )
 
     # Copy spec file into the deployment dir
     parsed_spec.dump(deployment_dir_path.joinpath(constants.spec_file_name))
