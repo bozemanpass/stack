@@ -17,7 +17,7 @@ example-app
 │   ├── composefile.yml
 │   └── stack
 │       └── hooks
-            └── commands.py
+│           └── commands.py
 └── stacks
     └── example
         └── stack.yml
