@@ -4,7 +4,7 @@ The behavior of certain `stack` core commands can be extended on a per-pod basis
 `config init` and `deploy` commands can be extended.
 
 ## Directory Structure and Filenames
-The hook functions must be located in a file named `./hooks/hooks.py` relative to the pod's `composefile.yml`.
+The hook functions must be located in a file named `./stack/hooks/commands.py` relative to the pod's `composefile.yml`.
 
 The same file may contain an `init` hook, a deploy `hook`, or both.
 
@@ -15,8 +15,9 @@ example-app
 │   ├── ...
 ├── example-pod
 │   ├── composefile.yml
-│   └── hooks
-│       └── hooks.py
+│   └── stack
+│       └── hooks
+            └── commands.py
 └── stacks
     └── example
         └── stack.yml
