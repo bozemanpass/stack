@@ -4,7 +4,7 @@ The behavior of certain `stack` core commands can be extended on a per-pod basis
 `config init` and `deploy` commands can be extended.
 
 ## Directory Structure and Filenames
-The hook functions must be located in a file named `./stack/hooks/commands.py` relative to the pod's `composefile.yml`.
+The hook functions must be located in a file named `./stack/deploy/commands.py` relative to the pod's `composefile.yml`.
 
 The same file may contain an `init` hook, a deploy `hook`, or both.
 
@@ -16,14 +16,14 @@ example-app
 ├── example-pod
 │   ├── composefile.yml
 │   └── stack
-│       └── hooks
+│       └── deploy
 │           └── commands.py
 └── stacks
     └── example
         └── stack.yml
 ```
 
-## Extending `config init`
+## Extending `stack config init` - the `init` hook
 
 The `stack config init` hook is called just before the `Spec` is written to the output file.  This allows the hook 
 to examine, add, remove, or alter any settings before output.
@@ -37,7 +37,7 @@ def init(deploy_cmd_ctx: DeployCommandContext, spec: Spec) -> Spec:
     return spec
 ```
 
-## Extending `deploy`
+## Extending `stack deploy` - the `create` hook
 
 The `deploy` hook is called as the last step in the `stack deploy` process, meaning that all the steps of creating
 the deployment directory, copying files, etc. will have been completed before it is called.  This gives the hook an
@@ -55,6 +55,6 @@ each stack, with the relevant `Stack` object passed to the hook function.
 #     spec: Spec
 # ...
  
-def deploy(deploy_cmd_ctx: DeployCommandContext, deployment_ctx: DeploymentContext, stack: Stack) -> None:
+def create(deploy_cmd_ctx: DeployCommandContext, deployment_ctx: DeploymentContext, stack: Stack) -> None:
     return
 ```

@@ -123,7 +123,7 @@ def _fixup_pod_file(pod, spec, compose_dir):
 
 def _commands_plugin_paths(stack_name: str):
     plugin_paths = get_plugin_code_paths(stack_name)
-    ret = [p.joinpath("hooks", "commands.py") for p in plugin_paths]
+    ret = [p.joinpath("deploy", "commands.py") for p in plugin_paths]
     return ret
 
 
