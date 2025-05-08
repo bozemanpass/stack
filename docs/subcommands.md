@@ -22,7 +22,7 @@ example-app
 ```
 
 The above adds two subcommands, `example-hello` and `example-world`,
-as indicated below below in the dynamically added `Example Commands` section
+as indicated below in the dynamically added `Example Commands` section
 of the help output.
 
 ```
