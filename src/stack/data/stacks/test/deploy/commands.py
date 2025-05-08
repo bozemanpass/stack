@@ -17,6 +17,7 @@
 from stack.util import get_yaml
 from stack.deploy.deploy_types import DeployCommandContext
 from stack.deploy.deployment_context import DeploymentContext
+from stack.deploy.spec import Spec
 from stack.deploy.stack import Stack
 
 default_spec_file_content = """config:
@@ -24,12 +25,12 @@ default_spec_file_content = """config:
 """
 
 
-def init(deploy_cmd_ctx: DeployCommandContext):
+def init(deploy_cmd_ctx: DeployCommandContext, spec: Spec):
     yaml = get_yaml()
     return yaml.load(default_spec_file_content)
 
 
-def create(deploy_cmd_ctx: DeployCommandContext, deployment_ctx: DeploymentContext, stack: Stack, extra_args):
+def create(deploy_cmd_ctx: DeployCommandContext, deployment_ctx: DeploymentContext, stack: Stack):
     data = "create-command-output-data"
     output_file_path = deployment_ctx.deployment_dir.joinpath("create-file")
     with open(output_file_path, "w+") as output_file:
