@@ -47,6 +47,9 @@ class Stack:
     def __getitem__(self, item):
         return self.obj[item]
 
+    def __setitem__(self, key, item):
+        self.obj[key] = item
+
     def __contains__(self, item):
         return item in self.obj
 
