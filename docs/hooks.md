@@ -48,7 +48,7 @@ If `stack deploy` is executed with more than one `--spec-file` option, the `depl
 each stack, with the relevant `Stack` object passed to the hook function.
 
 ### Signature
-```
+```python
 # class DeploymentContext:
 #     deployment_dir: Path
 #     id: str
