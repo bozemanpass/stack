@@ -58,3 +58,8 @@ each stack, with the relevant `Stack` object passed to the hook function.
 def create(deploy_cmd_ctx: DeployCommandContext, deployment_ctx: DeploymentContext, stack: Stack) -> None:
     return
 ```
+
+
+## Example Code
+
+The built-in `test` stack contains hooks that can serve as a basic example: [commands.py](../src/stack/data/stacks/test/deploy/commands.py).
