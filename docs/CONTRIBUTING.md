@@ -75,7 +75,8 @@ Use shiv to build a single file Python executable zip archive of stack:
 
 2. Verify it works:
    ```
-   $ cp  ~/bin
+   # Note: Your binary will have a different hash and timestamp in the name
+   $ cp package/stack-2.0.0-d531f73-202505011750 ~/bin
    $ stack
       Usage: stack [OPTIONS] COMMAND [ARGS]...
 
