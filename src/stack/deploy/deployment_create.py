@@ -529,7 +529,7 @@ def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec,
     else:
         parsed_spec.load_stack().dump(deployment_dir_path.joinpath(constants.stack_file_name))
 
-    # Copy any config varibles from the spec file into an env file suitable for compose
+    # Copy any config variables from the spec file into an env file suitable for compose
     _write_config_file(parsed_spec, deployment_dir_path.joinpath(constants.config_file_name))
 
     # Copy any k8s config file into the deployment dir

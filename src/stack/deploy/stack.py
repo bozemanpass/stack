@@ -196,6 +196,10 @@ class Stack:
                 if type(pod) is not str:
                     if "repository" not in pod:
                         pod["repository"] = self.get_repo_name()
+                    # The script files do not need the full path, just the basename.
+                    for cmd in ["pre_start_command", "post_start_command"]:
+                        if cmd in pod:
+                            pod[cmd] = os.path.basename(pod[cmd])
         get_yaml().dump(enhanced, open(output_file_path, "wt"))
 
     def get_plugin_code_paths(self) -> List[Path]:
