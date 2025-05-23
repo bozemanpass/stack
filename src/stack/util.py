@@ -120,7 +120,7 @@ def get_pod_script_paths(parsed_stack, pod_name: str):
                 pod_root_dir = os.path.join(
                     get_dev_root_path(None),
                     pod.get("repository", parsed_stack.get_repo_name()).split("@")[0].split("/")[-1],
-                    pod.get("path", ".")
+                    pod.get("path", "."),
                 )
                 if "pre_start_command" in pod:
                     result.append(os.path.join(pod_root_dir, pod["pre_start_command"]))

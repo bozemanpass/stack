@@ -340,7 +340,7 @@ def envs_from_environment_variables_map(map: Mapping[str, str]) -> List[client.V
             result.append(client.V1EnvVar(env_var, env_val))
     else:
         for env_var, env_val in map.items():
-            if type(env_val) == bool:
+            if isinstance(env_val, bool):
                 env_val = str(env_val).lower()
             result.append(client.V1EnvVar(env_var, env_val))
     return result
