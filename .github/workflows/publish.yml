@@ -42,5 +42,5 @@ jobs:
           tag_name: ${{ steps.build-info.outputs.build-tag }}
           # On the publish test branch, mark our release as a draft
           # Hack using endsWith to workaround Gitea sometimes sending "publish-test" vs "refs/heads/publish-test"
-          draft: ${{ endsWith('publish-test', github.ref ) }}
+          draft: ${{ endsWith( github.ref, 'publish-test' ) }}
           files: ./dist/stack
