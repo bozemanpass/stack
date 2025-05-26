@@ -5,5 +5,5 @@ stack.egg-info
 __pycache__
 *~
 package
-stack/data/build_tag.txt
+src/stack/data/build_tag.txt
 /build
