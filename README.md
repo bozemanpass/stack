@@ -32,15 +32,16 @@ stack manage --dir ~/deployments/todo stop
 ```
 # clone / build
 stack fetch stack bozemanpass/example-todo-list
-stack build containers --stack ~/bpi/example-todo-list/stacks/todo \
+stack build containers \
+    --stack ~/bpi/example-todo-list/stacks/todo \
     --image-registry $IMAGE_REGISTRY \
     --publish-images
 
 # init
 stack init \
-    --deploy-to k8s \
     --stack ~/bpi/example-todo-list/stacks/todo \
     --output todo.yml \
+    --deploy-to k8s \
     --image-registry $IMAGE_REGISTRY \
     --kube-config /path/to/kubeconfig.yaml \
     --http-proxy example-todo.bpi.servesthe.world:frontend:3000 \
