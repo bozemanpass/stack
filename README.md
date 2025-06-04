@@ -11,8 +11,8 @@ Stack allows building and deployment of a suite of related applications as a sin
 stack fetch stack bozemanpass/example-todo-list
 stack build containers --stack ~/bpi/example-todo-list/stacks/todo
 
-# config
-stack config init \
+# init
+stack init \
   --stack ~/bpi/example-todo-list/stacks/todo \
   --output todo.yml \
   --map-ports-to-host localhost-same
@@ -36,8 +36,9 @@ stack build containers --stack ~/bpi/example-todo-list/stacks/todo \
     --image-registry $IMAGE_REGISTRY \
     --publish-images
 
-# config
-stack config --deploy-to k8s init \
+# init
+stack init \
+    --deploy-to k8s \
     --stack ~/bpi/example-todo-list/stacks/todo \
     --output todo.yml \
     --image-registry $IMAGE_REGISTRY \

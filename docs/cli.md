@@ -40,28 +40,29 @@ $ stack build containers --stack ~/bpi/example-todo-list/stacks/todo --build-pol
 See [fetching-containers](fetching-containers.md) for more information on fetching, building,
 and checking for container images.
 
-## config
+## init
 
 Create a configuration spec file with the default values:
 ```
-$ stack config init --stack ~/bpi/example-todo-list/stacks/todo --output todo.yml
+$ stack init --stack ~/bpi/example-todo-list/stacks/todo --output todo.yml
 ```
 
 Map stack ports to localhost:
 ```
-$ stack config init --stack ~/bpi/example-todo-list/stacks/todo --output todo.yml --map-ports-to-host localhost-same
+$ stack init --stack ~/bpi/example-todo-list/stacks/todo --output todo.yml --map-ports-to-host localhost-same
 ```
 
 Set a configuration value:
 ```
-$ stack config init --stack ~/bpi/example-todo-list/stacks/todo --output todo.yml \
+$ stack init --stack ~/bpi/example-todo-list/stacks/todo --output todo.yml \
     --map-ports-to-host localhost-same \
     --config REACT_APP_API_URL=http://127.0.0.1:5000/api/todos
 ```
 
 Full Kubernetes configuration with image registry, HTTP ingress, and environment settings:
 ```
-$ stack config --deploy-to k8s init \
+$ stack init \
+    --deploy-to k8s \
     --stack ~/bpi/example-todo-list/stacks/todo \
     --output todo.yml                         \
     --image-registry $IMAGE_REGISTRY \
