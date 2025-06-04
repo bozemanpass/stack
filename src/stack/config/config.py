@@ -20,6 +20,43 @@ from stack.config.util import get_config, save_config, get_config_setting
 from stack.util import get_yaml, is_primitive
 
 
+def set_config_value(key, value):
+    config = get_config()
+    parts = key.split(".")
+
+    try:
+        value = json.loads(value)
+    except:  # noqa: E722
+        pass
+
+    if len(parts) == 1:
+        if value is None:
+            config.pop(key, None)
+        else:
+            config[key] = value
+        save_config(config)
+        return
+
+    section = config
+    for i in range(len(parts)):
+        part = parts[i]
+        if i == len(parts) - 1:
+            if value is None:
+                config.pop(key, None)
+            else:
+                section[part] = value
+        else:
+            if part not in section:
+                section[part] = {}
+            prev = section
+            section = section[part]
+            if not isinstance(section, dict):
+                section = {}
+                prev[part] = section
+
+    save_config(config)
+
+
 @click.group()
 @click.pass_context
 def command(ctx):
@@ -37,7 +74,8 @@ def show(ctx):
     """show the full configuration"""
     config = get_config()
     yaml = get_yaml()
-    click.echo(yaml.dumps(config))
+    if config:
+        click.echo(yaml.dumps(config))
 
 
 @click.command()
@@ -61,40 +99,24 @@ def get(ctx, key):
 
 @click.command()
 @click.argument("key", required=True)
-@click.argument("value", required=True)
+@click.argument("value", required=False)
 @click.pass_context
 def set(ctx, key, value):
     """set the value of a configuration setting"""
-    config = get_config()
-    parts = key.split(".")
 
-    try:
-        value = json.loads(value)
-    except:  # noqa: E722
-        pass
+    set_config_value(key, value)
 
-    if len(parts) == 1:
-        config[key] = value
-        save_config(config)
-        return
 
-    section = config
-    for i in range(len(parts)):
-        part = parts[i]
-        if i == len(parts) - 1:
-            section[part] = value
-        else:
-            if part not in section:
-                section[part] = {}
-            prev = section
-            section = section[part]
-            if not isinstance(section, dict):
-                section = {}
-                prev[part] = section
+@click.command()
+@click.argument("key", required=True)
+@click.pass_context
+def unset(ctx, key):
+    """remove a configuration setting"""
 
-    save_config(config)
+    set_config_value(key, None)
 
 
 command.add_command(get)
 command.add_command(set)
+command.add_command(unset)
 command.add_command(show)
