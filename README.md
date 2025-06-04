@@ -120,8 +120,7 @@ If you want to update from a different location (e.g., a fork), you can do so se
 Save the alternate distribution URL in `~/.stack/config.yml`:
 
 ```bash
-mkdir ~/.stack
-echo "distribution-url: https://github.com/example-org/my-stack-fork/releases/latest/download/stack" >  ~/.stack/config.yml
+stack config set distribution-url https://github.com/example-org/my-stack-fork/releases/latest/download/stack
 ```
 
 ## Contributing
