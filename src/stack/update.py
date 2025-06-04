@@ -24,7 +24,8 @@ import sys
 import stat
 import shutil
 import validators
-from stack.util import get_yaml
+
+from stack.config.util import get_config_setting
 
 
 DEFAULT_URL = "https://github.com/bozemanpass/stack/releases/latest/download/stack"
@@ -46,20 +47,13 @@ def _error_exit(s: str):
 # Note at present this probably won't work on non-Unix based OSes like Windows
 @click.command()
 @click.option("--check-only", is_flag=True, default=False, help="only check, don't update")
+@click.option(
+    "--distribution-url", help="the distribution url to check", default=get_config_setting("distribution-url", default=DEFAULT_URL)
+)
 @click.pass_context
-def command(ctx, check_only):
+def command(ctx, check_only, distribution_url):
     """update shiv binary from a distribution url"""
     # Get the distribution URL from config
-    config_key = "distribution-url"
-    config_file_path = Path(os.path.expanduser("~/.stack/config.yml"))
-    distribution_url = DEFAULT_URL
-
-    if config_file_path.exists():
-        yaml = get_yaml()
-        config = yaml.load(open(config_file_path, "r"))
-        if config_key in config:
-            distribution_url = config[config_key]
-
     # Sanity check the URL
     if not validators.url(distribution_url):
         _error_exit(f"ERROR: distribution url: {distribution_url} is not valid")
