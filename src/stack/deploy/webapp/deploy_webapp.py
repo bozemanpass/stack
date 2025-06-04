@@ -120,7 +120,7 @@ def create_deployment(ctx, deployment_dir, image, url, kube_config, image_regist
 @click.option("--url", help="url to serve (required for k8s)", required=False)
 @click.option("--config-file", help="environment file for webapp")
 @click.pass_context
-def create(ctx, deployment_dir, image, url, kube_config, image_registry, env_file):
+def create(ctx, deployment_dir, image, url, kube_config, image_registry, config_file):
     """create a deployment for the specified webapp container"""
 
     if kube_config and not url:
@@ -129,4 +129,4 @@ def create(ctx, deployment_dir, image, url, kube_config, image_registry, env_fil
     if kube_config and not image_registry:
         print("WARNING: --image-registry not specified, only default container registries (eg, Docker Hub) will be available")
 
-    return create_deployment(ctx, deployment_dir, image, url, kube_config, image_registry, env_file)
+    return create_deployment(ctx, deployment_dir, image, url, kube_config, image_registry, config_file)
