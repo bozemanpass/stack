@@ -17,7 +17,7 @@ import click
 import json
 
 from stack.config.util import get_config, save_config, get_config_setting
-from stack.util import get_yaml, is_primitive, error_exit
+from stack.util import get_yaml, is_primitive
 
 
 @click.group()

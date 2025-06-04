@@ -21,18 +21,21 @@ from stack.deploy.deployment_create import init_operation
 from stack.util import check_if_stack_exists, global_options2, error_exit
 
 
-
 @click.command()
 @click.option("--stack", help="path to the stack", required=False)
 @click.option("--config", help="Provide config variables for the deployment", multiple=True)
 @click.option("--config-file", help="Provide config variables in a file for the deployment")
 @click.option("--cluster", help="specify a non-default cluster name")
-@click.option("--deploy-to", help="cluster system to deploy to (compose or k8s or k8s-kind)")
-@click.option("--kube-config", help="Provide a config file for a k8s deployment")
+@click.option(
+    "--deploy-to",
+    help="cluster system to deploy to (compose or k8s or k8s-kind)",
+    default=get_config_setting("deploy-to", "compose"),
+)
+@click.option("--kube-config", help="Provide a config file for a k8s deployment", default=get_config_setting("kube-config"))
 @click.option(
     "--image-registry",
     help="Provide a container image registry url for this k8s cluster",
-    default=get_config_setting("image-registry")
+    default=get_config_setting("image-registry"),
 )
 @click.option(
     "--http-proxy",
