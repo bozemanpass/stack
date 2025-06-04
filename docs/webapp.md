@@ -28,25 +28,25 @@ Built host container for ~/bpi/test-progressive-web-app with tag:
 
 To test locally run:
 
-    stack webapp run --image bpi/test-progressive-web-app:stack --env-file /path/to/environment.env
+    stack webapp run --image bpi/test-progressive-web-app:stack --config-file /path/to/environment.env
 
 ```
 
 ## Running
 
-With `webapp run` a new container will be launched on the local machine, with runtime configuration provided by `--env-file` (if specified) and published on an available port.  Multiple instances can be launched with different configuration.
+With `webapp run` a new container will be launched on the local machine, with runtime configuration provided by `--config-file` (if specified) and published on an available port.  Multiple instances can be launched with different configuration.
 
 **Example**:
 ```
 # Production env
-$ stack webapp run --image bpi/test-progressive-web-app:stack --env-file /path/to/environment/production.env
+$ stack webapp run --image bpi/test-progressive-web-app:stack --config-file /path/to/environment/production.env
 
 Image: bpi/test-progressive-web-app:stack
 ID: 4c6e893bf436b3e91a2b92ce37e30e499685131705700bd92a90d2eb14eefd05
 URL: http://localhost:32768
 
 # Dev env
-$ stack webapp run --image bpi/test-progressive-web-app:stack --env-file /path/to/environment/dev.env
+$ stack webapp run --image bpi/test-progressive-web-app:stack --config-file /path/to/environment/dev.env
 
 Image: bpi/test-progressive-web-app:stack
 ID: 9ab96494f563aafb6c057d88df58f9eca81b90f8721a4e068493a289a976051c
@@ -58,7 +58,7 @@ URL: http://localhost:32769
 Use the subcommand `webapp deploy` to make a deployment directory that can be subsequently deployed to a Kubernetes cluster.
 Example commands are shown below, assuming that the webapp container image `bpi/test-progressive-web-app:stack` has already been built:
 ```
-$ stack webapp deploy --kube-config ~/kubectl/k8s-kubeconfig.yaml --image-registry registry.digitalocean.com/laconic-registry --deployment-dir ~/bpi/webapp-k8s-deployment --image bpi/test-progressive-web-app:stack --url https://test-pwa-app.bpi.servesthe.world --env-file test-webapp.env
+$ stack webapp deploy --kube-config ~/kubectl/k8s-kubeconfig.yaml --image-registry registry.digitalocean.com/laconic-registry --deployment-dir ~/bpi/webapp-k8s-deployment --image bpi/test-progressive-web-app:stack --url https://test-pwa-app.bpi.servesthe.world --config-file test-webapp.env
 $ stack manage --dir ~/bpi/webapp-k8s-deployment push-images
 $ stack manage --dir ~/bpi/webapp-k8s-deployment start
 ```

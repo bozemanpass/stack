@@ -16,7 +16,7 @@ dependencies = [
     "tqdm",
     "python-on-whales",
     "PyYAML",
-    "ruamel.yaml",
+    "ruamel.yaml.string",
     "pydantic",
     "tomli",
     "validators",

@@ -23,6 +23,7 @@ import click
 from git import exc
 
 from stack.build.build_util import host_and_path_for_repo
+from stack.config.util import get_config_setting
 from stack.opts import opts
 from stack.repos.setup_repositories import process_repo
 from stack.util import error_exit, get_dev_root_path
@@ -30,7 +31,7 @@ from stack.util import error_exit, get_dev_root_path
 
 @click.command()
 @click.argument("stack-locator")
-@click.option("--git-ssh", is_flag=True, default=False, help="use SSH for git rather than HTTPS")
+@click.option("--git-ssh", is_flag=True, default=get_config_setting("git-ssh", False), help="use SSH for git rather than HTTPS")
 @click.option("--check-only", is_flag=True, default=False, help="just check that the repo is available")
 @click.option("--pull", is_flag=True, default=False, help="pull the latest changes for an existing stack")
 @click.pass_context

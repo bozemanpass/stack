@@ -189,7 +189,7 @@ def stack_is_in_deployment(stack: Path):
 
 def get_yaml():
     # See: https://stackoverflow.com/a/45701840/1701505
-    yaml = ruamel.yaml.YAML()
+    yaml = ruamel.yaml.YAML(typ=["rt", "string"])
     yaml.preserve_quotes = True
     yaml.indent(sequence=3, offset=1)
     return yaml
@@ -235,3 +235,8 @@ def is_git_repo(path):
         pass
 
     return False
+
+
+def is_primitive(obj):
+    primitives = (bool, str, int, float, type(None))
+    return isinstance(obj, primitives)

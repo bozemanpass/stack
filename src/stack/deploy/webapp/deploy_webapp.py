@@ -118,7 +118,7 @@ def create_deployment(ctx, deployment_dir, image, url, kube_config, image_regist
 @click.option("--deployment-dir", help="Create deployment files in this directory", required=True)
 @click.option("--image", help="image to deploy", required=True)
 @click.option("--url", help="url to serve (required for k8s)", required=False)
-@click.option("--env-file", help="environment file for webapp")
+@click.option("--config-file", help="environment file for webapp")
 @click.pass_context
 def create(ctx, deployment_dir, image, url, kube_config, image_registry, env_file):
     """create a deployment for the specified webapp container"""

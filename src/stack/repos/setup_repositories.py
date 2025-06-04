@@ -27,6 +27,7 @@ from git.exc import GitCommandError
 from tqdm import tqdm
 
 from stack.build.build_util import get_containers_in_scope, host_and_path_for_repo, branch_strip
+from stack.config.util import get_config_setting
 from stack.deploy.stack import get_parsed_stack_config
 from stack.opts import opts
 from stack.util import (
@@ -179,7 +180,7 @@ def parse_branches(branches_string):
 @click.option("--stack", help="path to the stack", required=False)
 @click.option("--include", help="only clone these repositories")
 @click.option("--exclude", help="don't clone these repositories")
-@click.option("--git-ssh", is_flag=True, default=False, help="use SSH for git rather than HTTPS")
+@click.option("--git-ssh", is_flag=True, default=get_config_setting("git-ssh", False), help="use SSH for git rather than HTTPS")
 @click.option("--check-only", is_flag=True, default=False, help="just check that the repo is available")
 @click.option("--pull", is_flag=True, default=False, help="pull the latest changes for an existing stack")
 @click.option("--branches", help="override branches for repositories")

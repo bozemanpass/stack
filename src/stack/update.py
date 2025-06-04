@@ -57,7 +57,7 @@ def command(ctx, check_only):
     if config_file_path.exists():
         yaml = get_yaml()
         config = yaml.load(open(config_file_path, "r"))
-        if "distribution-url" in config and config_key in config:
+        if config_key in config:
             distribution_url = config[config_key]
 
     # Sanity check the URL

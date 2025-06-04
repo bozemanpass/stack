@@ -33,7 +33,7 @@ WEBAPP_PORT = 80
 
 @click.command()
 @click.option("--image", help="image to deploy", required=True)
-@click.option("--env-file", help="environment file for webapp")
+@click.option("--config-file", help="environment file for webapp")
 @click.option("--port", help="port to use (default random)")
 @click.pass_context
 def command(ctx, image, env_file, port):

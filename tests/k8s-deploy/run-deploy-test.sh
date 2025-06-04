@@ -160,8 +160,8 @@ $TEST_TARGET_SO config --deploy-to k8s-kind init \
 
 # Check the file now exists
 if [ ! -f "$test_deployment_spec" ]; then
-    echo "deploy config init test: spec file not present"
-    echo "deploy config init test: FAILED"
+    echo "deploy init test: spec file not present"
+    echo "deploy init test: FAILED"
     exit 1
 fi
 echo "deploy init test: passed"

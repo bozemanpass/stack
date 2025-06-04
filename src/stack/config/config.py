@@ -14,102 +14,87 @@
 # along with this program.  If not, see <http:#www.gnu.org/licenses/>.
 
 import click
+import json
 
-from stack.deploy.deploy import create_deploy_context
-from stack.deploy.deployment_create import init_operation
-from stack.util import check_if_stack_exists, global_options2, error_exit
+from stack.config.util import get_config, save_config, get_config_setting
+from stack.util import get_yaml, is_primitive, error_exit
 
 
 @click.group()
-@click.option("--env-file", help="env file to be used")
-@click.option("--cluster", help="specify a non-default cluster name")
-@click.option("--deploy-to", help="cluster system to deploy to (compose or k8s or k8s-kind)")
 @click.pass_context
-def command(ctx, env_file, cluster, deploy_to):
-    """make configuration files for deploying a stack"""
+def command(ctx):
+    """manage configuration settings for the stack command"""
 
     if ctx.parent.obj.debug:
         print(f"ctx.parent.obj: {ctx.parent.obj}")
 
-    if deploy_to is None:
-        deploy_to = "compose"
-
-    ctx.obj = create_deploy_context(
-        global_options2(ctx),
-        None,
-        None,
-        None,
-        None,
-        cluster,
-        env_file,
-        deploy_to,
-    )
     # Subcommand is executed now, by the magic of click
 
 
 @click.command()
-@click.option("--stack", help="path to the stack", required=False)
-@click.option("--config", help="Provide config variables for the deployment", multiple=True)
-@click.option("--config-file", help="Provide config variables in a file for the deployment")
-@click.option("--kube-config", help="Provide a config file for a k8s deployment")
-@click.option(
-    "--image-registry",
-    help="Provide a container image registry url for this k8s cluster",
-)
-@click.option(
-    "--http-proxy",
-    required=False,
-    help="k8s http proxy settings in the form: [cluster-issuer~]<host>[/path]:<target_svc>:<target_port>",
-    multiple=True,
-)
-@click.option("--output", required=True, help="Write yaml spec file here")
-@click.option(
-    "--map-ports-to-host",
-    required=False,
-    help="Map ports to the host as one of: any-variable-random (docker default), "
-    "localhost-same, any-same, localhost-fixed-random, any-fixed-random, "
-    "k8s-clusterip-same (k8s default)",
-)
 @click.pass_context
-def init(
-    ctx,
-    stack,
-    config,
-    config_file,
-    kube_config,
-    image_registry,
-    http_proxy,
-    output,
-    map_ports_to_host,
-):
-    """output a stack specification file"""
-    if not stack:
-        stack = ctx.obj.stack_path
-    check_if_stack_exists(stack)
+def show(ctx):
+    """show the full configuration"""
+    config = get_config()
+    yaml = get_yaml()
+    click.echo(yaml.dumps(config))
 
-    config_variables = {}
-    for c in config:
-        if "=" in c:
-            k, v = c.split("=", 1)
-            config_variables[k] = v.strip("'").strip('"')
+
+@click.command()
+@click.argument("key", required=True)
+@click.pass_context
+def get(ctx, key):
+    """get the value of a configuration setting"""
+
+    value = get_config_setting(key)
+    if value is None:
+        return
+
+    if is_primitive(value):
+        if isinstance(value, bool):
+            click.echo(str(value).lower())
         else:
-            error_exit(f"Invalid config variable: {c}")
-
-    deployer_type = ctx.obj.deployer.type
-    deploy_command_context = ctx.obj
-    deploy_command_context.stack = stack
-    return init_operation(
-        deploy_command_context,
-        stack,
-        deployer_type,
-        config_variables,
-        config_file,
-        kube_config,
-        image_registry,
-        http_proxy,
-        output,
-        map_ports_to_host,
-    )
+            click.echo(value)
+    else:
+        click.echo(get_yaml().dumps(value))
 
 
-command.add_command(init)
+@click.command()
+@click.argument("key", required=True)
+@click.argument("value", required=True)
+@click.pass_context
+def set(ctx, key, value):
+    """set the value of a configuration setting"""
+    config = get_config()
+    parts = key.split(".")
+
+    try:
+        value = json.loads(value)
+    except:  # noqa: E722
+        pass
+
+    if len(parts) == 1:
+        config[key] = value
+        save_config(config)
+        return
+
+    section = config
+    for i in range(len(parts)):
+        part = parts[i]
+        if i == len(parts) - 1:
+            section[part] = value
+        else:
+            if part not in section:
+                section[part] = {}
+            prev = section
+            section = section[part]
+            if not isinstance(section, dict):
+                section = {}
+                prev[part] = section
+
+    save_config(config)
+
+
+command.add_command(get)
+command.add_command(set)
+command.add_command(show)
