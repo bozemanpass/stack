@@ -1,7 +1,7 @@
 # Hooks
 
 The behavior of certain `stack` core commands can be extended on a per-pod basis using hooks.  Specifically, the
-`config init` and `deploy` commands can be extended.
+`init` and `deploy` commands can be extended.
 
 ## Directory Structure and Filenames
 The hook functions must be located in a file named `./stack/deploy/commands.py` relative to the pod's `composefile.yml`.
@@ -23,9 +23,9 @@ example-app
         └── stack.yml
 ```
 
-## Extending `stack config init` - the `init` hook
+## Extending `stack init` - the `init` hook
 
-The `stack config init` hook is called just before the `Spec` is written to the output file.  This allows the hook 
+The `stack init` hook is called just before the `Spec` is written to the output file.  This allows the hook 
 to examine, add, remove, or alter any settings before output.
 
 The `init` hook _must_ return a `Spec` object, even if no changes are made.

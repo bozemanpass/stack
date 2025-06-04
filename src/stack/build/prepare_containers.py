@@ -27,8 +27,10 @@ import sys
 
 from decouple import config
 from pathlib import Path
+
 from python_on_whales import DockerClient
 
+from stack.config.util import get_config_setting
 from stack.base import get_npm_registry_url
 from stack.build.build_types import BuildContext
 from stack.build.build_util import ContainerSpec, get_containers_in_scope, container_exists_locally, container_exists_remotely, local_container_arch, host_and_path_for_repo, image_registry_for_repo
@@ -149,12 +151,12 @@ def process_container(build_context: BuildContext) -> bool:
 @click.option("--stack", help="path to the stack", required=False)
 @click.option("--include", help="only build these containers")
 @click.option("--exclude", help="don't build these containers")
-@click.option("--git-ssh", is_flag=True, default=False, help="use SSH for git rather than HTTPS")
+@click.option("--git-ssh", is_flag=True, default=get_config_setting("git-ssh", False), help="use SSH for git rather than HTTPS")
 @click.option("--build-policy", default=BUILD_POLICIES[0], help=f"Available policies: {BUILD_POLICIES}")
 @click.option("--extra-build-args", help="Supply extra arguments to build")
 @click.option("--no-pull", is_flag=True, default=False, help="Don't pull remote images (useful with k8s deployments).")
 @click.option("--publish-images", is_flag=True, default=False, help="Publish the built images")
-@click.option("--image-registry", help="Specify the remote image registry (default: auto-detect per-container)")
+@click.option("--image-registry", help="Specify the remote image registry (default: auto-detect per-container)", default=get_config_setting("image-registry"))
 @click.option("--target-arch", help="Specify a target architecture (only for use with --no-pull)")
 @click.pass_context
 def command(ctx, stack, include, exclude, git_ssh, build_policy, extra_build_args, no_pull, publish_images, image_registry, target_arch):

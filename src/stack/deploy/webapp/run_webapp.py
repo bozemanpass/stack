@@ -33,15 +33,15 @@ WEBAPP_PORT = 80
 
 @click.command()
 @click.option("--image", help="image to deploy", required=True)
-@click.option("--env-file", help="environment file for webapp")
+@click.option("--config-file", help="environment file for webapp")
 @click.option("--port", help="port to use (default random)")
 @click.pass_context
-def command(ctx, image, env_file, port):
+def command(ctx, image, config_file, port):
     """run the specified webapp container"""
 
     env = {}
-    if env_file:
-        env = dotenv_values(env_file)
+    if config_file:
+        env = dotenv_values(config_file)
 
     unique_cluster_descriptor = f"{image},{env}"
     hash = hashlib.md5(unique_cluster_descriptor.encode()).hexdigest()

@@ -107,11 +107,11 @@ $TEST_TARGET_SO build containers --stack $STACK_PATH
 # Basic test of creating a deployment
 test_deployment_dir=$BPI_REPO_BASE_DIR/test-deployment-dir
 test_deployment_spec=$BPI_REPO_BASE_DIR/test-deployment-spec.yml
-$TEST_TARGET_SO config init --stack $STACK_PATH --output $test_deployment_spec --map-ports-to-host localhost-same
+$TEST_TARGET_SO init --stack $STACK_PATH --output $test_deployment_spec --map-ports-to-host localhost-same
 # Check the file now exists
 if [ ! -f "$test_deployment_spec" ]; then
-    echo "deploy config init test: spec file not present"
-    echo "deploy config init test: FAILED"
+    echo "deploy init test: spec file not present"
+    echo "deploy init test: FAILED"
     exit 1
 fi
 echo "deploy init test: passed"

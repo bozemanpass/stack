@@ -151,7 +151,7 @@ $TEST_TARGET_SO build containers --stack $STACK_PATH
 # Basic test of creating a deployment
 test_deployment_dir=$BPI_REPO_BASE_DIR/test-deployment-dir
 test_deployment_spec=$BPI_REPO_BASE_DIR/test-deployment-spec.yml
-$TEST_TARGET_SO config --deploy-to k8s-kind init \
+$TEST_TARGET_SO init --deploy-to k8s-kind \
   --stack $STACK_PATH \
   --output $test_deployment_spec \
   --http-proxy localhost:frontend:3000 \
@@ -160,8 +160,8 @@ $TEST_TARGET_SO config --deploy-to k8s-kind init \
 
 # Check the file now exists
 if [ ! -f "$test_deployment_spec" ]; then
-    echo "deploy config init test: spec file not present"
-    echo "deploy config init test: FAILED"
+    echo "deploy init test: spec file not present"
+    echo "deploy init test: FAILED"
     exit 1
 fi
 echo "deploy init test: passed"
