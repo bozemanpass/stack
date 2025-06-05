@@ -9,7 +9,7 @@ on:
 jobs:
   test:
     name: "Run k8s deploy test suite"
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     steps:
       - name: "Clone project repository"
         uses: actions/checkout@v3
