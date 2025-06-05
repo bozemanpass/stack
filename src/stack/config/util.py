@@ -37,12 +37,12 @@ def get_config():
 
 
 def save_config(config):
-    config_dir = get_config_dir()
-    if not config_dir.exists():
-        config_dir.mkdir(parents=True)
+    config_path = get_config_file_path()
+    if not config_path.parent.exists():
+        config_path.parent.mkdir(parents=True)
 
     yaml = get_yaml()
-    yaml.dump(config, open(config_dir, "w+"))
+    yaml.dump(config, open(config_path, "w+"))
 
 
 def get_config_setting(key, default=None):
