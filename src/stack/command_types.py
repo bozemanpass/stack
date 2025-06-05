@@ -18,6 +18,7 @@ from dataclasses import dataclass
 
 @dataclass
 class CommandOptions:
+    profile: str = None
     stack_path: str = None
     quiet: bool = False
     verbose: bool = False

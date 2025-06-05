@@ -19,24 +19,30 @@ from pathlib import Path
 from stack.util import get_yaml, is_primitive
 
 
-config_dir = Path(os.path.expanduser("~/.stack"))
-config_file_path = Path(os.path.expanduser("~/.stack/config.yml"))
+def get_config_dir():
+    return Path(os.path.expanduser("~/.stack"))
+
+
+def get_config_file_path():
+    return get_config_dir().joinpath(os.environ.get("STACK_CONFIG_PROFILE", "config") + ".yml")
 
 
 def get_config():
-    if config_file_path.exists():
+    config_path = get_config_file_path()
+    if config_path.exists():
         yaml = get_yaml()
-        return yaml.load(open(config_file_path, "r"))
+        return yaml.load(open(config_path, "r"))
 
     return {}
 
 
 def save_config(config):
+    config_dir = get_config_dir()
     if not config_dir.exists():
         config_dir.mkdir(parents=True)
 
     yaml = get_yaml()
-    yaml.dump(config, open(config_file_path, "w+"))
+    yaml.dump(config, open(config_dir, "w+"))
 
 
 def get_config_setting(key, default=None):
