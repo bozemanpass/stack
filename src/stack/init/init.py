@@ -15,6 +15,7 @@
 
 import click
 
+from pathlib import Path
 from stack.config.util import get_config_setting
 from stack.deploy.deploy import create_deploy_context
 from stack.deploy.deployment_create import init_operation
@@ -90,28 +91,37 @@ def command(
 
     stack_config = get_parsed_stack_config(stack)
     required_stacks = stack_config.get_required_stacks_paths()
+    config_variables = {}
+    for c in config:
+        if "=" in c:
+            k, v = c.split("=", 1)
+            config_variables[k] = v.strip("'").strip('"')
+        else:
+            error_exit(f"Invalid config variable: {c}")
+
+    output = Path(output).absolute()
+    if len(required_stacks) > 1 and not output.is_dir():
+        error_exit("Output must be a directory")
 
     for stack in required_stacks:
-        config_variables = {}
-        for c in config:
-            if "=" in c:
-                k, v = c.split("=", 1)
-                config_variables[k] = v.strip("'").strip('"')
-            else:
-                error_exit(f"Invalid config variable: {c}")
+        output_file = output
+        if output_file.is_dir():
+            stack_config = get_parsed_stack_config(stack)
+            output_file = output_file.joinpath(f"{stack_config['name']}.yml")
 
         deployer_type = ctx.obj.deployer.type
         deploy_command_context = ctx.obj
         deploy_command_context.stack = stack
-        return init_operation(
+        init_operation(
             deploy_command_context,
-            stack,
+            str(stack),
             deployer_type,
             config_variables,
             config_file,
             kube_config,
             image_registry,
             http_proxy,
-            output,
+            output_file,
             map_ports_to_host,
         )
+        click.echo(f"Wrote: {output_file}")

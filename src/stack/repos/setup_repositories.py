@@ -18,7 +18,6 @@
 # BPI_REPO_BASE_DIR defaults to ~/bpi
 
 import click
-import importlib.resources
 import os
 import sys
 import git
