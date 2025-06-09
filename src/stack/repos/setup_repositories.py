@@ -227,6 +227,7 @@ def command(ctx, stack, include, exclude, git_ssh, check_only, pull, branches):
                 print("Dev root directory doesn't exist, creating")
             os.makedirs(dev_root_path)
 
+        stack_config = get_parsed_stack_config(stack)
         repos_in_scope = stack_config.get("repos", [])
 
         # containers can reference an external repo
@@ -241,7 +242,8 @@ def command(ctx, stack, include, exclude, git_ssh, check_only, pull, branches):
                 print(f"Stack: {stack}")
 
         if not repos_in_scope:
-            warn_exit(f"stack {stack} does not define any repositories")
+            print(f"WARN: stack {stack} does not define any repositories")
+            continue
 
         repos = []
         for repo in repos_in_scope:
