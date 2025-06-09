@@ -168,23 +168,11 @@ def command(ctx, stack, include, exclude, git_ssh, build_policy, extra_build_arg
 
     dev_root_path = get_dev_root_path(ctx)
 
-    required_stacks = []
     stack_config = get_parsed_stack_config(stack)
-    if stack_config.is_super_stack():
-        for stack_refs in stack_config.get_required_stacks():
-            required_stacks.append(os.path.sep.join([
-                dev_root_path,
-                os.path.basename(stack_refs[constants.ref_key]),
-                stack_refs[constants.path_key]
-            ]))
-    else:
-        required_stacks.append(stack)
+    required_stacks = stack_config.get_required_stacks_paths()
 
     for stack in required_stacks:
-        if stack_is_external(stack):
-            stack = Stack(stack).init_from_file(os.path.join(stack, stack_file_name))
-        else:
-            stack = Stack(stack)
+        stack = Stack(stack).init_from_file(os.path.join(stack, stack_file_name))
 
         if build_policy not in BUILD_POLICIES:
             error_exit(f"{build_policy} is not one of {BUILD_POLICIES}")
