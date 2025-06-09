@@ -53,6 +53,11 @@ class Stack:
     def __contains__(self, item):
         return item in self.obj
 
+    def is_super_stack(self):
+        if self.get_required_stacks():
+            return True
+        return False
+
     def get(self, item, default=None):
         return self.obj.get(item, default)
 
@@ -97,6 +102,9 @@ class Stack:
             repo = git.Repo(self.repo_path)
             return repo.remotes[0].url
         return None
+
+    def get_required_stacks(self):
+        return self.get(constants.requires_key, {}).get(constants.stacks_key)
 
     def get_pods(self):
         return self.obj.get("pods", [])
