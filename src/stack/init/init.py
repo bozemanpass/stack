@@ -15,12 +15,11 @@
 
 import click
 
-from pathlib import Path
 from stack.config.util import get_config_setting
 from stack.deploy.deploy import create_deploy_context
 from stack.deploy.deployment_create import init_operation
 from stack.deploy.stack import get_parsed_stack_config
-from stack.util import check_if_stack_exists, global_options2, error_exit
+from stack.util import check_if_stack_exists, global_options2, error_exit, get_yaml
 
 
 @click.command()
@@ -99,20 +98,12 @@ def command(
         else:
             error_exit(f"Invalid config variable: {c}")
 
-    output = Path(output).absolute()
-    if len(required_stacks) > 1 and not output.is_dir():
-        error_exit("Output must be a directory")
-
+    specs = []
     for stack in required_stacks:
-        output_file = output
-        if output_file.is_dir():
-            stack_config = get_parsed_stack_config(stack)
-            output_file = output_file.joinpath(f"{stack_config['name']}.yml")
-
         deployer_type = ctx.obj.deployer.type
         deploy_command_context = ctx.obj
         deploy_command_context.stack = stack
-        init_operation(
+        spec = init_operation(
             deploy_command_context,
             str(stack),
             deployer_type,
@@ -121,7 +112,12 @@ def command(
             kube_config,
             image_registry,
             http_proxy,
-            output_file,
+            None,
             map_ports_to_host,
         )
-        click.echo(f"Wrote: {output_file}")
+        specs.append(spec)
+
+    if len(specs) == 1:
+        specs[0].dump(output)
+    else:
+        get_yaml().dump([spec.obj for spec in specs], open(output, "w"))

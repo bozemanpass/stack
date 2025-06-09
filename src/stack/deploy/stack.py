@@ -112,11 +112,13 @@ class Stack:
 
         ret = []
         for stack_refs in self.get_required_stacks():
-            ret.append(Path(os.path.sep.join([
-                get_dev_root_path(None),
-                os.path.basename(stack_refs[constants.ref_key]),
-                stack_refs[constants.path_key]
-            ])))
+            ret.append(
+                Path(
+                    os.path.sep.join(
+                        [get_dev_root_path(None), os.path.basename(stack_refs[constants.ref_key]), stack_refs[constants.path_key]]
+                    )
+                )
+            )
         return ret
 
     def get_pods(self):

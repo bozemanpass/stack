@@ -15,7 +15,6 @@
 # along with this program.  If not, see <http:#www.gnu.org/licenses/>.
 
 import typing
-import json
 import humanfriendly
 import os
 
@@ -203,7 +202,7 @@ class Spec:
         get_yaml().dump(self.obj, open(output_file_path, "w"))
 
     def __str__(self):
-        return json.dumps(self, default=vars, indent=2)
+        return get_yaml().dumps(self.obj)
 
 
 class MergedSpec(Spec):
@@ -322,5 +321,17 @@ class MergedSpec(Spec):
         self.file_path = None
         ret.obj = self.obj.copy()
         ret._specs = self._specs.copy()
-
         return ret
+
+
+def load_spec(spec_path):
+    parsed = get_yaml().load(open(spec_path, "r"))
+    if not isinstance(parsed, list):
+        return Spec().init_from_file(spec_path)
+
+    ret = MergedSpec()
+    for spec in parsed:
+        s = Spec()
+        s.obj = spec
+        ret.merge(s)
+    return ret
