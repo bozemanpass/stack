@@ -70,7 +70,7 @@ def _create_bind_dir_if_relative(volume, path_string, compose_dir):
         absolute_path.mkdir(parents=True, exist_ok=True)
     else:
         if not path.exists():
-            print(f"WARNING: mount path for volume {volume} does not exist: {path_string}")
+            print(f"WARN: mount path for volume {volume} does not exist: {path_string}")
 
 
 # See: https://stackoverflow.com/questions/45699189/editing-docker-compose-yml-with-pyyaml
@@ -281,7 +281,7 @@ def init_operation(  # noqa: C901
         if image_registry:
             spec_file_content.update({constants.image_registry_key: image_registry})
         elif deployer_type == "k8s":
-            print("WARNING: --image-registry not specified, only default container registries (eg, Docker Hub) will be available")
+            print("WARN: --image-registry not specified, only default container registries (eg, Docker Hub) will be available")
         if k8s_http_proxy:
             proxy_hosts = {host for _, host, _, _ in map(_parse_http_proxy, k8s_http_proxy)}
             if len(proxy_hosts) != 1:
@@ -305,7 +305,7 @@ def init_operation(  # noqa: C901
                 spec_file_content[constants.network_key] = {}
             spec_file_content[constants.network_key].update({constants.http_proxy_key: [http_proxy]})
         else:
-            print("WARNING: --http-proxy not specified, no external HTTP access will be configured.")
+            print("WARN: --http-proxy not specified, no external HTTP access will be configured.")
     else:
         # Check for --kube-config supplied for non-relevant deployer types
         if kube_config is not None:

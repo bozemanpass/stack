@@ -127,6 +127,6 @@ def create(ctx, deployment_dir, image, url, kube_config, image_registry, config_
         error_exit("--url is required for k8s deployments")
 
     if kube_config and not image_registry:
-        print("WARNING: --image-registry not specified, only default container registries (eg, Docker Hub) will be available")
+        print("WARN: --image-registry not specified, only default container registries (eg, Docker Hub) will be available")
 
     return create_deployment(ctx, deployment_dir, image, url, kube_config, image_registry, config_file)

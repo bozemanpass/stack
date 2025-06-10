@@ -287,7 +287,7 @@ class ClusterInfo:
                 continue
 
             if not os.path.isabs(volume_path):
-                print(f"WARNING: {volume_name}:{volume_path} is not absolute, cannot bind volume.")
+                print(f"WARN: {volume_name}:{volume_path} is not absolute, cannot bind volume.")
                 continue
 
             resources = self.spec.get_volume_resources(volume_name)

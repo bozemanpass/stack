@@ -99,7 +99,7 @@ def command(
             error_exit(f"Invalid config variable: {c}")
 
     specs = []
-    for stack in required_stacks:
+    for i, stack in enumerate(required_stacks):
         deployer_type = ctx.obj.deployer.type
         deploy_command_context = ctx.obj
         deploy_command_context.stack = stack
@@ -111,7 +111,7 @@ def command(
             config_file,
             kube_config,
             image_registry,
-            http_proxy,
+            http_proxy if i == len(required_stacks) - 1 else None,
             None,
             map_ports_to_host,
         )
