@@ -162,7 +162,36 @@ class Stack:
                     if constants.ports_key in svc:
                         # Ports can appear as strings or numbers.  We normalize them as strings.
                         ports[svc_name] = [str(x) for x in svc[constants.ports_key]]
+        self.get_http_proxy_targets()
         return ports
+
+    def get_http_proxy_targets(self):
+        http_proxy_targets = []
+        pods = self.get_pod_list()
+        for pod in pods:
+            parsed_pod_file = self.load_pod_file(pod)
+            if constants.services_key in parsed_pod_file:
+                for svc_name, svc in parsed_pod_file[constants.services_key].items():
+                    if constants.ports_key in svc:
+                        ports_section = svc[constants.ports_key]
+                        for i, port in enumerate(ports_section):
+                            if len(ports_section.ca.items) > 0:
+                                if i in ports_section.ca.items:
+                                    comment = ports_section.ca.items[i][0].value.strip()
+                                    if constants.stack_annotation_marker in comment and constants.http_proxy_key in comment:
+                                        parts = comment.split()
+                                        parts = parts[parts.index(constants.http_proxy_key) + 1 :]
+                                        path = "/"
+                                        rewrite_target = None
+                                        if len(parts) >= 1:
+                                            path = parts[0]
+                                        if len(parts) >= 2:
+                                            rewrite_target = parts[1]
+                                        http_proxy_targets.append(
+                                            {"service": svc_name, "port": port, "path": path, "rewrite-target": rewrite_target}
+                                        )
+        print(http_proxy_targets)
+        return http_proxy_targets
 
     def get_security_settings(self):
         security_settings = {}

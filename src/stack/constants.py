@@ -58,3 +58,5 @@ stack_file_name = "stack.yml"
 stack_key = "stack"
 stacks_key = "stacks"
 volumes_key = "volumes"
+
+stack_annotation_marker = "@stack"
