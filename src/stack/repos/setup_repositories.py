@@ -36,7 +36,6 @@ from stack.util import (
     get_dev_root_path,
     include_exclude_check,
     error_exit,
-    warn_exit,
 )
 
 
