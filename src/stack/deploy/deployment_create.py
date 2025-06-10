@@ -36,7 +36,7 @@ from stack.util import (
     resolve_config_dir,
 )
 from stack.deploy.deploy import create_deploy_context
-from stack.deploy.spec import Spec, MergedSpec
+from stack.deploy.spec import Spec, MergedSpec, load_spec
 from stack.deploy.stack import Stack, get_plugin_code_paths
 from stack.deploy.deployer_factory import getDeployerConfigGenerator
 from stack.deploy.deployment_context import DeploymentContext
@@ -394,7 +394,9 @@ def init_operation(  # noqa: C901
     if opts.o.debug:
         print(f"Creating spec file for stack: {stack} with content: {spec}")
 
-    spec.dump(output)
+    if output:
+        spec.dump(output)
+    return spec
 
 
 def _parse_http_proxy(raw_val: str):
@@ -476,11 +478,11 @@ def create(ctx, cluster, spec_file, deployment_dir):
 
     global_context = ctx.parent.obj
     if len(spec_file) == 1:
-        spec = Spec().init_from_file(spec_file[0])
+        spec = load_spec(spec_file[0])
     else:
         spec = MergedSpec()
         for sf in spec_file:
-            spec.merge(Spec().init_from_file(sf))
+            spec.merge(load_spec(sf))
 
     if global_context.verbose:
         print(spec)

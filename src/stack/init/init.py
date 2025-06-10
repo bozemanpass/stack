@@ -18,7 +18,8 @@ import click
 from stack.config.util import get_config_setting
 from stack.deploy.deploy import create_deploy_context
 from stack.deploy.deployment_create import init_operation
-from stack.util import check_if_stack_exists, global_options2, error_exit
+from stack.deploy.stack import get_parsed_stack_config
+from stack.util import check_if_stack_exists, global_options2, error_exit, get_yaml
 
 
 @click.command()
@@ -87,6 +88,8 @@ def command(
         stack = ctx.obj.stack_path
     check_if_stack_exists(stack)
 
+    stack_config = get_parsed_stack_config(stack)
+    required_stacks = stack_config.get_required_stacks_paths()
     config_variables = {}
     for c in config:
         if "=" in c:
@@ -95,18 +98,26 @@ def command(
         else:
             error_exit(f"Invalid config variable: {c}")
 
-    deployer_type = ctx.obj.deployer.type
-    deploy_command_context = ctx.obj
-    deploy_command_context.stack = stack
-    return init_operation(
-        deploy_command_context,
-        stack,
-        deployer_type,
-        config_variables,
-        config_file,
-        kube_config,
-        image_registry,
-        http_proxy,
-        output,
-        map_ports_to_host,
-    )
+    specs = []
+    for stack in required_stacks:
+        deployer_type = ctx.obj.deployer.type
+        deploy_command_context = ctx.obj
+        deploy_command_context.stack = stack
+        spec = init_operation(
+            deploy_command_context,
+            str(stack),
+            deployer_type,
+            config_variables,
+            config_file,
+            kube_config,
+            image_registry,
+            http_proxy,
+            None,
+            map_ports_to_host,
+        )
+        specs.append(spec)
+
+    if len(specs) == 1:
+        specs[0].dump(output)
+    else:
+        get_yaml().dump([spec.obj for spec in specs], open(output, "w"))

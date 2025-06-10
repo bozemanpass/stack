@@ -39,7 +39,7 @@ class Stack:
     repo_path: Path
 
     def __init__(self, name: str) -> None:
-        self.name = name
+        self.name = str(name)
         self.obj = {}
         self.file_path = None
         self.repo_path = None
@@ -52,6 +52,11 @@ class Stack:
 
     def __contains__(self, item):
         return item in self.obj
+
+    def is_super_stack(self):
+        if self.get_required_stacks():
+            return True
+        return False
 
     def get(self, item, default=None):
         return self.obj.get(item, default)
@@ -97,6 +102,24 @@ class Stack:
             repo = git.Repo(self.repo_path)
             return repo.remotes[0].url
         return None
+
+    def get_required_stacks(self):
+        return self.get(constants.requires_key, {}).get(constants.stacks_key)
+
+    def get_required_stacks_paths(self):
+        if not self.is_super_stack():
+            return [self.file_path.parent] if self.file_path else []
+
+        ret = []
+        for stack_refs in self.get_required_stacks():
+            ret.append(
+                Path(
+                    os.path.sep.join(
+                        [get_dev_root_path(None), os.path.basename(stack_refs[constants.ref_key]), stack_refs[constants.path_key]]
+                    )
+                )
+            )
+        return ret
 
     def get_pods(self):
         return self.obj.get("pods", [])
