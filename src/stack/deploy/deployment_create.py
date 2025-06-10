@@ -304,8 +304,6 @@ def init_operation(  # noqa: C901
             if constants.network_key not in spec_file_content:
                 spec_file_content[constants.network_key] = {}
             spec_file_content[constants.network_key].update({constants.http_proxy_key: [http_proxy]})
-        else:
-            print("WARN: --http-proxy not specified, no external HTTP access will be configured.")
     else:
         # Check for --kube-config supplied for non-relevant deployer types
         if kube_config is not None:
@@ -344,21 +342,6 @@ def init_operation(  # noqa: C901
     parsed_stack = Stack(stack).init_from_file(os.path.join(get_stack_path(stack), constants.stack_file_name))
     ports = _get_mapped_ports(parsed_stack, map_ports_to_host)
     if constants.network_key in spec_file_content:
-        proxy_targets = []
-        if constants.http_proxy_key in spec_file_content[constants.network_key]:
-            for entry in spec_file_content[constants.network_key][constants.http_proxy_key]:
-                for r in entry[constants.routes_key]:
-                    proxy_targets.append(r[constants.proxy_to_key])
-        for target in proxy_targets:
-            matched = False
-            for svc in ports:
-                for svc_port in ports[svc]:
-                    svc_port = svc_port.split(":")[-1].replace("/udp", "")
-                    if f"{svc}:{svc_port}" == target:
-                        matched = True
-                        break
-            if not matched:
-                print(f"WARN: Unable to match http-proxy target {target} to a ClusterIP service and port.")
         spec_file_content[constants.network_key][constants.ports_key] = ports
     else:
         spec_file_content.update({constants.network_key: {constants.ports_key: ports}})

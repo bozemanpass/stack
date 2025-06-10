@@ -15,11 +15,35 @@
 
 import click
 
+from stack import constants
 from stack.config.util import get_config_setting
 from stack.deploy.deploy import create_deploy_context
 from stack.deploy.deployment_create import init_operation
+from stack.deploy.spec import MergedSpec
 from stack.deploy.stack import get_parsed_stack_config
 from stack.util import check_if_stack_exists, global_options2, error_exit, get_yaml
+
+
+def output_checks(specs, deploy_to):
+    merged = MergedSpec()
+    for spec in specs:
+        merged.merge(spec)
+
+    if deploy_to == "k8s":
+        if not merged.get_http_proxy():
+            print("WARN: --http-proxy not specified, no external HTTP access will be configured.")
+        else:
+            known_targets = set()
+            for svc, ports in merged.get_network_ports().items():
+                for port in ports:
+                    known_targets.add(f"{svc}:{port}")
+            for proxy in merged.get_http_proxy():
+                for route in proxy[constants.routes_key]:
+                    if route[constants.proxy_to_key] not in known_targets:
+                        print(
+                            f"WARN: Unable to match http-proxy target {route[constants.proxy_to_key]} "
+                            f"to a ClusterIP service and port."
+                        )
 
 
 @click.command()
@@ -116,6 +140,8 @@ def command(
             map_ports_to_host,
         )
         specs.append(spec)
+
+    output_checks(specs, deploy_to)
 
     if len(specs) == 1:
         specs[0].dump(output)
