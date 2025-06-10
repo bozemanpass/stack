@@ -140,6 +140,11 @@ class Spec:
     def get_http_proxy(self):
         return self.obj.get(constants.network_key, {}).get(constants.http_proxy_key, [])
 
+    def clear_http_proxy(self):
+        if constants.network_key in self.obj:
+            if constants.http_proxy_key in self.obj[constants.network_key]:
+                del self.obj[constants.network_key][constants.http_proxy_key]
+
     def get_annotations(self):
         return self.obj.get(constants.annotations_key, {})
 
@@ -270,11 +275,15 @@ class MergedSpec(Spec):
             error_exit(f"{self.get_kube_config()} != {other.get_kube_config()} in {other.file_path}")
 
         # Check for conflicts on HTTP proxy settings.
-        if self.get_http_proxy() and other.get_http_proxy() and self.get_http_proxy() != other.get_http_proxy():
-            error_exit(
-                "Merging HTTP proxy settings is not yet supported: "
-                f"{self.get_http_proxy()} != {other.get_http_proxy()} in {other.file_path}"
-            )
+        if self.get_http_proxy() and other.get_http_proxy():
+            if self.get_http_proxy() != other.get_http_proxy():
+                error_exit(
+                    "Merging HTTP proxy settings is not yet supported: "
+                    f"{self.get_http_proxy()} != {other.get_http_proxy()} in {other.file_path}"
+                )
+            else:
+                # clear ahead of merging, since it is additive and this is a list
+                self.clear_http_proxy()
 
         # Check for conflicts on pod names
         current_pods = self.get_pod_list()
