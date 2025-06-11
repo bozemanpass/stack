@@ -86,7 +86,7 @@ def _output_checks(specs, deploy_to):
 @click.option(
     "--http-proxy-target",
     required=False,
-    help="k8s http proxy settings in the form: [<path>:]<target_svc>:<target_port>[:<rewrite_target>]",
+    help="k8s http proxy settings in the form: target_svc:target_port[path]]",
     multiple=True,
 )
 @click.option(
