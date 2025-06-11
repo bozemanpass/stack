@@ -67,8 +67,7 @@ $ stack init \
     --output todo.yml                         \
     --image-registry $IMAGE_REGISTRY \
     --kube-config /path/to/kubeconfig.yaml \
-    --http-proxy example-todo.bpi.servesthe.world:frontend:3000 \
-    --http-proxy example-todo.bpi.servesthe.world/api/todos:backend:5000 \
+    --http-proxy-fqdn example-todo.bpi.servesthe.world \
     --config REACT_APP_API_URL=https://example-todo.bpi.servesthe.world/api/todos
 ```
 
