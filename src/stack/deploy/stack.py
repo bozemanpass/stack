@@ -170,7 +170,7 @@ class Stack:
                     if constants.ports_key in svc:
                         ports_section = svc[constants.ports_key]
                         for i, port in enumerate(ports_section):
-                            port = str(port)
+                            port = str(port).split(":")[-1]
                             if len(ports_section.ca.items) > 0:
                                 if i in ports_section.ca.items:
                                     comment = ports_section.ca.items[i][0].value.strip()
