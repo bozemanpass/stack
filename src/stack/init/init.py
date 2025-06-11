@@ -44,7 +44,7 @@ def _output_checks(specs, deploy_to):
     for spec in specs:
         merged.merge(spec)
 
-    if deploy_to == "k8s":
+    if deploy_to in ["k8s", "k8s-kind"]:
         if not merged.get_http_proxy():
             print("WARN: Not HTTP proxy settings specified, no external HTTP access will be configured.")
         else:
