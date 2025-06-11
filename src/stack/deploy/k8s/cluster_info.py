@@ -136,6 +136,10 @@ class ClusterInfo:
             paths = []
             rewrite = False
             for route in http_proxy_info[constants.routes_key]:
+                path_type = "Prefix"
+                if ".*" in path:
+                    rewrite = True
+                    path_type = "ImplementationSpecific"
                 path = route[constants.path_key]
                 proxy_to = route[constants.proxy_to_key]
                 if opts.o.debug:
@@ -144,7 +148,7 @@ class ClusterInfo:
                 proxy_to_svc, proxy_to_port = proxy_to.split(":")
                 paths.append(
                     client.V1HTTPIngressPath(
-                        path_type="Prefix",
+                        path_type=path_type,
                         path=path,
                         backend=client.V1IngressBackend(
                             service=client.V1IngressServiceBackend(
@@ -154,8 +158,6 @@ class ClusterInfo:
                         ),
                     )
                 )
-                if ".*" in path:
-                    rewrite = True
 
             rules.append(client.V1IngressRule(host=host_name, http=client.V1HTTPIngressRuleValue(paths=paths)))
             spec = client.V1IngressSpec(tls=tls, rules=rules, ingress_class_name="nginx")
