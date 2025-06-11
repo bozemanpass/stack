@@ -159,6 +159,8 @@ class Stack:
         return ports
 
     def get_http_proxy_targets(self, prefix=None):
+        if prefix == "/":
+            prefix = None
         http_proxy_targets = []
         pods = self.get_pod_list()
         for pod in pods:
