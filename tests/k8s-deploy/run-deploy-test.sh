@@ -177,7 +177,6 @@ echo "deploy create test: passed"
 
 # Start
 $TEST_TARGET_SO manage --dir $test_deployment_dir start
-sleep 1000000000
 wait_for_running 3
 
 # Add a todo
