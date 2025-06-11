@@ -291,7 +291,6 @@ def init_operation(  # noqa: C901
                     {
                         constants.path_key: target["path"],
                         constants.proxy_to_key: f"{target['service']}:{target['port']}",
-                        "rewrite-target": target["rewrite-target"],
                     }
                 )
 
