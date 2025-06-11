@@ -36,6 +36,12 @@ def _parse_http_proxy(raw_val: str):
     else:
         error_exit(f"Invalid http-proxy target: {raw_val}")
 
+    # Convert to regex
+    if path != "/":
+        path = f"/()({path.rstrip("/")}.*)"
+    else:
+        path = "/()(.*)"
+
     return {"service": service, "port": port, "path": path}
 
 
