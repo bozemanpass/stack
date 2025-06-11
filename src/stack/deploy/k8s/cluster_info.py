@@ -134,6 +134,7 @@ class ClusterInfo:
                 else None
             )
             paths = []
+            rewrite = False
             for route in http_proxy_info[constants.routes_key]:
                 path = route[constants.path_key]
                 proxy_to = route[constants.proxy_to_key]
@@ -153,6 +154,9 @@ class ClusterInfo:
                         ),
                     )
                 )
+                if ".*" in path:
+                    rewrite = True
+
             rules.append(client.V1IngressRule(host=host_name, http=client.V1HTTPIngressRuleValue(paths=paths)))
             spec = client.V1IngressSpec(tls=tls, rules=rules, ingress_class_name="nginx")
 
@@ -163,6 +167,10 @@ class ClusterInfo:
                 ingress_annotations["cert-manager.io/cluster-issuer"] = http_proxy_info.get(
                     constants.cluster_issuer_key, def_cluster_issuer
                 )
+
+            if rewrite:
+                ingress_annotations["nginx.ingress.kubernetes.io/rewrite-target"] = "/$2"
+                ingress_annotations["nginx.ingress.kubernetes.io/use-regex"] = "true"
 
             ingress = client.V1Ingress(
                 metadata=client.V1ObjectMeta(name=f"{self.app_name}-ingress", annotations=ingress_annotations),

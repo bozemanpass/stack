@@ -176,18 +176,14 @@ class Stack:
                                         parts = comment.split()
                                         parts = parts[parts.index(constants.http_proxy_key) + 1 :]
                                         path = "/"
-                                        rewrite_target = None
                                         if len(parts) >= 1:
                                             path = parts[0]
-                                        if len(parts) >= 2:
-                                            rewrite_target = parts[1]
                                         if prefix:
-                                            path = f"{prefix}{path}"
+                                            orig = path.rstrip("/")
+                                            path = f"{prefix}{orig}(/|$)(.*)"
                                         if path != "/":
                                             path = path.rstrip("/")
-                                        http_proxy_targets.append(
-                                            {"service": svc_name, "port": port, "path": path, "rewrite-target": rewrite_target}
-                                        )
+                                        http_proxy_targets.append({"service": svc_name, "port": port, "path": path})
         return http_proxy_targets
 
     def get_security_settings(self):

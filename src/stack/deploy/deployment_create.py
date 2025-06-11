@@ -287,7 +287,13 @@ def init_operation(  # noqa: C901
         if k8s_http_proxy_targets:
             routes = []
             for target in k8s_http_proxy_targets:
-                routes.append({constants.path_key: target["path"], constants.proxy_to_key: f"{target['service']}:{target['port']}"})
+                routes.append(
+                    {
+                        constants.path_key: target["path"],
+                        constants.proxy_to_key: f"{target['service']}:{target['port']}",
+                        "rewrite-target": target["rewrite-target"],
+                    }
+                )
 
             http_proxy = {
                 constants.host_name_key: k8s_http_proxy_fqdn,
