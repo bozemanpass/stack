@@ -308,8 +308,6 @@ def init_operation(  # noqa: C901
             error_exit(f"--kube-config is not allowed with a {deployer_type} deployment")
         if image_registry is not None:
             error_exit(f"--image-registry is not allowed with a {deployer_type} deployment")
-        if k8s_http_proxy_targets:
-            error_exit(f"--http-proxy-target is not allowed with a {deployer_type} deployment")
     # Implement merge, since update() overwrites
     if config_variables:
         orig_config = spec_file_content.get("config", {})

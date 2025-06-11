@@ -44,7 +44,7 @@ def _output_checks(specs, deploy_to):
     for spec in specs:
         merged.merge(spec)
 
-    if deploy_to in ["k8s", "k8s-kind"]:
+    if deploy_to in [constants.k8s_kind_deploy_type, constants.k8s_deploy_type]:
         if not merged.get_http_proxy():
             print("WARN: Not HTTP proxy settings specified, no external HTTP access will be configured.")
         else:
@@ -166,6 +166,8 @@ def command(
         return None
 
     if http_proxy_target:
+        if deploy_to not in ["k8s", "k8s-kind"]:
+            error_exit(f"--http-proxy-target is not allowed with a {deploy_to} deployment")
         http_proxy_target = [_parse_http_proxy(t) for t in http_proxy_target]
 
     specs = []
@@ -173,6 +175,12 @@ def command(
         http_prefix = None
         if top_stack_config.is_super_stack():
             http_prefix = http_prefix_for(stack)
+        if http_prefix:
+            if deploy_to not in [constants.k8s_kind_deploy_type, constants.k8s_deploy_type]:
+                print(
+                    f"WARN: {stack} has an http-prefix of {http_prefix}, which is only supported in k8s deployments. "
+                    f"HTTP paths will be unchanged in a {deploy_to} deployment."
+                )
 
         inner_stack_config = get_parsed_stack_config(stack)
         http_proxy_targets = inner_stack_config.get_http_proxy_targets(http_prefix)
