@@ -137,10 +137,10 @@ class ClusterInfo:
             rewrite = False
             for route in http_proxy_info[constants.routes_key]:
                 path_type = "Prefix"
+                path = route[constants.path_key]
                 if ".*" in path:
                     rewrite = True
                     path_type = "ImplementationSpecific"
-                path = route[constants.path_key]
                 proxy_to = route[constants.proxy_to_key]
                 if opts.o.debug:
                     print(f"proxy config: {path} -> {proxy_to}")
