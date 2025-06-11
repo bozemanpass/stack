@@ -181,7 +181,7 @@ class Stack:
                                         if prefix:
                                             path = f"{prefix}{path.rstrip("/")}(/|$)(.*)"
                                         elif path != "/":
-                                            path = f"/()({path.rstrip("/")}.*)"
+                                            path = f"/()({path.strip("/")}.*)"
                                         else:
                                             path = "/()(.*)"
                                         http_proxy_targets.append({"service": svc_name, "port": port, "path": path})

@@ -38,7 +38,7 @@ def _parse_http_proxy(raw_val: str):
 
     # Convert to regex
     if path != "/":
-        path = f"/()({path.rstrip("/")}.*)"
+        path = f"/()({path.strip("/")}.*)"
     else:
         path = "/()(.*)"
 
