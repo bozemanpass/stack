@@ -46,7 +46,7 @@ def _output_checks(specs, deploy_to):
 
     if deploy_to == "k8s":
         if not merged.get_http_proxy():
-            print("WARN: --http-proxy not specified, no external HTTP access will be configured.")
+            print("WARN: Not HTTP proxy settings specified, no external HTTP access will be configured.")
         else:
             known_targets = set()
             for svc, ports in merged.get_network_ports().items():
