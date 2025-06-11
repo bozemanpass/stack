@@ -178,8 +178,8 @@ def command(
         if http_prefix:
             if deploy_to not in [constants.k8s_kind_deploy_type, constants.k8s_deploy_type]:
                 print(
-                    f"WARN: {stack} has an {constants.http_proxy_prefix_key} of {http_prefix}, which is only supported in k8s deployments. "
-                    f"HTTP paths will be unchanged in a {deploy_to} deployment."
+                    f"WARN: {stack} has an {constants.http_proxy_prefix_key} of {http_prefix}, which is "
+                    f"only supported in k8s deployments. HTTP paths will be unchanged in a {deploy_to} deployment."
                 )
 
         inner_stack_config = get_parsed_stack_config(stack)
