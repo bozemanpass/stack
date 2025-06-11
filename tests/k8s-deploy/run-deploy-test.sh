@@ -155,8 +155,6 @@ $TEST_TARGET_SO init --deploy-to k8s-kind \
   --stack $STACK_PATH \
   --output $test_deployment_spec \
   --http-proxy-fqdn localhost \
-  --http-proxy-target frontend:3000 \
-  --http-proxy-target /api/todos:backend:5000 \
   --config REACT_APP_API_URL=http://localhost/api/todos
 
 # Check the file now exists
