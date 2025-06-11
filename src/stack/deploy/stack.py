@@ -112,13 +112,7 @@ class Stack:
 
         ret = []
         for stack_refs in self.get_required_stacks():
-            ret.append(
-                Path(
-                    os.path.sep.join(
-                        [get_dev_root_path(None), os.path.basename(stack_refs[constants.ref_key]), stack_refs[constants.path_key]]
-                    )
-                )
-            )
+            ret.append(determine_fs_path_for_stack(stack_refs[constants.ref_key], stack_refs[constants.path_key]))
         return ret
 
     def get_pods(self):
@@ -162,10 +156,9 @@ class Stack:
                     if constants.ports_key in svc:
                         # Ports can appear as strings or numbers.  We normalize them as strings.
                         ports[svc_name] = [str(x) for x in svc[constants.ports_key]]
-        self.get_http_proxy_targets()
         return ports
 
-    def get_http_proxy_targets(self):
+    def get_http_proxy_targets(self, prefix=None):
         http_proxy_targets = []
         pods = self.get_pod_list()
         for pod in pods:
@@ -175,6 +168,7 @@ class Stack:
                     if constants.ports_key in svc:
                         ports_section = svc[constants.ports_key]
                         for i, port in enumerate(ports_section):
+                            port = str(port)
                             if len(ports_section.ca.items) > 0:
                                 if i in ports_section.ca.items:
                                     comment = ports_section.ca.items[i][0].value.strip()
@@ -187,10 +181,13 @@ class Stack:
                                             path = parts[0]
                                         if len(parts) >= 2:
                                             rewrite_target = parts[1]
+                                        if prefix:
+                                            path = f"{prefix}{path}"
+                                        if path != "/":
+                                            path = path.rstrip("/")
                                         http_proxy_targets.append(
                                             {"service": svc_name, "port": port, "path": path, "rewrite-target": rewrite_target}
                                         )
-        print(http_proxy_targets)
         return http_proxy_targets
 
     def get_security_settings(self):
@@ -305,3 +302,7 @@ def get_pod_file_path(stack, pod_name: str):
                 )
                 result = os.path.join(pod_root_dir, f"{constants.compose_file_prefix}.yml")
     return result
+
+
+def determine_fs_path_for_stack(stack_ref, stack_path):
+    return Path(os.path.sep.join([get_dev_root_path(None), os.path.basename(stack_ref), stack_path]))

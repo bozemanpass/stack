@@ -1,4 +1,5 @@
 # Copyright © 2025 Bozeman Pass, Inc.
+import socket
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -20,11 +21,25 @@ from stack.config.util import get_config_setting
 from stack.deploy.deploy import create_deploy_context
 from stack.deploy.deployment_create import init_operation
 from stack.deploy.spec import MergedSpec
-from stack.deploy.stack import get_parsed_stack_config
+from stack.deploy.stack import get_parsed_stack_config, determine_fs_path_for_stack
 from stack.util import check_if_stack_exists, global_options2, error_exit, get_yaml
 
 
-def output_checks(specs, deploy_to):
+def _parse_http_proxy(raw_val: str):
+    stripped = raw_val.replace("http://", "").replace("https://", "")
+    service, port = stripped.split(":", 1)
+    path = "/"
+    rewrite_target = None
+    if "/" in port:
+        port, path = port.split("/", 1)
+        path = "/" + path
+        if ">" in path:
+            path, rewrite_target = path.split(">", 1)
+
+    return {"service": service, "port": port, "path": path, "rewrite-target": rewrite_target}
+
+
+def _output_checks(specs, deploy_to):
     merged = MergedSpec()
     for spec in specs:
         merged.merge(spec)
@@ -37,6 +52,8 @@ def output_checks(specs, deploy_to):
             for svc, ports in merged.get_network_ports().items():
                 for port in ports:
                     known_targets.add(f"{svc}:{port}")
+
+            paths = set()
             for proxy in merged.get_http_proxy():
                 for route in proxy[constants.routes_key]:
                     if route[constants.proxy_to_key] not in known_targets:
@@ -44,6 +61,10 @@ def output_checks(specs, deploy_to):
                             f"WARN: Unable to match http-proxy target {route[constants.proxy_to_key]} "
                             f"to a ClusterIP service and port."
                         )
+                    if route[constants.path_key] in paths:
+                        error_exit(f"Duplicate http-proxy path in {merged.get_http_proxy()}")
+                    else:
+                        paths.add(route[constants.path_key])
 
 
 @click.command()
@@ -63,10 +84,22 @@ def output_checks(specs, deploy_to):
     default=get_config_setting("image-registry"),
 )
 @click.option(
-    "--http-proxy",
+    "--http-proxy-target",
     required=False,
-    help="k8s http proxy settings in the form: [cluster-issuer~]<host>[/path]:<target_svc>:<target_port>",
+    help="k8s http proxy settings in the form: [<path>:]<target_svc>:<target_port>[:<rewrite_target>]",
     multiple=True,
+)
+@click.option(
+    "--http-proxy-fqdn",
+    required=False,
+    help="k8s http proxy hostname to use",
+    default=get_config_setting("http-proxy-fqdn", socket.getfqdn()),
+)
+@click.option(
+    "--http-proxy-clusterissuer",
+    required=False,
+    help="k8s http proxy hostname to use",
+    default=get_config_setting("http-proxy-clusterissuer", "letsencrypt-prod"),
 )
 @click.option("--output", required=True, help="Write yaml spec file here")
 @click.option(
@@ -86,7 +119,9 @@ def command(
     config_file,
     kube_config,
     image_registry,
-    http_proxy,
+    http_proxy_fqdn,
+    http_proxy_clusterissuer,
+    http_proxy_target,
     output,
     map_ports_to_host,
 ):
@@ -112,8 +147,8 @@ def command(
         stack = ctx.obj.stack_path
     check_if_stack_exists(stack)
 
-    stack_config = get_parsed_stack_config(stack)
-    required_stacks = stack_config.get_required_stacks_paths()
+    top_stack_config = get_parsed_stack_config(stack)
+    required_stacks = top_stack_config.get_required_stacks_paths()
     config_variables = {}
     for c in config:
         if "=" in c:
@@ -122,8 +157,28 @@ def command(
         else:
             error_exit(f"Invalid config variable: {c}")
 
+    def http_prefix_for(stack):
+        stacks = top_stack_config.get_required_stacks()
+        for s in stacks:
+            stack_path = determine_fs_path_for_stack(s[constants.ref_key], s[constants.path_key])
+            if stack_path == stack:
+                return s.get("http-prefix", None)
+        return None
+
+    if http_proxy_target:
+        http_proxy_target = [_parse_http_proxy(t) for t in http_proxy_target]
+
     specs = []
     for i, stack in enumerate(required_stacks):
+        if top_stack_config.is_super_stack():
+            http_prefix = http_prefix_for(stack)
+
+        inner_stack_config = get_parsed_stack_config(stack)
+        http_proxy_targets = inner_stack_config.get_http_proxy_targets(http_prefix)
+
+        if i == len(required_stacks) - 1:
+            http_proxy_targets.extend(http_proxy_target)
+
         deployer_type = ctx.obj.deployer.type
         deploy_command_context = ctx.obj
         deploy_command_context.stack = stack
@@ -135,13 +190,15 @@ def command(
             config_file,
             kube_config,
             image_registry,
-            http_proxy if i == len(required_stacks) - 1 else None,
+            http_proxy_fqdn,
+            http_proxy_clusterissuer,
+            http_proxy_targets,
             None,
             map_ports_to_host,
         )
         specs.append(spec)
 
-    output_checks(specs, deploy_to)
+    _output_checks(specs, deploy_to)
 
     if len(specs) == 1:
         specs[0].dump(output)

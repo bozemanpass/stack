@@ -268,7 +268,9 @@ def init_operation(  # noqa: C901
     config_file,
     kube_config,
     image_registry,
-    k8s_http_proxy,
+    k8s_http_proxy_fqdn,
+    k8s_http_proxy_clusterissuer,
+    k8s_http_proxy_targets,
     output,
     map_ports_to_host,
 ):
@@ -282,23 +284,14 @@ def init_operation(  # noqa: C901
             spec_file_content.update({constants.image_registry_key: image_registry})
         elif deployer_type == "k8s":
             print("WARN: --image-registry not specified, only default container registries (eg, Docker Hub) will be available")
-        if k8s_http_proxy:
-            proxy_hosts = {host for _, host, _, _ in map(_parse_http_proxy, k8s_http_proxy)}
-            if len(proxy_hosts) != 1:
-                error_exit(f"Only one host is allowed in --http-proxy at this time: {proxy_hosts}")
-
-            issuers = {issuer if issuer else "letsencrypt-prod" for issuer, _, _, _ in map(_parse_http_proxy, k8s_http_proxy)}
-            if len(issuers) != 1:
-                error_exit(f"Only one cluster issuer is allowed in --http-proxy at this time: {issuers}")
-
-            routes = [
-                {constants.path_key: path, constants.proxy_to_key: proxy_to}
-                for _, _, path, proxy_to in map(_parse_http_proxy, k8s_http_proxy)
-            ]
+        if k8s_http_proxy_targets:
+            routes = []
+            for target in k8s_http_proxy_targets:
+                routes.append({constants.path_key: target["path"], constants.proxy_to_key: f"{target['service']}:{target['port']}"})
 
             http_proxy = {
-                constants.host_name_key: proxy_hosts.pop(),
-                constants.cluster_issuer_key: issuers.pop(),
+                constants.host_name_key: k8s_http_proxy_fqdn,
+                constants.cluster_issuer_key: k8s_http_proxy_clusterissuer,
                 constants.routes_key: routes,
             }
             if constants.network_key not in spec_file_content:
@@ -310,8 +303,8 @@ def init_operation(  # noqa: C901
             error_exit(f"--kube-config is not allowed with a {deployer_type} deployment")
         if image_registry is not None:
             error_exit(f"--image-registry is not allowed with a {deployer_type} deployment")
-        if k8s_http_proxy:
-            error_exit(f"--http-proxy is not allowed with a {deployer_type} deployment")
+        if k8s_http_proxy_targets:
+            error_exit(f"--http-proxy-target is not allowed with a {deployer_type} deployment")
     # Implement merge, since update() overwrites
     if config_variables:
         orig_config = spec_file_content.get("config", {})
@@ -380,20 +373,6 @@ def init_operation(  # noqa: C901
     if output:
         spec.dump(output)
     return spec
-
-
-def _parse_http_proxy(raw_val: str):
-    stripped = raw_val.replace("http://", "").replace("https://", "")
-    cluster_issuer = None
-    if "~" in stripped:
-        cluster_issuer, stripped = stripped.split("~", 1)
-    host, target = stripped.split(":", 1)
-    route = "/"
-    if "/" in host:
-        host, route = host.split("/", 1)
-        route = "/" + route
-
-    return cluster_issuer, host, route, target
 
 
 def _write_config_file(spec: Spec, config_env_file: Path):
