@@ -27,14 +27,19 @@ from stack.util import check_if_stack_exists, global_options2, error_exit, get_y
 
 def _parse_http_proxy(raw_val: str):
     stripped = raw_val.replace("http://", "").replace("https://", "")
-    service, port = stripped.split(":", 1)
-    path = "/"
+    parts = stripped.split(":")
     rewrite_target = None
-    if "/" in port:
-        port, path = port.split("/", 1)
-        path = "/" + path
-        if ">" in path:
-            path, rewrite_target = path.split(">", 1)
+    if len(parts) == 2:
+        service, port = parts
+        path = "/"
+    elif len(parts) == 3:
+        path, service, port = parts
+    else:
+        error_exit(f"Invalid http-proxy target: {raw_val}")
+
+    rewrite_target = None
+    if ">" in path:
+        path, rewrite_target = path.split(">", 1)
 
     return {"service": service, "port": port, "path": path, "rewrite-target": rewrite_target}
 
