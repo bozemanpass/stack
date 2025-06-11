@@ -154,8 +154,7 @@ test_deployment_spec=$BPI_REPO_BASE_DIR/test-deployment-spec.yml
 $TEST_TARGET_SO init --deploy-to k8s-kind \
   --stack $STACK_PATH \
   --output $test_deployment_spec \
-  --http-proxy localhost:frontend:3000 \
-  --http-proxy localhost/api/todos:backend:5000 \
+  --http-proxy-fqdn localhost \
   --config REACT_APP_API_URL=http://localhost/api/todos
 
 # Check the file now exists
@@ -181,6 +180,7 @@ wait_for_running 3
 # Add a todo
 todo_title="79b06705-b402-431a-83a3-a634392d2754"
 add_todo http://localhost/api/todos "$todo_title"
+
 
 # Check that it exists
 if [ "$todo_title" != "$(curl -s http://localhost/api/todos | jq -r '.[] | select(.id == 1) | .title')" ]; then

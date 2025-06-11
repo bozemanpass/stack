@@ -136,6 +136,10 @@ class ClusterInfo:
             paths = []
             for route in http_proxy_info[constants.routes_key]:
                 path = route[constants.path_key]
+                if path == "/":
+                    path = "/()(.*)"
+                elif "(" not in path:
+                    path = f"/()({path.lstrip('/')}.*)"
                 proxy_to = route[constants.proxy_to_key]
                 if opts.o.debug:
                     print(f"proxy config: {path} -> {proxy_to}")
@@ -143,7 +147,7 @@ class ClusterInfo:
                 proxy_to_svc, proxy_to_port = proxy_to.split(":")
                 paths.append(
                     client.V1HTTPIngressPath(
-                        path_type="Prefix",
+                        path_type="ImplementationSpecific",
                         path=path,
                         backend=client.V1IngressBackend(
                             service=client.V1IngressServiceBackend(
@@ -153,12 +157,16 @@ class ClusterInfo:
                         ),
                     )
                 )
+
             rules.append(client.V1IngressRule(host=host_name, http=client.V1HTTPIngressRuleValue(paths=paths)))
             spec = client.V1IngressSpec(tls=tls, rules=rules, ingress_class_name="nginx")
 
             ingress_annotations = {
                 "kubernetes.io/ingress.class": "nginx",
+                "nginx.ingress.kubernetes.io/rewrite-target": "/$2",
+                "nginx.ingress.kubernetes.io/use-regex": "true",
             }
+
             if not certificate:
                 ingress_annotations["cert-manager.io/cluster-issuer"] = http_proxy_info.get(
                     constants.cluster_issuer_key, def_cluster_issuer

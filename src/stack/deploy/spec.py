@@ -140,10 +140,15 @@ class Spec:
     def get_http_proxy(self):
         return self.obj.get(constants.network_key, {}).get(constants.http_proxy_key, [])
 
-    def clear_http_proxy(self):
+    def _clear_http_proxy(self):
         if constants.network_key in self.obj:
             if constants.http_proxy_key in self.obj[constants.network_key]:
                 del self.obj[constants.network_key][constants.http_proxy_key]
+
+    def _set_http_proxy(self, val):
+        if constants.network_key not in self.obj:
+            self.obj[constants.network_key] = {}
+        self.obj[constants.network_key][constants.http_proxy_key] = val
 
     def get_annotations(self):
         return self.obj.get(constants.annotations_key, {})
@@ -274,17 +279,6 @@ class MergedSpec(Spec):
         if self.get_kube_config() and self.get_kube_config() != other.get_kube_config():
             error_exit(f"{self.get_kube_config()} != {other.get_kube_config()} in {other.file_path}")
 
-        # Check for conflicts on HTTP proxy settings.
-        if self.get_http_proxy() and other.get_http_proxy():
-            if self.get_http_proxy() != other.get_http_proxy():
-                error_exit(
-                    "Merging HTTP proxy settings is not yet supported: "
-                    f"{self.get_http_proxy()} != {other.get_http_proxy()} in {other.file_path}"
-                )
-            else:
-                # clear ahead of merging, since it is additive and this is a list
-                self.clear_http_proxy()
-
         # Check for conflicts on pod names
         current_pods = self.get_pod_list()
         for pod in other.get_pod_list():
@@ -318,7 +312,27 @@ class MergedSpec(Spec):
                         )
                     mapped_ports[first_part] = svc_name
 
+        # Check for conflicts on HTTP proxy settings.
+        merged_proxy = None
+        if self.get_http_proxy() and other.get_http_proxy():
+            if len(self.get_http_proxy()) == 1 and len(other.get_http_proxy()) == 1:
+                our_proxy = self.get_http_proxy()[0]
+                their_proxy = other.get_http_proxy()[0]
+                if our_proxy["host-name"] != their_proxy["host-name"]:
+                    error_exit(f"Unable to merge HTTP proxy settings: {our_proxy["host-name"]} != {their_proxy["host-name"]}")
+                if our_proxy["cluster-issuer"] != their_proxy["cluster-issuer"]:
+                    error_exit(
+                        f"Unable to merge HTTP proxy settings: {our_proxy["cluster-issuer"]} != {their_proxy["cluster-issuer"]}"
+                    )
+                merged_proxy = merge(our_proxy, their_proxy, strategy=Strategy.ADDITIVE)
+                self._clear_http_proxy()
+            else:
+                error_exit("Unable to merge HTTP proxy settings.  Only one proxy is allowed per stack.")
+
         merge(self.obj, other.obj, strategy=Strategy.ADDITIVE)
+        if merged_proxy:
+            self._set_http_proxy([merged_proxy])
+
         self._specs.append(other)
 
         self.obj["stack"] = [x["stack"] for x in self._specs]
