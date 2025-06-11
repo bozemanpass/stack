@@ -170,6 +170,7 @@ def command(
 
     specs = []
     for i, stack in enumerate(required_stacks):
+        http_prefix = None
         if top_stack_config.is_super_stack():
             http_prefix = http_prefix_for(stack)
 
