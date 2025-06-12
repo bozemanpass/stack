@@ -89,7 +89,7 @@ def command(ctx, base_container, source_repo, force_rebuild, extra_build_args, t
     container_build_env["BPI_CONTAINER_BUILD_WORK_DIR"] = os.path.abspath(source_repo)
     container_build_env["BPI_CONTAINER_BUILD_CONTAINERFILE"] = os.path.join(container_build_dir,
                                                                           base_container.replace("/", "-"),
-                                                                          "Dockerfile.webapp")
+                                                                          "Containerfile.webapp")
     if not tag:
         webapp_name = os.path.abspath(source_repo).split(os.path.sep)[-1]
         tag = f"bpi/{webapp_name}:stack"
