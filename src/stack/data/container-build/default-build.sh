@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Usage: default-build.sh <image-tag> [<repo-relative-path>]
-# if <repo-relative-path> is not supplied, the context is the directory where the Dockerfile lives
+# if <repo-relative-path> is not supplied, the context is the directory where the Containerfile lives
 
 source ${BPI_CONTAINER_BASE_DIR}/build-base.sh
 
