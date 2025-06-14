@@ -1,18 +1,22 @@
 name: Clean Releases
 on:  
+  push:
+    branches:
+      - clean-test
   schedule:
     - cron: '00 1 * * *'  # At 01:00 on Mondays.
 
 env:
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  GH_REPO: bozemanpass/stack
 
 jobs:
   clean:
     name: Clean Old Releases
     runs-on: ubuntu-24.04
     steps:
-      - name: "Remove all but the last 10 releases"
+      - name: "Remove all but the last 15 releases"
         run: |
-          for release in $(gh api -X GET repos/bozemanpass/stack/releases --paginate | jq -r '.[] | .tag_name' | tail -n +10);
-            do gh release delete --cleanup-tag -y "$release"
+          for release in $(gh release list --json tagName --limit 200 | jq -r '.[] | .tagName' | tail -n +15); do
+            gh release delete --cleanup-tag -y "$release"
           done
