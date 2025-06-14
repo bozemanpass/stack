@@ -17,6 +17,6 @@ jobs:
     steps:
       - name: "Remove all but the last 15 releases"
         run: |
-          for release in $(gh release list --json tagName --limit 200 | jq -r '.[] | .tagName' | tail -n +15; do
+          for release in $(gh release list --json tagName --limit 200 | jq -r '.[] | .tagName' | tail -n +15); do
             gh release delete --cleanup-tag -y "$release"
           done
