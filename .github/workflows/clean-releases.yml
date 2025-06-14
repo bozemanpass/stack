@@ -12,8 +12,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: |
-        RELEASES_TO_DROP=$(gh api -X GET repos/bozemanpass/stack/releases --paginate | jq -r '.[] | .tag_name' | tail -n +10)
-        for release in $RELEASES_TO_DROP; do
-          echo "Deleting $release"
-          gh release delete --cleanup-tag -y "$release"
-        done
+        for release in $(gh api -X GET repos/bozemanpass/stack/releases --paginate | jq -r '.[] | .tag_name' | tail -n +10); do gh release delete --cleanup-tag -y "$release" done
