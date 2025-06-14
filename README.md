@@ -37,13 +37,15 @@ stack build containers \
     --image-registry $IMAGE_REGISTRY \
     --publish-images
 
+# set some defaults
+stack config set image-registry $IMAGE_REGISTRY
+stack config set kube-config /path/to/.kube/config
+
 # init
 stack init \
     --stack ~/bpi/example-todo-list/stacks/todo \
     --output todo.yml \
     --deploy-to k8s \
-    --image-registry $IMAGE_REGISTRY \
-    --kube-config /path/to/kubeconfig.yaml \
     --http-proxy-fqdn example-todo.bpi.servesthe.world \
     --config REACT_APP_API_URL=https://example-todo.bpi.servesthe.world/api/todos
 
