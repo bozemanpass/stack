@@ -63,7 +63,9 @@ stack manage --dir ~/deployments/todo stop
 
 ## Install
 
-**To get started quickly** on a fresh Ubuntu instance (e.g, Digital Ocean); [try this script](./scripts/quick-install-linux.sh). **WARNING:** always review scripts prior to running them so that you know what is happening on your machine.
+**To get started quickly** on a fresh Ubuntu 24.04 instance (e.g, Digital Ocean); [try this script](./scripts/quick-install-linux.sh). **WARNING:** always review scripts prior to running them so that you know what is happening on your machine.
+
+> Note: The pre-built release is intended only for Ubuntu 24.04, for other OS versions you will need to [build the package](/docs/CONTRIBUTING.md) yourself.
 
 For any other installation, follow along below and **adapt these instructions based on the specifics of your system.**
 
@@ -86,7 +88,7 @@ chmod +x ~/.docker/cli-plugins/docker-compose
 Next decide on a directory where you would like to put the stack program. Typically, this would be 
 a "user" binary directory such as `~/bin` or perhaps `/usr/local/bin/stack` or possibly just the current working directory.
 
-Now, having selected that directory, download the latest release from [this page](https://github.com/bozemanpass/stack/tags) into it (we're using `~/bin` below for concreteness but edit to suit if you selected a different directory). Also be sure that the destination directory exists and is writable:
+Now, having selected that directory, download the latest release from [this page](https://github.com/bozemanpass/stack/releses) into it (we're using `~/bin` below for concreteness but edit to suit if you selected a different directory). Also be sure that the destination directory exists and is writable:
 
 ```bash
 curl -L -o ~/bin/stack https://github.com/bozemanpass/stack/releases/latest/download/stack

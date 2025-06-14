@@ -3,6 +3,14 @@ if [[ -n "$BPI_SCRIPT_DEBUG" ]]; then
     set -x
 fi
 
+LSB_REL=`lsb_release -r | awk '{ print $2 }'`
+
+if [[ "$LSB_REL" != "24.04" ]]; then
+  echo "This script is only meant for Ubuntu 24.04"
+  echo "See https://github.com/bozemanpass/stack/blob/main/docs/CONTRIBUTING.md for manual installation on other versions."
+  exit 1
+fi
+
 install_dir=~/bin
 
 # Skip the package install stuff if so directed
