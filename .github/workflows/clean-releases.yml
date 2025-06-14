@@ -15,8 +15,8 @@ jobs:
     name: Clean Old Releases
     runs-on: ubuntu-24.04
     steps:
-      - name: "Remove all but the last 10 releases"
+      - name: "Remove all but the last 15 releases"
         run: |
-          for release in $(gh release list --json tagName --limit 200 | jq -r '.[] | .tagName' | tail -n +10); do
+          for release in $(gh release list --json tagName --limit 200 | jq -r '.[] | .tagName' | tail -n +15; do
             gh release delete --cleanup-tag -y "$release"
           done
