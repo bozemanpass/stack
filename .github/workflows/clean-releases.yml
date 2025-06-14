@@ -1,0 +1,19 @@
+name: Clean Releases
+on:  
+  schedule:
+    - cron: '00 1 * * *'  # At 01:00 on Mondays.
+
+env:
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  build:
+    name: Clean
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+        RELEASES_TO_DROP=$(gh api -X GET repos/bozemanpass/stack/releases --paginate | jq -r '.[] | .tag_name' | tail -n +10)
+        for release in $RELEASES_TO_DROP; do
+          echo "Deleting $release"
+          gh release delete --cleanup-tag -y "$release"
+        done
