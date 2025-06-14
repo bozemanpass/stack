@@ -13,6 +13,6 @@ jobs:
     steps:
       - name: "Remove all but the last 10 releases"
         run: |
-          for release in $(gh api -X GET repos/bozemanpass/stack/releases --paginate | jq -r '.[] | .tag_name' | tail -n +10);
-            do gh release delete --cleanup-tag -y "$release"
+          for release in $(gh api -X GET repos/bozemanpass/stack/releases --paginate | jq -r '.[] | .tag_name' | tail -n +10); do
+            gh release delete --cleanup-tag -y "$release"
           done
