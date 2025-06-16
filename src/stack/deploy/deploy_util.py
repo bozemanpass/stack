@@ -17,6 +17,7 @@
 from datetime import timedelta
 from typing import List, Any
 
+from stack.config.util import debug_enabled
 from stack.deploy.deploy_types import DeployCommandContext, VolumeMapping
 from stack.deploy.stack import get_parsed_stack_config
 from stack.util import (
@@ -25,6 +26,7 @@ from stack.util import (
     resolve_compose_file,
 )
 from stack.opts import opts
+
 
 TIME_UNITS = {"s": "seconds", "m": "minutes", "h": "hours", "d": "days", "w": "weeks"}
 
@@ -108,7 +110,7 @@ def run_container_command(ctx: DeployCommandContext, service: str, command: str,
     deployer = ctx.deployer
     container_image = _container_image_from_service(ctx.stack, service)
     docker_volumes = _volumes_to_docker(mounts)
-    if ctx.cluster_context.options.debug:
+    if debug_enabled():
         print(f"Running this command in {service} container: {command}")
     docker_output = deployer.run(
         container_image,

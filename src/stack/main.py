@@ -32,12 +32,14 @@ from stack import update
 from stack.webapp import webapp
 from stack.util import STACK_USE_BUILTIN_STACK
 
+from stack.src.stack.config.util import get_config_setting
+
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 
 @click.group(context_settings=CONTEXT_SETTINGS, cls=StackCLI)
-@click.option("--verbose", help="more detailed output", is_flag=True, default=False)
-@click.option("--debug", help="enable debug logging", is_flag=True, default=False)
+@click.option("--verbose", help="more detailed output", is_flag=True, default=get_config_setting("verbose", False))
+@click.option("--debug", help="enable debug logging", is_flag=True, default=get_config_setting("debug", False))
 @click.option("--stack", help="path to the stack")
 @click.option(
     "--profile", help="name of the configuration profile to use", default=os.environ.get("STACK_CONFIG_PROFILE", "config")
@@ -55,6 +57,10 @@ def cli(ctx, profile, quiet, verbose, dry_run, debug, continue_on_error, stack):
 
     if command_options.profile:
         os.environ["STACK_CONFIG_PROFILE"] = command_options.profile
+    if command_options.debug is not None:
+        os.environ["STACK_DEBUG"] = command_options.debug
+    if command_options.verbose is not None:
+        os.environ["STACK_VERBOSE"] = command_options.verbose
 
 
 cli.add_command(fetch.command, "fetch")
