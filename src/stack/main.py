@@ -58,9 +58,9 @@ def cli(ctx, profile, quiet, verbose, dry_run, debug, continue_on_error, stack):
     if command_options.profile:
         os.environ["STACK_CONFIG_PROFILE"] = command_options.profile
     if command_options.debug is not None:
-        os.environ["STACK_DEBUG"] = command_options.debug
+        os.environ["STACK_DEBUG"] = str(command_options.debug)
     if command_options.verbose is not None:
-        os.environ["STACK_VERBOSE"] = command_options.verbose
+        os.environ["STACK_VERBOSE"] = str(command_options.verbose)
 
 
 cli.add_command(fetch.command, "fetch")
