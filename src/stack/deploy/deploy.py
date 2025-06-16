@@ -312,8 +312,8 @@ def _run_command(ctx, deployment_cmd_ctx, cluster_ctx, command):
     command_dir = os.path.dirname(command)
     command_file = os.path.join(".", os.path.basename(command))
     command_env = os.environ.copy()
-    command_env["STACK__COMPOSE_PROJECT"] = cluster_ctx.cluster
-    command_env["STACK__DEPLOYMENT_DIR"] = deployment_cmd_ctx.stack
+    command_env["STACK_COMPOSE_PROJECT"] = cluster_ctx.cluster
+    command_env["STACK_DEPLOYMENT_DIR"] = deployment_cmd_ctx.stack
     if ctx.debug:
         command_env["BPI_SCRIPT_DEBUG"] = "true"
     command_result = subprocess.run(command_file, shell=True, env=command_env, cwd=command_dir)

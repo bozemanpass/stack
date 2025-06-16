@@ -14,7 +14,7 @@ fi
 install_dir=~/bin
 
 # Skip the package install stuff if so directed
-if ! [[ -n "$STACK__INSTALL_SKIP_PACKAGES" ]]; then
+if ! [[ -n "$STACK_INSTALL_SKIP_PACKAGES" ]]; then
 
 # First display a reasonable warning to the user unless run with -y
 if ! [[ $# -eq 1 && $1 == "-y" ]]; then
