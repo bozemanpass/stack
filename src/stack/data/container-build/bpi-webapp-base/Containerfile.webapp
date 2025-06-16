@@ -1,6 +1,6 @@
 FROM bpi/webapp-base:stack as builder
 
-ARG BPI_BUILD_TOOL
+ARG STACK_BUILD_TOOL
 ARG BPI_BUILD_OUTPUT_DIR
 
 WORKDIR /app

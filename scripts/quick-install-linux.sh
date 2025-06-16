@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-if [[ -n "$BPI_SCRIPT_DEBUG" ]]; then
+if [[ -n "$STACK_SCRIPT_DEBUG" ]]; then
     set -x
 fi
 
@@ -14,7 +14,7 @@ fi
 install_dir=~/bin
 
 # Skip the package install stuff if so directed
-if ! [[ -n "$BPI_SO_INSTALL_SKIP_PACKAGES" ]]; then
+if ! [[ -n "$STACK__INSTALL_SKIP_PACKAGES" ]]; then
 
 # First display a reasonable warning to the user unless run with -y
 if ! [[ $# -eq 1 && $1 == "-y" ]]; then

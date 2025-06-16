@@ -45,10 +45,10 @@ class package_registry_stack(base_stack):
     def ensure_available(self):
         self.url = "<no registry url set>"
         # Check if we were given an external registry URL
-        url_from_environment = os.environ.get("BPI_NPM_REGISTRY_URL")
+        url_from_environment = os.environ.get("STACK_NPM_REGISTRY_URL")
         if url_from_environment:
             if self.config.verbose:
-                print(f"Using package registry url from BPI_NPM_REGISTRY_URL: {url_from_environment}")
+                print(f"Using package registry url from STACK_NPM_REGISTRY_URL: {url_from_environment}")
             self.url = url_from_environment
         else:
             # Otherwise we expect to use the local package-registry stack

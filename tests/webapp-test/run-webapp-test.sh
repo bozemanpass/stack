@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-if [ -n "$BPI_SCRIPT_DEBUG" ]; then
+if [ -n "$STACK_SCRIPT_DEBUG" ]; then
   set -x
 fi
 
@@ -16,14 +16,14 @@ else
     TEST_TARGET_SO=$( ls -t1 ./package/stack* | head -1 )
 fi
 # Set a non-default repo dir
-export BPI_REPO_BASE_DIR=~/stack-test/repo-base-dir
+export STACK_REPO_BASE_DIR=~/stack-test/repo-base-dir
 echo "Testing this package: $TEST_TARGET_SO"
 echo "Test version command"
 reported_version_string=$( $TEST_TARGET_SO version )
 echo "Version reported is: ${reported_version_string}"
-echo "Cloning repositories into: $BPI_REPO_BASE_DIR"
-rm -rf $BPI_REPO_BASE_DIR
-mkdir -p $BPI_REPO_BASE_DIR
+echo "Cloning repositories into: $STACK_REPO_BASE_DIR"
+rm -rf $STACK_REPO_BASE_DIR
+mkdir -p $STACK_REPO_BASE_DIR
 git clone https://github.com/bozemanpass/test-progressive-web-app.git $BPI_REPO_BASE_DIR/test-progressive-web-app
 
 # Test webapp command execution

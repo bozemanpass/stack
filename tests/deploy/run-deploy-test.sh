@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -e
-if [ -n "$BPI_SCRIPT_DEBUG" ]; then
+if [ -n "$STACK_SCRIPT_DEBUG" ]; then
   set -x
 fi
 # Dump environment variables for debugging
@@ -86,27 +86,27 @@ echo "Running stack deploy test"
 # Bit of a hack, test the most recent package
 TEST_TARGET_SO=$( ls -t1 ./package/stack* | head -1 )
 # Set a non-default repo dir
-export BPI_REPO_BASE_DIR=~/stack-test/repo-base-dir
+export STACK_REPO_BASE_DIR=~/stack-test/repo-base-dir
 echo "Testing this package: $TEST_TARGET_SO"
 echo "Test version command"
 reported_version_string=$( $TEST_TARGET_SO version )
 echo "Version reported is: ${reported_version_string}"
-echo "Cloning repositories into: $BPI_REPO_BASE_DIR"
-rm -rf $BPI_REPO_BASE_DIR
-mkdir -p $BPI_REPO_BASE_DIR
+echo "Cloning repositories into: $STACK_REPO_BASE_DIR"
+rm -rf $STACK_REPO_BASE_DIR
+mkdir -p $STACK_REPO_BASE_DIR
 # Test bringing the test container up and down
 # with and without volume removal
 
 STACK_NAME="example-todo-list"
-STACK_PATH="$BPI_REPO_BASE_DIR/$STACK_NAME/stacks/todo"
+STACK_PATH="$STACK_REPO_BASE_DIR/$STACK_NAME/stacks/todo"
 
 $TEST_TARGET_SO fetch stack bozemanpass/$STACK_NAME
 $TEST_TARGET_SO fetch repositories --stack $STACK_PATH
 $TEST_TARGET_SO build containers --stack $STACK_PATH
 
 # Basic test of creating a deployment
-test_deployment_dir=$BPI_REPO_BASE_DIR/test-deployment-dir
-test_deployment_spec=$BPI_REPO_BASE_DIR/test-deployment-spec.yml
+test_deployment_dir=$STACK_REPO_BASE_DIR/test-deployment-dir
+test_deployment_spec=$STACK_REPO_BASE_DIR/test-deployment-spec.yml
 $TEST_TARGET_SO init --stack $STACK_PATH --output $test_deployment_spec --map-ports-to-host localhost-same
 # Check the file now exists
 if [ ! -f "$test_deployment_spec" ]; then

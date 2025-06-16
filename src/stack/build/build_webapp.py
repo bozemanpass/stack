@@ -17,7 +17,7 @@
 # Builds webapp containers
 
 # env vars:
-# BPI_REPO_BASE_DIR defaults to ~/bpi
+# STACK_REPO_BASE_DIR defaults to ~/bpi
 
 # TODO: display the available list of containers; allow re-build of either all or specific containers
 
@@ -85,16 +85,16 @@ def command(ctx, base_container, source_repo, force_rebuild, extra_build_args, t
         logger.log(f"Base container {base_container} build finished.")
 
     # Now build the target webapp.  We use the same build script, but with a different Dockerfile and work dir.
-    container_build_env["BPI_WEBAPP_BUILD_RUNNING"] = "true"
-    container_build_env["BPI_CONTAINER_BUILD_WORK_DIR"] = os.path.abspath(source_repo)
-    container_build_env["BPI_CONTAINER_BUILD_CONTAINERFILE"] = os.path.join(container_build_dir,
+    container_build_env["STACK_WEBAPP_BUILD_RUNNING"] = "true"
+    container_build_env["STACK_CONTAINER_BUILD_WORK_DIR"] = os.path.abspath(source_repo)
+    container_build_env["STACK_CONTAINER_BUILD_CONTAINERFILE"] = os.path.join(container_build_dir,
                                                                           base_container.replace("/", "-"),
                                                                           "Containerfile.webapp")
     if not tag:
         webapp_name = os.path.abspath(source_repo).split(os.path.sep)[-1]
         tag = f"bpi/{webapp_name}:stack"
 
-    container_build_env["BPI_CONTAINER_BUILD_TAG"] = tag
+    container_build_env["STACK_CONTAINER_BUILD_TAG"] = tag
 
     if verbose:
         logger.log(f"Building app container: {tag}")

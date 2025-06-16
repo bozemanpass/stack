@@ -15,7 +15,7 @@
 # along with this program.  If not, see <http:#www.gnu.org/licenses/>.
 
 # env vars:
-# BPI_REPO_BASE_DIR defaults to ~/bpi
+# STACK_REPO_BASE_DIR defaults to ~/bpi
 
 import click
 import os
@@ -52,7 +52,7 @@ class GitProgress(git.RemoteProgress):
 
 # TODO: find a place for this in the context of click
 # parser = argparse.ArgumentParser(
-#    epilog="Config provided either in .env or settings.ini or env vars: BPI_REPO_BASE_DIR (defaults to ~/bpi)"
+#    epilog="Config provided either in .env or settings.ini or env vars: STACK_REPO_BASE_DIR (defaults to ~/bpi)"
 #   )
 
 

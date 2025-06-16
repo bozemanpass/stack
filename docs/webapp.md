@@ -13,7 +13,7 @@ not their build environment.
 
 Building usually requires no additional configuration.  By default, the Next.js version specified in `package.json`
 is used, and either `yarn` or `npm` will be used automatically depending on which lock files are present.  These
-can be overidden with the build arguments `BPI_NEXT_VERSION` and `BPI_BUILD_TOOL` respectively.  For example: `--extra-build-args "--build-arg BPI_NEXT_VERSION=13.4.12"`
+can be overidden with the build arguments `STACK_NEXT_VERSION` and `STACK_BUILD_TOOL` respectively.  For example: `--extra-build-args "--build-arg STACK_NEXT_VERSION=13.4.12"`
 
 **Example**:
 ```

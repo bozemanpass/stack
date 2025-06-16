@@ -17,7 +17,7 @@
 # Builds or pulls containers for the system components
 
 # env vars:
-# BPI_REPO_BASE_DIR defaults to ~/bpi
+# STACK_REPO_BASE_DIR defaults to ~/bpi
 
 import click
 import git
@@ -55,14 +55,14 @@ BUILD_POLICIES = [
 
 
 # TODO: find a place for this
-#    epilog="Config provided either in .env or settings.ini or env vars: BPI_REPO_BASE_DIR (defaults to ~/bpi)"
+#    epilog="Config provided either in .env or settings.ini or env vars: STACK_REPO_BASE_DIR (defaults to ~/bpi)"
 
 
 def make_container_build_env(dev_root_path: str, default_container_base_dir: str, debug: bool, force_rebuild: bool, extra_build_args: str):
     container_build_env = {
-        "BPI_NPM_REGISTRY_URL": get_npm_registry_url(),
-        "BPI_GO_AUTH_TOKEN": config("BPI_GO_AUTH_TOKEN", default=""),
-        "BPI_NPM_AUTH_TOKEN": config("BPI_NPM_AUTH_TOKEN", default=""),
+        "STACK_NPM_REGISTRY_URL": get_npm_registry_url(),
+        "STACK_GO_AUTH_TOKEN": config("STACK_GO_AUTH_TOKEN", default=""),
+        "STACK_NPM_AUTH_TOKEN": config("STACK_NPM_AUTH_TOKEN", default=""),
         "BPI_REPO_BASE_DIR": dev_root_path,
         "BPI_CONTAINER_BASE_DIR": default_container_base_dir,
         "BPI_HOST_UID": f"{os.getuid()}",

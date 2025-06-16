@@ -51,7 +51,7 @@ def create_deploy_context(
     # Extract the cluster name from the deployment, if we have one
     if deployment_context and cluster is None:
         cluster = deployment_context.get_cluster_id()
-    cluster_context = _make_cluster_context(global_context, stack, include, exclude, cluster, env_file)
+    cluster_context = _make_cluster_contextget_dev_root_pathget_dev_root_path(global_context, stack, include, exclude, cluster, env_file)
     deployer = getDeployer(
         deploy_to,
         deployment_context,
@@ -201,10 +201,10 @@ def get_stack_status(ctx, stack):
 
 def _make_runtime_env(ctx):
     container_exec_env = {
-        "BPI_HOST_UID": f"{os.getuid()}",
-        "BPI_HOST_GID": f"{os.getgid()}",
+        "STACK_HOST_UID": f"{os.getuid()}",
+        "STACK_HOST_GID": f"{os.getgid()}",
     }
-    container_exec_env.update({"BPI_SCRIPT_DEBUG": "true"} if ctx.debug else {})
+    container_exec_env.update({"STACK_SCRIPT_DEBUG": "true"} if ctx.debug else {})
     return container_exec_env
 
 
@@ -312,8 +312,8 @@ def _run_command(ctx, deployment_cmd_ctx, cluster_ctx, command):
     command_dir = os.path.dirname(command)
     command_file = os.path.join(".", os.path.basename(command))
     command_env = os.environ.copy()
-    command_env["BPI_SO_COMPOSE_PROJECT"] = cluster_ctx.cluster
-    command_env["BPI_SO_DEPLOYMENT_DIR"] = deployment_cmd_ctx.stack
+    command_env["STACK__COMPOSE_PROJECT"] = cluster_ctx.cluster
+    command_env["STACK__DEPLOYMENT_DIR"] = deployment_cmd_ctx.stack
     if ctx.debug:
         command_env["BPI_SCRIPT_DEBUG"] = "true"
     command_result = subprocess.run(command_file, shell=True, env=command_env, cwd=command_dir)

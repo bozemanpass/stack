@@ -1,6 +1,6 @@
 FROM bpi/nextjs-base:stack
 
-ARG BPI_NEXT_VERSION=keep
+ARG STACK_NEXT_VERSION=keep
 ARG BPI_BUILD_TOOL
 
 WORKDIR /app

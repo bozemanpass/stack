@@ -49,8 +49,8 @@ def get_stack_path(stack):
     return stack_path
 
 
-def get_dev_root_path(ctx):
-    dev_root_path = os.path.expanduser(config("BPI_REPO_BASE_DIR", default="~/bpi"))
+def get_dev_root_path():
+    dev_root_path = os.path.expanduser(config("STACK_REPO_BASE_DIR", default="~/.stack/repos"))
     return dev_root_path
 
 

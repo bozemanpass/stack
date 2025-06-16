@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Build bpi/nextjs-base
 
-source ${BPI_CONTAINER_BASE_DIR}/build-base.sh
+source ${STACK_CONTAINER_BASE_DIR}/build-base.sh
 
 # See: https://stackoverflow.com/a/246128/1701505
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
-BPI_CONTAINER_BUILD_WORK_DIR=${BPI_CONTAINER_BUILD_WORK_DIR:-$SCRIPT_DIR}
+STACK_CONTAINER_BUILD_WORK_DIR=${STACK_CONTAINER_BUILD_WORK_DIR:-$SCRIPT_DIR}
 BPI_CONTAINER_BUILD_CONTAINERFILE=${BPI_CONTAINER_BUILD_CONTAINERFILE:-$SCRIPT_DIR/Containerfile}
 BPI_CONTAINER_BUILD_TAG=${BPI_CONTAINER_BUILD_TAG:-bpi/nextjs-base:stack}
 
