@@ -103,7 +103,7 @@ def get_pod_file_path(stack, parsed_stack, pod_name: str):
         for pod in pods:
             if pod["name"] == pod_name:
                 pod_root_dir = os.path.join(
-                    get_dev_root_path(None),
+                    get_dev_root_path(),
                     pod.get("repository", parsed_stack.get_repo_name()).split("@")[0].split("/")[-1],
                     pod["path"],
                 )
@@ -118,7 +118,7 @@ def get_pod_script_paths(parsed_stack, pod_name: str):
         for pod in pods:
             if pod["name"] == pod_name:
                 pod_root_dir = os.path.join(
-                    get_dev_root_path(None),
+                    get_dev_root_path(),
                     pod.get("repository", parsed_stack.get_repo_name()).split("@")[0].split("/")[-1],
                     pod.get("path", "."),
                 )

@@ -253,7 +253,7 @@ class Stack:
                 result.add(get_stack_path(self.name))
             else:
                 pod_root_dir = os.path.join(
-                    get_dev_root_path(None),
+                    get_dev_root_path(),
                     pod.get("repository", self.get_repo_name()).split("@")[0].split("/")[-1],
                     pod.get("path", "."),
                 )
@@ -291,7 +291,7 @@ def get_pod_file_path(stack, pod_name: str):
         for pod in pods:
             if pod["name"] == pod_name:
                 pod_root_dir = os.path.join(
-                    get_dev_root_path(None),
+                    get_dev_root_path(),
                     pod.get("repository", stack.get_repo_name()).split("@")[0].split("/")[-1],
                     pod.get("path", "."),
                 )
@@ -300,4 +300,4 @@ def get_pod_file_path(stack, pod_name: str):
 
 
 def determine_fs_path_for_stack(stack_ref, stack_path):
-    return Path(os.path.sep.join([get_dev_root_path(None), os.path.basename(stack_ref), stack_path]))
+    return Path(os.path.sep.join([get_dev_root_path(), os.path.basename(stack_ref), stack_path]))
