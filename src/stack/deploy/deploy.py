@@ -315,7 +315,7 @@ def _run_command(ctx, deployment_cmd_ctx, cluster_ctx, command):
     command_env["STACK_COMPOSE_PROJECT"] = cluster_ctx.cluster
     command_env["STACK_DEPLOYMENT_DIR"] = deployment_cmd_ctx.stack
     if ctx.debug:
-        command_env["BPI_SCRIPT_DEBUG"] = "true"
+        command_env["STACK_SCRIPT_DEBUG"] = "true"
     command_result = subprocess.run(command_file, shell=True, env=command_env, cwd=command_dir)
     if command_result.returncode != 0:
         print(f"FATAL Error running command: {command}")

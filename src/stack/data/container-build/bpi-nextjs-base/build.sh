@@ -7,10 +7,10 @@ source ${STACK_CONTAINER_BASE_DIR}/build-base.sh
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 STACK_CONTAINER_BUILD_WORK_DIR=${STACK_CONTAINER_BUILD_WORK_DIR:-$SCRIPT_DIR}
-BPI_CONTAINER_BUILD_CONTAINERFILE=${BPI_CONTAINER_BUILD_CONTAINERFILE:-$SCRIPT_DIR/Containerfile}
-BPI_CONTAINER_BUILD_TAG=${BPI_CONTAINER_BUILD_TAG:-bpi/nextjs-base:stack}
+STACK_CONTAINER_BUILD_CONTAINERFILE=${STACK_CONTAINER_BUILD_CONTAINERFILE:-$SCRIPT_DIR/Containerfile}
+STACK_CONTAINER_BUILD_TAG=${STACK_CONTAINER_BUILD_TAG:-bpi/nextjs-base:stack}
 
-docker build -t $BPI_CONTAINER_BUILD_TAG ${build_command_args} -f $BPI_CONTAINER_BUILD_CONTAINERFILE $BPI_CONTAINER_BUILD_WORK_DIR
+docker build -t $STACK_CONTAINER_BUILD_TAG ${build_command_args} -f $STACK_CONTAINER_BUILD_CONTAINERFILE $STACK_CONTAINER_BUILD_WORK_DIR
 rc=$?
 
 if [ $rc -ne 0 ]; then
@@ -18,18 +18,18 @@ if [ $rc -ne 0 ]; then
   exit $rc
 fi
 
-if [ "$BPI_CONTAINER_BUILD_TAG" != "bpi/nextjs-base:stack" ]; then
+if [ "$STACK_CONTAINER_BUILD_TAG" != "bpi/nextjs-base:stack" ]; then
   cat <<EOF
 
 #################################################################
 
-Built host container for $BPI_CONTAINER_BUILD_WORK_DIR with tag:
+Built host container for $STACK_CONTAINER_BUILD_WORK_DIR with tag:
 
-    $BPI_CONTAINER_BUILD_TAG
+    $STACK_CONTAINER_BUILD_TAG
 
 To test locally run:
 
-    stack webapp run --image $BPI_CONTAINER_BUILD_TAG --config-file /path/to/environment.env
+    stack webapp run --image $STACK_CONTAINER_BUILD_TAG --config-file /path/to/environment.env
 
 EOF
 fi

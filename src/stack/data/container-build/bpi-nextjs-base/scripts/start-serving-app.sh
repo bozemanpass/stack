@@ -5,7 +5,7 @@ fi
 
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-BPI_MAX_GENERATE_TIME=${BPI_MAX_GENERATE_TIME:-120}
+STACK_MAX_GENERATE_TIME=${STACK_MAX_GENERATE_TIME:-120}
 tpid=""
 
 ctrl_c() {
@@ -14,27 +14,27 @@ ctrl_c() {
 
 trap ctrl_c INT
 
-BPI_BUILD_TOOL="${BPI_BUILD_TOOL}"
-if [ -z "$BPI_BUILD_TOOL" ]; then
+STACK_BUILD_TOOL="${STACK_BUILD_TOOL}"
+if [ -z "$STACK_BUILD_TOOL" ]; then
   if [ -f "pnpm-lock.yaml" ]; then
-    BPI_BUILD_TOOL=pnpm
+    STACK_BUILD_TOOL=pnpm
   elif [ -f "yarn.lock" ]; then
-    BPI_BUILD_TOOL=yarn
+    STACK_BUILD_TOOL=yarn
   elif [ -f "bun.lockb" ]; then
-    BPI_BUILD_TOOL=bun
+    STACK_BUILD_TOOL=bun
   else
-    BPI_BUILD_TOOL=npm
+    STACK_BUILD_TOOL=npm
   fi
 fi
 
-BPI_WEBAPP_FILES_DIR="${BPI_WEBAPP_FILES_DIR:-/app}"
-cd "$BPI_WEBAPP_FILES_DIR"
+STACK_WEBAPP_FILES_DIR="${STACK_WEBAPP_FILES_DIR:-/app}"
+cd "$STACK_WEBAPP_FILES_DIR"
 
 "$SCRIPT_DIR/apply-runtime-env.sh" "`pwd`" .next .next-r
 mv .next .next.old
 mv .next-r/.next .
 
-if [ "$BPI_NEXTJS_SKIP_GENERATE" != "true" ]; then
+if [ "$STACK_NEXTJS_SKIP_GENERATE" != "true" ]; then
   jq -e '.scripts.bpi_generate' package.json >/dev/null
   if [ $? -eq 0 ]; then
     npm run bpi_generate > gen.out 2>&1 &
@@ -43,7 +43,7 @@ if [ "$BPI_NEXTJS_SKIP_GENERATE" != "true" ]; then
 
     count=0
     generate_done="false"
-    while [ $count -lt $BPI_MAX_GENERATE_TIME ] && [ "$generate_done" == "false" ]; do
+    while [ $count -lt $STACK_MAX_GENERATE_TIME ] && [ "$generate_done" == "false" ]; do
       sleep 1
       count=$((count + 1))
       grep 'rendered as static' gen.out > /dev/null
@@ -53,7 +53,7 @@ if [ "$BPI_NEXTJS_SKIP_GENERATE" != "true" ]; then
     done
 
     if [ $generate_done != "true" ]; then
-      echo "ERROR: 'npm run bpi_generate' not successful within BPI_MAX_GENERATE_TIME" 1>&2
+      echo "ERROR: 'npm run bpi_generate' not successful within STACK_MAX_GENERATE_TIME" 1>&2
       exit 1
     fi
 
@@ -62,4 +62,4 @@ if [ "$BPI_NEXTJS_SKIP_GENERATE" != "true" ]; then
   fi
 fi
 
-$BPI_BUILD_TOOL start . -- -p ${BPI_LISTEN_PORT:-80}
+$STACK_BUILD_TOOL start . -- -p ${STACK_LISTEN_PORT:-80}

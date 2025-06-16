@@ -46,19 +46,40 @@ def save_config(config):
 
 
 def get_config_setting(key, default=None):
+    ret = _get_from_env(key)
+    if ret is None:
+        ret = _get_from_file(key)
+
+    if ret is None:
+        return default
+    return ret
+
+def _get_from_env(key):
+    key = key.upper().replace("-", "_")
+    if not key.startswith("STACK_"):
+        key = "STACK_" + key
+    return os.environ.get(key, None)
+
+def _get_from_file(key):
+    key = key.lower().replace("_", "-")
+    if key.startswith("stack-"):
+        key = key[6:]
     config = get_config()
 
     parts = key.split(".")
     if len(parts) == 1:
-        return config.get(key, default)
+        return config.get(key, None)
 
     for i in range(len(parts)):
         part = parts[i]
         if i == len(parts) - 1:
-            return config.get(part, default)
+            return config.get(part, None)
         else:
             config = config.get(part, {})
             if is_primitive(config):
-                return default
+                return None
 
-    return default
+    return None
+
+def get_dev_root_path():
+    return get_config_setting("repo-base-dir", os.path.expanduser(config("STACK_REPO_BASE_DIR", default="~/.stack/repos")))

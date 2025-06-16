@@ -19,11 +19,12 @@ import os.path
 import sys
 import ruamel.yaml
 
-from decouple import config
 from pathlib import Path
 from dotenv import dotenv_values
 from typing import Mapping
+from stack.config.util import get_config_setting
 from stack.constants import deployment_file_name, compose_file_prefix
+
 
 STACK_USE_BUILTIN_STACK = "true" == os.environ.get("STACK_USE_BUILTIN_STACK", "false")
 
@@ -49,11 +50,6 @@ def get_stack_path(stack):
     return stack_path
 
 
-def get_dev_root_path():
-    dev_root_path = os.path.expanduser(config("STACK_REPO_BASE_DIR", default="~/.stack/repos"))
-    return dev_root_path
-
-
 def get_pod_list(parsed_stack):
     # Handle both old and new format
     pods = parsed_stack["pods"]
@@ -77,7 +73,6 @@ def resolve_config_dir(stack, config_dir_name: str):
             return proposed_dir
         # If we don't find it fall through to the internal case
     config_base = get_internal_config_dir()
-    return config_base.joinpath(config_dir_name)
 
 
 # Find a compose file, looking first in any external stack

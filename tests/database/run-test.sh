@@ -76,7 +76,7 @@ $TEST_TARGET_SO fetch repositories --stack ${stack}
 $TEST_TARGET_SO build containers --stack ${stack}
 # Test basic stack deploy to k8s
 test_deployment_dir=$STACK_REPO_BASE_DIR/${deployment_dir}
-test_deployment_spec=$BPI_REPO_BASE_DIR/${spec_file}
+test_deployment_spec=$STACK_REPO_BASE_DIR/${spec_file}
 
 $TEST_TARGET_SO --stack ${stack} deploy --deploy-to k8s-kind init --output $test_deployment_spec
 # Check the file now exists

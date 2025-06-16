@@ -8,21 +8,21 @@ STACK_MIN_NEXTVER=13.4.2
 STACK_DEFAULT_WEBPACK_VER="5.93.0"
 
 STACK_NEXTJS_VERSION="${STACK_NEXTJS_VERSION:-keep}"
-STACK_WEBPACK_VERSION="${BPI_WEBPACK_VERSION:-keep}"
+STACK_WEBPACK_VERSION="${STACK_WEBPACK_VERSION:-keep}"
 
-BPI_BUILD_TOOL_INSTALL_SUBCOMMAND="${BPI_BUILD_TOOL_INSTALL_SUBCOMMAND:-install}"
+STACK_BUILD_TOOL_INSTALL_SUBCOMMAND="${STACK_BUILD_TOOL_INSTALL_SUBCOMMAND:-install}"
 
-BPI_BUILD_TOOL="${BPI_BUILD_TOOL}"
-if [ -z "$BPI_BUILD_TOOL" ]; then
+STACK_BUILD_TOOL="${STACK_BUILD_TOOL}"
+if [ -z "$STACK_BUILD_TOOL" ]; then
   if [ -f "pnpm-lock.yaml" ]; then
-    BPI_BUILD_TOOL=pnpm
+    STACK_BUILD_TOOL=pnpm
   elif [ -f "yarn.lock" ]; then
-    BPI_BUILD_TOOL=yarn
+    STACK_BUILD_TOOL=yarn
   elif [ -f "bun.lockb" ]; then
-    BPI_BUILD_TOOL=bun
+    STACK_BUILD_TOOL=bun
   else
-    BPI_BUILD_TOOL=npm
-    BPI_BUILD_TOOL_BUILD_SUBCOMMAND="run build"
+    STACK_BUILD_TOOL=npm
+    STACK_BUILD_TOOL_BUILD_SUBCOMMAND="run build"
   fi
 fi
 
@@ -85,14 +85,14 @@ let envMap;
 try {
   // .env-list.json provides us a list of identifiers which should be replaced at runtime.
   envMap = require('./.env-list.json').reduce((a, v) => {
-    a[v] = \`"BPI_RUNTIME_ENV_\${v.split(/\./).pop()}"\`;
+    a[v] = \`"STACK_RUNTIME_ENV_\${v.split(/\./).pop()}"\`;
     return a;
   }, {});
 } catch (e) {
   console.error(e);
   // If .env-list.json cannot be loaded, we are probably running in dev mode, so use process.env instead.
   envMap = Object.keys(process.env).reduce((a, v) => {
-    if (v.startsWith('BPI_')) {
+    if (v.startsWith('STACK_')) {
       a[\`process.env.\${v}\`] = JSON.stringify(process.env[v]);
     }
     return a;
@@ -181,9 +181,9 @@ fi
 
 CUR_NEXT_VERSION="`jq -r '.dependencies.next' package.json`"
 
-if [ "$BPI_NEXT_VERSION" != "keep" ] && [ "$CUR_NEXT_VERSION" != "$BPI_NEXT_VERSION" ]; then
-  echo "Changing 'next' version specifier from '$CUR_NEXT_VERSION' to '$BPI_NEXT_VERSION' (set with '--extra-build-args \"--build-arg BPI_NEXT_VERSION=$BPI_NEXT_VERSION\"')"
-  cat package.json | jq ".dependencies.next = \"$BPI_NEXT_VERSION\"" > package.json.$$
+if [ "$STACK_NEXT_VERSION" != "keep" ] && [ "$CUR_NEXT_VERSION" != "$STACK_NEXT_VERSION" ]; then
+  echo "Changing 'next' version specifier from '$CUR_NEXT_VERSION' to '$STACK_NEXT_VERSION' (set with '--extra-build-args \"--build-arg STACK_NEXT_VERSION=$STACK_NEXT_VERSION\"')"
+  cat package.json | jq ".dependencies.next = \"$STACK_NEXT_VERSION\"" > package.json.$$
   mv package.json.$$ package.json
 fi
 
@@ -191,16 +191,16 @@ CUR_WEBPACK_VERSION="`jq -r '.dependencies.webpack' package.json`"
 if [ -z "$CUR_WEBPACK_VERSION" ]; then
   CUR_WEBPACK_VERSION="`jq -r '.devDependencies.webpack' package.json`"
 fi
-if [ "${BPI_WEBPACK_VERSION}" != "keep" ] || [ "${CUR_WEBPACK_VERSION}" == "null" ]; then
-  if [ -z "$BPI_WEBPACK_VERSION" ] || [ "$BPI_WEBPACK_VERSION" == "keep" ]; then
-    BPI_WEBPACK_VERSION="${BPI_DEFAULT_WEBPACK_VER}"
+if [ "${STACK_WEBPACK_VERSION}" != "keep" ] || [ "${CUR_WEBPACK_VERSION}" == "null" ]; then
+  if [ -z "$STACK_WEBPACK_VERSION" ] || [ "$STACK_WEBPACK_VERSION" == "keep" ]; then
+    STACK_WEBPACK_VERSION="${STACK_DEFAULT_WEBPACK_VER}"
   fi
-  echo "Webpack is required for env variable substitution.  Adding to webpack@$BPI_WEBPACK_VERSION to dependencies..." 1>&2
-  cat package.json | jq ".dependencies.webpack = \"$BPI_WEBPACK_VERSION\"" > package.json.$$
+  echo "Webpack is required for env variable substitution.  Adding to webpack@$STACK_WEBPACK_VERSION to dependencies..." 1>&2
+  cat package.json | jq ".dependencies.webpack = \"$STACK_WEBPACK_VERSION\"" > package.json.$$
   mv package.json.$$ package.json
 fi
 
-time $BPI_BUILD_TOOL $BPI_BUILD_TOOL_INSTALL_SUBCOMMAND || exit 1
+time $STACK_BUILD_TOOL $STACK_BUILD_TOOL_INSTALL_SUBCOMMAND || exit 1
 
 CUR_NEXT_VERSION=`jq -r '.version' node_modules/next/package.json`
 
@@ -208,39 +208,39 @@ CUR_NEXT_VERSION=`jq -r '.version' node_modules/next/package.json`
 semver -p -r ">=14.2.0" "$CUR_NEXT_VERSION"
 if [ $? -eq 0 ]; then
   # For >= 14.2.0
-  BPI_NEXT_COMPILE_COMMAND="next build --experimental-build-mode compile"
-  BPI_NEXT_GENERATE_COMMAND="next build --experimental-build-mode generate"
+  STACK_NEXT_COMPILE_COMMAND="next build --experimental-build-mode compile"
+  STACK_NEXT_GENERATE_COMMAND="next build --experimental-build-mode generate"
 else
   # For 13.4.2 to 14.1.x
-  BPI_NEXT_COMPILE_COMMAND="next experimental-compile"
-  BPI_NEXT_GENERATE_COMMAND="next experimental-generate"
+  STACK_NEXT_COMPILE_COMMAND="next experimental-compile"
+  STACK_NEXT_GENERATE_COMMAND="next experimental-generate"
 fi
 
-cat package.json | jq ".scripts.bpi_compile = \"$BPI_NEXT_COMPILE_COMMAND\"" | jq ".scripts.bpi_generate = \"$BPI_NEXT_GENERATE_COMMAND\"" > package.json.$$
+cat package.json | jq ".scripts.bpi_compile = \"$STACK_NEXT_COMPILE_COMMAND\"" | jq ".scripts.bpi_generate = \"$STACK_NEXT_GENERATE_COMMAND\"" > package.json.$$
 mv package.json.$$ package.json
 
-semver -p -r ">=$BPI_MIN_NEXTVER" $CUR_NEXT_VERSION
+semver -p -r ">=$STACK_MIN_NEXTVER" $CUR_NEXT_VERSION
 if [ $? -ne 0 ]; then
   cat <<EOF
 
 ###############################################################################
 
-WARNING: 'next' $CUR_NEXT_VERSION < minimum version $BPI_MIN_NEXTVER.
+WARNING: 'next' $CUR_NEXT_VERSION < minimum version $STACK_MIN_NEXTVER.
 
-Attempting to build with '^$BPI_MIN_NEXTVER'.  If this fails, you should upgrade
+Attempting to build with '^$STACK_MIN_NEXTVER'.  If this fails, you should upgrade
 the dependency in your webapp, or specify an explicit 'next' version
 to use for the build with:
 
-     --extra-build-args "--build-arg BPI_NEXT_VERSION=<version>"
+     --extra-build-args "--build-arg STACK_NEXT_VERSION=<version>"
 
 ###############################################################################
 
 EOF
-  cat package.json | jq ".dependencies.next = \"^$BPI_MIN_NEXTVER\"" > package.json.$$
+  cat package.json | jq ".dependencies.next = \"^$STACK_MIN_NEXTVER\"" > package.json.$$
   mv package.json.$$ package.json
-  time $BPI_BUILD_TOOL $BPI_BUILD_TOOL_INSTALL_SUBCOMMAND || exit 1
+  time $STACK_BUILD_TOOL $STACK_BUILD_TOOL_INSTALL_SUBCOMMAND || exit 1
 fi
 
-time $BPI_BUILD_TOOL run bpi_compile || exit 1
+time $STACK_BUILD_TOOL run bpi_compile || exit 1
 
 exit 0

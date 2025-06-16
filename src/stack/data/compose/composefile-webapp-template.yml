@@ -3,6 +3,6 @@ services:
     image: bpi/webapp-container:stack
     restart: always
     environment:
-      BPI_SCRIPT_DEBUG: ${BPI_SCRIPT_DEBUG}
+      STACK_SCRIPT_DEBUG: ${STACK_SCRIPT_DEBUG}
     ports:
       - "80"

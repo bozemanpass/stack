@@ -23,6 +23,6 @@ fi
 docker build -t ${image_tag} \
   --file $STACK_CONTAINER_BUILD_CONTAINERFILE \
   --build-arg STACK_HOST_UID=${STACK_HOST_UID} \
-  --build-arg BPI_HOST_GID=${BPI_HOST_GID} \
+  --build-arg STACK_HOST_GID=${STACK_HOST_GID} \
   ${build_command_args} \
   ${build_dir}

@@ -17,8 +17,8 @@ if ! [[ -d ${webapp_files_dir} ]]; then
     exit 1
 fi
 # First some magic using yq to translate our yaml config file into an array of key value pairs like:
-# BPI_HOSTED_CONFIG_<path-through-objects>=<value>
-readarray -t config_kv_pair_array < <( yq '.. | ([path | join("_"), .] | join("=") )' ${config_file_name} | sort -r | sed -e '$ d' | sed 's/^/BPI_HOSTED_CONFIG_/' )
+# STACK_HOSTED_CONFIG_<path-through-objects>=<value>
+readarray -t config_kv_pair_array < <( yq '.. | ([path | join("_"), .] | join("=") )' ${config_file_name} | sort -r | sed -e '$ d' | sed 's/^/STACK_HOSTED_CONFIG_/' )
 declare -p config_kv_pair_array
 # Then iterate over that kv array making the template substitution in our web app files
 for kv_pair_string in "${config_kv_pair_array[@]}"
@@ -26,7 +26,7 @@ do
     kv_pair=(${kv_pair_string//=/ })
     template_string_to_replace=${kv_pair[0]}
     template_value_to_substitute=${kv_pair[1]}
-    template_value_to_substitute_expanded=${template_value_to_substitute//BPI_HOSTED_ENDPOINT/${BPI_HOSTED_ENDPOINT}}
+    template_value_to_substitute_expanded=${template_value_to_substitute//STACK_HOSTED_ENDPOINT/${STACK_HOSTED_ENDPOINT}}
     # Run find and sed to do the substitution of one variable over all files
     # See: https://stackoverflow.com/a/21479607/1701505
     echo "Substituting: ${template_string_to_replace} = ${template_value_to_substitute_expanded}"

@@ -25,7 +25,6 @@ import os
 import subprocess
 import sys
 
-from decouple import config
 from pathlib import Path
 
 from python_on_whales import DockerClient
@@ -61,18 +60,18 @@ BUILD_POLICIES = [
 def make_container_build_env(dev_root_path: str, default_container_base_dir: str, debug: bool, force_rebuild: bool, extra_build_args: str):
     container_build_env = {
         "STACK_NPM_REGISTRY_URL": get_npm_registry_url(),
-        "STACK_GO_AUTH_TOKEN": config("STACK_GO_AUTH_TOKEN", default=""),
-        "STACK_NPM_AUTH_TOKEN": config("STACK_NPM_AUTH_TOKEN", default=""),
-        "BPI_REPO_BASE_DIR": dev_root_path,
-        "BPI_CONTAINER_BASE_DIR": default_container_base_dir,
-        "BPI_HOST_UID": f"{os.getuid()}",
-        "BPI_HOST_GID": f"{os.getgid()}",
-        "BPI_IMAGE_LOCAL_TAG": "stack",
-        "DOCKER_BUILDKIT": config("DOCKER_BUILDKIT", default="0"),
+        "STACK_GO_AUTH_TOKEN": get_config_setting("STACK_GO_AUTH_TOKEN", default=""),
+        "STACK_NPM_AUTH_TOKEN": get_config_setting("STACK_NPM_AUTH_TOKEN", default=""),
+        "STACK_REPO_BASE_DIR": dev_root_path,
+        "STACK_CONTAINER_BASE_DIR": default_container_base_dir,
+        "STACK_HOST_UID": f"{os.getuid()}",
+        "STACK_HOST_GID": f"{os.getgid()}",
+        "STACK_IMAGE_LOCAL_TAG": "stack",
+        "DOCKER_BUILDKIT": os.environ.get("DOCKER_BUILDKIT", default="0"),
     }
-    container_build_env.update({"BPI_SCRIPT_DEBUG": "true"} if debug else {})
-    container_build_env.update({"BPI_FORCE_REBUILD": "true"} if force_rebuild else {})
-    container_build_env.update({"BPI_CONTAINER_EXTRA_BUILD_ARGS": extra_build_args} if extra_build_args else {})
+    container_build_env.update({"STACK_SCRIPT_DEBUG": "true"} if debug else {})
+    container_build_env.update({"STACK_FORCE_REBUILD": "true"} if force_rebuild else {})
+    container_build_env.update({"STACK_CONTAINER_EXTRA_BUILD_ARGS": extra_build_args} if extra_build_args else {})
     docker_host_env = os.getenv("DOCKER_HOST")
     if docker_host_env:
         container_build_env.update({"DOCKER_HOST": docker_host_env})
@@ -85,7 +84,7 @@ def process_container(build_context: BuildContext) -> bool:
         print(f"Building: {build_context.container.name}:stack")
 
     default_container_tag = f"{build_context.container.name}:stack"
-    build_context.container_build_env.update({"BPI_DEFAULT_CONTAINER_IMAGE_TAG": default_container_tag})
+    build_context.container_build_env.update({"STACK_DEFAULT_CONTAINER_IMAGE_TAG": default_container_tag})
 
     build_dir = None
     build_script_filename = None
@@ -129,7 +128,7 @@ def process_container(build_context: BuildContext) -> bool:
             + f" {default_container_tag} {repo_dir_or_build_dir}"
         )
 
-    build_context.container_build_env["BPI_IMAGE_NAME"] = build_context.container.name
+    build_context.container_build_env["STACK_IMAGE_NAME"] = build_context.container.name
     if not opts.o.dry_run:
         # No PATH at all causes failures with podman.
         if "PATH" not in build_context.container_build_env:

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-if [ -n "$BPI_SCRIPT_DEBUG" ]; then
+if [ -n "$STACK_SCRIPT_DEBUG" ]; then
   set -x
 fi
 
@@ -33,20 +33,20 @@ for d in /data /data2; do
   fi
 done
 
-if [ -n "$BPI_TEST_PARAM_1" ]; then
-  echo "Test-param-1: ${BPI_TEST_PARAM_1}"
+if [ -n "$STACK_TEST_PARAM_1" ]; then
+  echo "Test-param-1: ${STACK_TEST_PARAM_1}"
 fi
-if [ -n "$BPI_TEST_PARAM_2" ]; then
-  echo "Test-param-2: ${BPI_TEST_PARAM_2}"
+if [ -n "$STACK_TEST_PARAM_2" ]; then
+  echo "Test-param-2: ${STACK_TEST_PARAM_2}"
 fi
-if [ -n "$BPI_TEST_PARAM_3" ]; then
-  echo "Test-param-3: ${BPI_TEST_PARAM_3}"
+if [ -n "$STACK_TEST_PARAM_3" ]; then
+  echo "Test-param-3: ${STACK_TEST_PARAM_3}"
 fi
-if [ -n "$BPI_TEST_PARAM_4" ]; then
-  echo "Test-param-4: ${BPI_TEST_PARAM_4}"
+if [ -n "$STACK_TEST_PARAM_4" ]; then
+  echo "Test-param-4: ${STACK_TEST_PARAM_4}"
 fi
-if [ -n "$BPI_TEST_PARAM_5" ]; then
-  echo "Test-param-5: ${BPI_TEST_PARAM_5}"
+if [ -n "$STACK_TEST_PARAM_5" ]; then
+  echo "Test-param-5: ${STACK_TEST_PARAM_5}"
 fi
 
 if [ -d "/config" ]; then

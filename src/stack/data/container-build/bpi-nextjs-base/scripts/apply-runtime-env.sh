@@ -8,16 +8,16 @@ WORK_DIR="${1:-./}"
 SRC_DIR="${2:-.next}"
 TRG_DIR="${3:-.next-r}"
 
-BPI_BUILD_TOOL="${BPI_BUILD_TOOL}"
-if [ -z "$BPI_BUILD_TOOL" ]; then
+STACK_BUILD_TOOL="${STACK_BUILD_TOOL}"
+if [ -z "$STACK_BUILD_TOOL" ]; then
   if [ -f "pnpm-lock.yaml" ]; then
-    BPI_BUILD_TOOL=pnpm
+    STACK_BUILD_TOOL=pnpm
   elif [ -f "yarn.lock" ]; then
-    BPI_BUILD_TOOL=yarn
+    STACK_BUILD_TOOL=yarn
   elif [ -f "bun.lockb" ]; then
-    BPI_BUILD_TOOL=bun
+    STACK_BUILD_TOOL=bun
   else
-    BPI_BUILD_TOOL=npm
+    STACK_BUILD_TOOL=npm
   fi
 fi
 
@@ -38,11 +38,11 @@ if [ -f ".env" ]; then
 fi
 
 for f in $(find . -type f \( -regex '.*.html?' -or -regex ".*.[tj]s\(x\|on\)?$" \) | grep -v 'node_modules' | grep -v '.git'); do
-  for e in $(cat "${f}" | tr -s '[:blank:]' '\n' | tr -s '["/\\{},();]' '\n' | tr -s "[']" '\n' | egrep -o -e '^BPI_RUNTIME_ENV_.+$' -e '^BPI_HOSTED_CONFIG_.+$'); do
+  for e in $(cat "${f}" | tr -s '[:blank:]' '\n' | tr -s '["/\\{},();]' '\n' | tr -s "[']" '\n' | egrep -o -e '^STACK_RUNTIME_ENV_.+$' -e '^STACK_HOSTED_CONFIG_.+$'); do
     orig_name=$(echo -n "${e}" | sed 's/"//g')
-    cur_name=$(echo -n "${orig_name}" | sed 's/BPI_RUNTIME_ENV_//g')
+    cur_name=$(echo -n "${orig_name}" | sed 's/STACK_RUNTIME_ENV_//g')
     cur_val=$(echo -n "\$${cur_name}" | envsubst)
-    if [ "$BPI_RETAIN_ENV_QUOTES" != "true" ]; then
+    if [ "$STACK_RETAIN_ENV_QUOTES" != "true" ]; then
       cur_val=$(sed "s/^[\"']//" <<< "$cur_val" | sed "s/[\"']//")
     fi
     esc_val=$(sed 's/[&/\]/\\&/g' <<< "$cur_val")

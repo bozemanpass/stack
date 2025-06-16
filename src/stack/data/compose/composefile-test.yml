@@ -3,10 +3,10 @@ services:
     image: bpi/test-container:stack
     restart: always
     environment:
-      BPI_SCRIPT_DEBUG: ${BPI_SCRIPT_DEBUG}
-      BPI_TEST_PARAM_1: ${BPI_TEST_PARAM_1:-FAILED}
-      BPI_TEST_PARAM_2: "BPI_TEST_PARAM_2_VALUE"
-      BPI_TEST_PARAM_3: ${BPI_TEST_PARAM_3:-FAILED}
+      STACK_SCRIPT_DEBUG: ${STACK_SCRIPT_DEBUG}
+      STACK_TEST_PARAM_1: ${STACK_TEST_PARAM_1:-FAILED}
+      STACK_TEST_PARAM_2: "STACK_TEST_PARAM_2_VALUE"
+      STACK_TEST_PARAM_3: ${STACK_TEST_PARAM_3:-FAILED}
     volumes:
       - test-data-bind:/data
       - test-data-auto:/data2

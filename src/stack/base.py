@@ -15,9 +15,10 @@
 # along with this program.  If not, see <http:#www.gnu.org/licenses/>.
 
 import os
+
 from abc import ABC, abstractmethod
+from stack.config.util import get_config_setting
 from stack.deploy.deploy import get_stack_status
-from decouple import config
 
 
 def get_stack(config, stack):
@@ -64,7 +65,7 @@ class package_registry_stack(base_stack):
                 # If not, print a message about how to start it and return fail to the caller
                 print(
                     "ERROR: The package-registry stack is not running, and no external registry "
-                    "specified with BPI_NPM_REGISTRY_URL"
+                    "specified with STACK_NPM_REGISTRY_URL"
                 )
                 print("ERROR: Start the local package registry with: stack --stack package-registry deploy up")
                 return False
@@ -79,7 +80,7 @@ def get_npm_registry_url():
     # If an auth token is defined, we assume the local gitea should be used.
     default_npm_registry_url = (
         "http://gitea.local:3000/api/packages/bozemanpass/npm/"
-        if config("BPI_NPM_AUTH_TOKEN", default=None)
+        if get_config_setting("BPI_NPM_AUTH_TOKEN", default=None)
         else "https://git.vdb.to/api/packages/bozemanpass/npm/"
     )
-    return config("BPI_NPM_REGISTRY_URL", default=default_npm_registry_url)
+    return get_config_setting("STACK_NPM_REGISTRY_URL", default=default_npm_registry_url)
