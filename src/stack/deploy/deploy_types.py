@@ -16,13 +16,11 @@
 
 from typing import List, Mapping
 from dataclasses import dataclass
-from stack.command_types import CommandOptions
 from stack.deploy.deployer import Deployer
 
 
 @dataclass
 class ClusterContext:
-    options: CommandOptions  # TODO: this should be in its own object not stuffed in here
     cluster: str
     compose_files: List[str]
     pre_start_commands: List[str]

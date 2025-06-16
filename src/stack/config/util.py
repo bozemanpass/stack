@@ -108,3 +108,11 @@ def _get_from_file(key):
 
 def get_dev_root_path():
     return get_config_setting("STACK_REPO_BASE_DIR")
+
+
+def debug_enabled():
+    return get_config_setting("STACK_DEBUG", False)
+
+
+def verbose_enabled():
+    return get_config_setting("STACK_VERBOSE", False)
