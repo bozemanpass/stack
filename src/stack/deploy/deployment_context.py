@@ -15,12 +15,10 @@
 # along with this program.  If not, see <http:#www.gnu.org/licenses/>.
 
 import glob
-import hashlib
-import os
 from pathlib import Path
 
 from stack import constants
-from stack.util import get_yaml
+from stack.util import get_yaml, error_exit
 from stack.deploy.spec import Spec
 
 
@@ -56,11 +54,5 @@ class DeploymentContext:
             with deployment_file_path:
                 obj = get_yaml().load(open(deployment_file_path, "r"))
                 self.id = obj[constants.cluster_id_key]
-        # Handle the case of a legacy deployment with no file
-        # Code below is intended to match the output from _make_default_cluster_name()
-        # TODO: remove when we no longer need to support legacy deployments
         else:
-            path = os.path.realpath(os.path.abspath(self.get_compose_dir()))
-            unique_cluster_descriptor = f"{path},{self.get_spec_file()},None,None"
-            hash = hashlib.md5(unique_cluster_descriptor.encode()).hexdigest()[:16]
-            self.id = f"{constants.cluster_name_prefix}{hash}"
+            error_exit(f"Missing {deployment_file_path}")

@@ -23,10 +23,10 @@ containers:
     #   - container.yml descriptor file (more info below)
     #   - build.sh build script
     #        The result of execution should be a local image tagged `<name>:stack`.  The exact tag is available
-    #        in the script build environment under ${BPI_DEFAULT_CONTAINER_IMAGE_TAG}.
+    #        in the script build environment under ${STACK_DEFAULT_CONTAINER_IMAGE_TAG}.
     #   - Dockerfile
     #        The container will be built using the Dockerfile in this directory similar to:
-    #             docker build -t ${BPI_DEFAULT_CONTAINER_IMAGE_TAG} .
+    #             docker build -t ${STACK_DEFAULT_CONTAINER_IMAGE_TAG} .
     path: ./act-runner
   - name: bpi/gitea
     ref: bozemanpass/gitea-containers
@@ -39,8 +39,8 @@ pods:
     path: ./gitea
     # An (optional) command to run just _before_ the pod starts. The command is executed on the host, and the location
     # is relative to the `path` specified above.  The deployment directory will be set in the environment under
-    # ${BPI_SO_DEPLOYMENT_DIR}, allowing a script to execute commands _inside_ the service containers with: 
-    #     stack manage --dir ${BPI_SO_DEPLOYMENT_DIR} exec <service> <command>
+    # ${STACK_DEPLOYMENT_DIR}, allowing a script to execute commands _inside_ the service containers with: 
+    #     stack manage --dir ${STACK_DEPLOYMENT_DIR} exec <service> <command>
     pre_start_command: "run-this-first.sh"
     # Similar to pre_start_command, but executed _after_ the pod starts.
     post_start_command: "initialize-gitea.sh"

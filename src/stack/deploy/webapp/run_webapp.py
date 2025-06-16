@@ -17,7 +17,7 @@
 # Builds webapp containers
 
 # env vars:
-# BPI_REPO_BASE_DIR defaults to ~/bpi
+# STACK_REPO_BASE_DIR defaults to ~/bpi
 
 # TODO: display the available list of containers; allow re-build of either all or specific containers
 

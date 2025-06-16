@@ -15,7 +15,7 @@
 # along with this program.  If not, see <http:#www.gnu.org/licenses/>.
 
 # env vars:
-# BPI_REPO_BASE_DIR defaults to ~/bpi
+# STACK_REPO_BASE_DIR defaults to ~/bpi
 
 import click
 import os
@@ -27,13 +27,12 @@ from tqdm import tqdm
 
 from stack import constants
 from stack.build.build_util import get_containers_in_scope, host_and_path_for_repo, branch_strip
-from stack.config.util import get_config_setting
+from stack.config.util import get_config_setting, get_dev_root_path
 from stack.deploy.stack import get_parsed_stack_config
 from stack.opts import opts
 from stack.util import (
     is_git_repo,
     check_if_stack_exists,
-    get_dev_root_path,
     include_exclude_check,
     error_exit,
 )
@@ -52,7 +51,7 @@ class GitProgress(git.RemoteProgress):
 
 # TODO: find a place for this in the context of click
 # parser = argparse.ArgumentParser(
-#    epilog="Config provided either in .env or settings.ini or env vars: BPI_REPO_BASE_DIR (defaults to ~/bpi)"
+#    epilog="Config provided either in .env or settings.ini or env vars: STACK_REPO_BASE_DIR (defaults to ~/bpi)"
 #   )
 
 
@@ -200,7 +199,7 @@ def command(ctx, stack, include, exclude, git_ssh, check_only, pull, branches):
     if stack_config.is_super_stack():
         for stack_refs in stack_config.get_required_stacks():
             try:
-                repo_path = process_repo(pull, check_only, git_ssh, get_dev_root_path(ctx), None, stack_refs[constants.ref_key])
+                repo_path = process_repo(pull, check_only, git_ssh, get_dev_root_path(), None, stack_refs[constants.ref_key])
             except git.exc.GitCommandError as error:
                 error_exit(f"\n******* git command returned error exit status:\n{error}")
             required_stacks.append(os.path.sep.join([repo_path, stack_refs[constants.path_key]]))
@@ -216,7 +215,7 @@ def command(ctx, stack, include, exclude, git_ssh, check_only, pull, branches):
         if branches_array and verbose:
             print(f"Branches are: {branches_array}")
 
-        dev_root_path = get_dev_root_path(ctx)
+        dev_root_path = get_dev_root_path()
 
         if not quiet:
             print(f"Dev Root is: {dev_root_path}")

@@ -24,10 +24,10 @@ import subprocess
 from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
+from stack.config.util import get_dev_root_path
 from stack.constants import compose_file_prefix
 from stack.util import (
     include_exclude_check,
-    get_dev_root_path,
     stack_is_in_deployment,
     resolve_compose_file,
 )
@@ -201,16 +201,16 @@ def get_stack_status(ctx, stack):
 
 def _make_runtime_env(ctx):
     container_exec_env = {
-        "BPI_HOST_UID": f"{os.getuid()}",
-        "BPI_HOST_GID": f"{os.getgid()}",
+        "STACK_HOST_UID": f"{os.getuid()}",
+        "STACK_HOST_GID": f"{os.getgid()}",
     }
-    container_exec_env.update({"BPI_SCRIPT_DEBUG": "true"} if ctx.debug else {})
+    container_exec_env.update({"STACK_SCRIPT_DEBUG": "true"} if ctx.debug else {})
     return container_exec_env
 
 
 # stack has to be either PathLike pointing to a stack yml file, or a string with the name of a known stack
 def _make_cluster_context(ctx, stack, include, exclude, cluster, env_file):
-    dev_root_path = get_dev_root_path(ctx)
+    dev_root_path = get_dev_root_path()
 
     # TODO: hack, this should be encapsulated by the deployment context.
     deployment = stack_is_in_deployment(stack)
@@ -312,10 +312,10 @@ def _run_command(ctx, deployment_cmd_ctx, cluster_ctx, command):
     command_dir = os.path.dirname(command)
     command_file = os.path.join(".", os.path.basename(command))
     command_env = os.environ.copy()
-    command_env["BPI_SO_COMPOSE_PROJECT"] = cluster_ctx.cluster
-    command_env["BPI_SO_DEPLOYMENT_DIR"] = deployment_cmd_ctx.stack
+    command_env["STACK_COMPOSE_PROJECT"] = cluster_ctx.cluster
+    command_env["STACK_DEPLOYMENT_DIR"] = deployment_cmd_ctx.stack
     if ctx.debug:
-        command_env["BPI_SCRIPT_DEBUG"] = "true"
+        command_env["STACK_SCRIPT_DEBUG"] = "true"
     command_result = subprocess.run(command_file, shell=True, env=command_env, cwd=command_dir)
     if command_result.returncode != 0:
         print(f"FATAL Error running command: {command}")

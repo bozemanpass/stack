@@ -1,6 +1,6 @@
 #!/bin/bash
 
-if [ -n "$BPI_SCRIPT_DEBUG" ]; then
+if [ -n "$STACK_SCRIPT_DEBUG" ]; then
     set -x
 fi
 
@@ -20,6 +20,6 @@ for d in $(find . -maxdepth 1 -type d | grep -v '\./\.' | grep '/' | cut -d'/' -
   done
 done
 
-cat $TMPF | sed 's/^process\.env\.\(.*\)$/export \1=BPI_RUNTIME_ENV_\1/g'
+cat $TMPF | sed 's/^process\.env\.\(.*\)$/export \1=STACK_RUNTIME_ENV_\1/g'
 
 rm -f $TMPF

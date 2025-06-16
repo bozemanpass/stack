@@ -19,11 +19,11 @@ import os.path
 import sys
 import ruamel.yaml
 
-from decouple import config
 from pathlib import Path
 from dotenv import dotenv_values
 from typing import Mapping
 from stack.constants import deployment_file_name, compose_file_prefix
+
 
 STACK_USE_BUILTIN_STACK = "true" == os.environ.get("STACK_USE_BUILTIN_STACK", "false")
 
@@ -47,11 +47,6 @@ def get_stack_path(stack):
         # See: https://stackoverflow.com/questions/25389095/python-get-path-of-root-project-structure
         stack_path = Path(__file__).absolute().parent.joinpath("data", "stacks", stack)
     return stack_path
-
-
-def get_dev_root_path(ctx):
-    dev_root_path = os.path.expanduser(config("BPI_REPO_BASE_DIR", default="~/bpi"))
-    return dev_root_path
 
 
 def get_pod_list(parsed_stack):
@@ -92,52 +87,6 @@ def resolve_compose_file(stack, pod_name: str):
         # If we don't find it fall through to the internal case
     compose_base = get_internal_compose_file_dir()
     return compose_base.joinpath(f"{compose_file_prefix}-{pod_name}.yml")
-
-
-def get_pod_file_path(stack, parsed_stack, pod_name: str):
-    result = None
-    pods = parsed_stack["pods"]
-    if type(pods[0]) is str:
-        result = resolve_compose_file(stack, pod_name)
-    else:
-        for pod in pods:
-            if pod["name"] == pod_name:
-                pod_root_dir = os.path.join(
-                    get_dev_root_path(None),
-                    pod.get("repository", parsed_stack.get_repo_name()).split("@")[0].split("/")[-1],
-                    pod["path"],
-                )
-                result = os.path.join(pod_root_dir, "{compose_file_prefix}.yml")
-    return result
-
-
-def get_pod_script_paths(parsed_stack, pod_name: str):
-    pods = parsed_stack["pods"]
-    result = []
-    if not type(pods[0]) is str:
-        for pod in pods:
-            if pod["name"] == pod_name:
-                pod_root_dir = os.path.join(
-                    get_dev_root_path(None),
-                    pod.get("repository", parsed_stack.get_repo_name()).split("@")[0].split("/")[-1],
-                    pod.get("path", "."),
-                )
-                if "pre_start_command" in pod:
-                    result.append(os.path.join(pod_root_dir, pod["pre_start_command"]))
-                if "post_start_command" in pod:
-                    result.append(os.path.join(pod_root_dir, pod["post_start_command"]))
-    return result
-
-
-def pod_has_scripts(parsed_stack, pod_name: str):
-    pods = parsed_stack["pods"]
-    if type(pods[0]) is str:
-        result = False
-    else:
-        for pod in pods:
-            if pod["name"] == pod_name:
-                result = "pre_start_command" in pod or "post_start_command" in pod
-    return result
 
 
 def get_internal_compose_file_dir():

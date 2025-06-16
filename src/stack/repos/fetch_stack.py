@@ -15,7 +15,7 @@
 # along with this program.  If not, see <http:#www.gnu.org/licenses/>.
 
 # env vars:
-# BPI_REPO_BASE_DIR defaults to ~/bpi
+# STACK_REPO_BASE_DIR defaults to ~/bpi
 
 
 import click
@@ -23,10 +23,10 @@ import click
 from git import exc
 
 from stack.build.build_util import host_and_path_for_repo
-from stack.config.util import get_config_setting
+from stack.config.util import get_config_setting, get_dev_root_path
 from stack.opts import opts
 from stack.repos.setup_repositories import process_repo
-from stack.util import error_exit, get_dev_root_path
+from stack.util import error_exit
 
 
 @click.command()
@@ -37,7 +37,7 @@ from stack.util import error_exit, get_dev_root_path
 @click.pass_context
 def command(ctx, stack_locator, git_ssh, check_only, pull):
     """clone a stack repository"""
-    dev_root_path = get_dev_root_path(ctx)
+    dev_root_path = get_dev_root_path()
     if not opts.o.quiet:
         print(f"Dev Root is: {dev_root_path}")
 

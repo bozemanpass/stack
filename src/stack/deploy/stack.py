@@ -22,12 +22,12 @@ from pathlib import Path
 from typing import Set, List
 
 from stack import constants
+from stack.config.util import get_dev_root_path
 from stack.util import (
     get_yaml,
     get_stack_path,
     is_git_repo,
     error_exit,
-    get_dev_root_path,
     resolve_compose_file,
 )
 
@@ -253,7 +253,7 @@ class Stack:
                 result.add(get_stack_path(self.name))
             else:
                 pod_root_dir = os.path.join(
-                    get_dev_root_path(None),
+                    get_dev_root_path(),
                     pod.get("repository", self.get_repo_name()).split("@")[0].split("/")[-1],
                     pod.get("path", "."),
                 )
@@ -291,7 +291,7 @@ def get_pod_file_path(stack, pod_name: str):
         for pod in pods:
             if pod["name"] == pod_name:
                 pod_root_dir = os.path.join(
-                    get_dev_root_path(None),
+                    get_dev_root_path(),
                     pod.get("repository", stack.get_repo_name()).split("@")[0].split("/")[-1],
                     pod.get("path", "."),
                 )
@@ -300,4 +300,33 @@ def get_pod_file_path(stack, pod_name: str):
 
 
 def determine_fs_path_for_stack(stack_ref, stack_path):
-    return Path(os.path.sep.join([get_dev_root_path(None), os.path.basename(stack_ref), stack_path]))
+    return Path(os.path.sep.join([get_dev_root_path(), os.path.basename(stack_ref), stack_path]))
+
+
+def get_pod_script_paths(parsed_stack, pod_name: str):
+    pods = parsed_stack["pods"]
+    result = []
+    if not type(pods[0]) is str:
+        for pod in pods:
+            if pod["name"] == pod_name:
+                pod_root_dir = os.path.join(
+                    get_dev_root_path(),
+                    pod.get("repository", parsed_stack.get_repo_name()).split("@")[0].split("/")[-1],
+                    pod.get("path", "."),
+                )
+                if "pre_start_command" in pod:
+                    result.append(os.path.join(pod_root_dir, pod["pre_start_command"]))
+                if "post_start_command" in pod:
+                    result.append(os.path.join(pod_root_dir, pod["post_start_command"]))
+    return result
+
+
+def pod_has_scripts(parsed_stack, pod_name: str):
+    pods = parsed_stack["pods"]
+    if type(pods[0]) is str:
+        result = False
+    else:
+        for pod in pods:
+            if pod["name"] == pod_name:
+                result = "pre_start_command" in pod or "post_start_command" in pod
+    return result
