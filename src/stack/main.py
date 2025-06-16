@@ -23,6 +23,7 @@ from stack.command_types import CommandOptions
 from stack.repos import fetch
 from stack.build import build
 from stack.config import config
+from stack.config.util import get_config_setting
 from stack.init import init
 from stack.deploy import deployment_create
 from stack import version
@@ -32,7 +33,6 @@ from stack import update
 from stack.webapp import webapp
 from stack.util import STACK_USE_BUILTIN_STACK
 
-from stack.src.stack.config.util import get_config_setting
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
