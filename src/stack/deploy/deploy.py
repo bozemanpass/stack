@@ -285,7 +285,6 @@ def _make_cluster_context(ctx, stack, include, exclude, cluster, env_file):
         print(f"files: {compose_files}")
 
     return ClusterContext(
-        ctx,
         cluster,
         compose_files,
         pre_start_commands,
