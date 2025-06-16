@@ -53,16 +53,29 @@ def get_config_setting(key, default=None):
     if key.startswith("stack-"):
         key = key[6:]
 
+    # Check environment first
     ret = _get_from_env(key)
+
+    # Next check file
     if ret is None:
         ret = _get_from_file(key)
 
+    # Last check defaults
     if ret is None:
+        # But only if we didn't get a default already
         if default is None:
             ret = _DEFAULTS.get(key, None)
 
-    if ret and str(ret).startswith("~/"):
-        ret = os.path.expanduser(str(ret))
+    if ret is not None:
+        # If it is a ~/ path, expand it.
+        if str(ret).startswith("~/"):
+            ret = os.path.expanduser(str(ret))
+        # And parse a boolean if it is a string.
+        if str(ret).lower() in ["true", "false"]:
+            ret = str(ret).lower() == "true"
+
+    if ret is None:
+        return default
 
     return ret
 
