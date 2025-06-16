@@ -72,6 +72,7 @@ def resolve_config_dir(stack, config_dir_name: str):
             return proposed_dir
         # If we don't find it fall through to the internal case
     config_base = get_internal_config_dir()
+    return config_base.joinpath(config_dir_name)
 
 
 # Find a compose file, looking first in any external stack
