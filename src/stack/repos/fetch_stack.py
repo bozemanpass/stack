@@ -23,10 +23,10 @@ import click
 from git import exc
 
 from stack.build.build_util import host_and_path_for_repo
-from stack.config.util import get_config_setting
+from stack.config.util import get_config_setting, get_dev_root_path
 from stack.opts import opts
 from stack.repos.setup_repositories import process_repo
-from stack.util import error_exit, get_dev_root_path
+from stack.util import error_exit
 
 
 @click.command()

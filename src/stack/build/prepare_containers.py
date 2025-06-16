@@ -30,7 +30,7 @@ from pathlib import Path
 from python_on_whales import DockerClient
 
 from stack import constants
-from stack.config.util import get_config_setting
+from stack.config.util import get_config_setting, get_dev_root_path
 from stack.base import get_npm_registry_url
 from stack.build.build_types import BuildContext
 from stack.build.build_util import ContainerSpec, get_containers_in_scope, container_exists_locally, container_exists_remotely, local_container_arch, host_and_path_for_repo, image_registry_for_repo
@@ -39,7 +39,7 @@ from stack.constants import container_file_name, container_lock_file_name, stack
 from stack.deploy.stack import Stack, get_parsed_stack_config
 from stack.opts import opts
 from stack.repos.setup_repositories import fs_path_for_repo, process_repo
-from stack.util import get_dev_root_path, include_exclude_check, stack_is_external, error_exit, get_yaml, check_if_stack_exists
+from stack.util import include_exclude_check, stack_is_external, error_exit, get_yaml, check_if_stack_exists
 
 docker = DockerClient()
 

@@ -19,6 +19,9 @@ from pathlib import Path
 from stack.util import get_yaml, is_primitive
 
 
+_DEFAULTS = {"repo-base-dir": "~/.stack/repos"}
+
+
 def get_config_dir():
     return Path(os.path.expanduser("~/.stack"))
 
@@ -46,13 +49,23 @@ def save_config(config):
 
 
 def get_config_setting(key, default=None):
+    key = key.lower().replace("_", "-")
+    if key.startswith("stack-"):
+        key = key[6:]
+
     ret = _get_from_env(key)
     if ret is None:
         ret = _get_from_file(key)
 
     if ret is None:
-        return default
+        if default is None:
+            ret = _DEFAULTS.get(key, None)
+
+    if ret and str(ret).startswith("~/"):
+        ret = os.path.expanduser(str(ret))
+
     return ret
+
 
 def _get_from_env(key):
     key = key.upper().replace("-", "_")
@@ -60,10 +73,8 @@ def _get_from_env(key):
         key = "STACK_" + key
     return os.environ.get(key, None)
 
+
 def _get_from_file(key):
-    key = key.lower().replace("_", "-")
-    if key.startswith("stack-"):
-        key = key[6:]
     config = get_config()
 
     parts = key.split(".")
@@ -81,5 +92,6 @@ def _get_from_file(key):
 
     return None
 
+
 def get_dev_root_path():
-    return get_config_setting("repo-base-dir", os.path.expanduser(config("STACK_REPO_BASE_DIR", default="~/.stack/repos")))
+    return get_config_setting("STACK_REPO_BASE_DIR")

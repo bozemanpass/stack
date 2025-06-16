@@ -30,9 +30,9 @@ from pathlib import Path
 from stack.build import prepare_containers
 from stack.build.build_types import BuildContext
 from stack.build.build_util import ContainerSpec
+from stack.config.util import get_dev_root_path
 from stack.deploy.stack import Stack
 from stack.deploy.webapp.util import determine_base_container, TimedLogger
-from stack.util import get_dev_root_path
 
 
 

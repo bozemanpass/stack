@@ -27,13 +27,12 @@ from tqdm import tqdm
 
 from stack import constants
 from stack.build.build_util import get_containers_in_scope, host_and_path_for_repo, branch_strip
-from stack.config.util import get_config_setting
+from stack.config.util import get_config_setting, get_dev_root_path
 from stack.deploy.stack import get_parsed_stack_config
 from stack.opts import opts
 from stack.util import (
     is_git_repo,
     check_if_stack_exists,
-    get_dev_root_path,
     include_exclude_check,
     error_exit,
 )

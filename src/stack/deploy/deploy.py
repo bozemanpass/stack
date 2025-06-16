@@ -24,10 +24,10 @@ import subprocess
 from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
+from stack.config.util import get_dev_root_path
 from stack.constants import compose_file_prefix
 from stack.util import (
     include_exclude_check,
-    get_dev_root_path,
     stack_is_in_deployment,
     resolve_compose_file,
 )
