@@ -54,7 +54,7 @@ def command(ctx, base_container, source_repo, force_rebuild, extra_build_args, t
     # See: https://stackoverflow.com/questions/25389095/python-get-path-of-root-project-structure
     container_build_dir = Path(__file__).absolute().parent.parent.joinpath("data", "container-build")
 
-    dev_root_path = get_dev_root_path(ctx)
+    dev_root_path = get_dev_root_path()
 
     if verbose:
         logger.log(f'Dev Root is: {dev_root_path}')

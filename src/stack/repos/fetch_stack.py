@@ -37,7 +37,7 @@ from stack.util import error_exit, get_dev_root_path
 @click.pass_context
 def command(ctx, stack_locator, git_ssh, check_only, pull):
     """clone a stack repository"""
-    dev_root_path = get_dev_root_path(ctx)
+    dev_root_path = get_dev_root_path()
     if not opts.o.quiet:
         print(f"Dev Root is: {dev_root_path}")
 

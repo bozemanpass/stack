@@ -166,7 +166,7 @@ def command(ctx, stack, include, exclude, git_ssh, build_policy, extra_build_arg
         stack = ctx.obj.stack_path
     check_if_stack_exists(stack)
 
-    dev_root_path = get_dev_root_path(ctx)
+    dev_root_path = get_dev_root_path()
 
     stack_config = get_parsed_stack_config(stack)
     required_stacks = stack_config.get_required_stacks_paths()

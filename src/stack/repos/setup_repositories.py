@@ -200,7 +200,7 @@ def command(ctx, stack, include, exclude, git_ssh, check_only, pull, branches):
     if stack_config.is_super_stack():
         for stack_refs in stack_config.get_required_stacks():
             try:
-                repo_path = process_repo(pull, check_only, git_ssh, get_dev_root_path(ctx), None, stack_refs[constants.ref_key])
+                repo_path = process_repo(pull, check_only, git_ssh, get_dev_root_path(), None, stack_refs[constants.ref_key])
             except git.exc.GitCommandError as error:
                 error_exit(f"\n******* git command returned error exit status:\n{error}")
             required_stacks.append(os.path.sep.join([repo_path, stack_refs[constants.path_key]]))
@@ -216,7 +216,7 @@ def command(ctx, stack, include, exclude, git_ssh, check_only, pull, branches):
         if branches_array and verbose:
             print(f"Branches are: {branches_array}")
 
-        dev_root_path = get_dev_root_path(ctx)
+        dev_root_path = get_dev_root_path()
 
         if not quiet:
             print(f"Dev Root is: {dev_root_path}")

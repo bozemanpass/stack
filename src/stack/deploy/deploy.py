@@ -51,7 +51,7 @@ def create_deploy_context(
     # Extract the cluster name from the deployment, if we have one
     if deployment_context and cluster is None:
         cluster = deployment_context.get_cluster_id()
-    cluster_context = _make_cluster_contextget_dev_root_pathget_dev_root_path(global_context, stack, include, exclude, cluster, env_file)
+    cluster_context = _make_cluster_context(global_context, stack, include, exclude, cluster, env_file)
     deployer = getDeployer(
         deploy_to,
         deployment_context,
@@ -210,7 +210,7 @@ def _make_runtime_env(ctx):
 
 # stack has to be either PathLike pointing to a stack yml file, or a string with the name of a known stack
 def _make_cluster_context(ctx, stack, include, exclude, cluster, env_file):
-    dev_root_path = get_dev_root_path(ctx)
+    dev_root_path = get_dev_root_path()
 
     # TODO: hack, this should be encapsulated by the deployment context.
     deployment = stack_is_in_deployment(stack)
