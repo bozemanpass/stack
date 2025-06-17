@@ -63,9 +63,7 @@ stack manage --dir ~/deployments/todo stop
 
 ## Install
 
-**To get started quickly** on a fresh Ubuntu 24.04 instance (e.g, Digital Ocean); [try this script](./scripts/quick-install-linux.sh). **WARNING:** always review scripts prior to running them so that you know what is happening on your machine.
-
-> Note: The pre-built release is intended only for Ubuntu 24.04, for other OS versions you will need to [build the package](/docs/CONTRIBUTING.md) yourself.
+**To get started quickly** on a fresh Ubuntu instance (e.g, Digital Ocean); [try this script](./scripts/quick-install-linux.sh). **WARNING:** always review scripts prior to running them so that you know what is happening on your machine.
 
 For any other installation, follow along below and **adapt these instructions based on the specifics of your system.**
 
