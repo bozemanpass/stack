@@ -109,7 +109,12 @@ def get_containers_in_scope(stack: str):
 
 def container_exists_locally(tag):
     docker = DockerClient()
-    return docker.image.exists(tag)
+    try:
+        return docker.image.exists(tag)
+    except Exception as e:
+        if "image not known" in str(e):
+            return False
+        raise e
 
 
 def container_exists_remotely(tag, registries=None, arch=None):
