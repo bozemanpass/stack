@@ -5,12 +5,11 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "stack"
 version = "2.0.1"
-authors = [{name="David Boreham", email="david@bozemanpass.com" }]
+authors = [{name="David Boreham", email="david@bozemanpass.com" }, {name="Thomas E Lackey", email="telackey@bozemanpass.com"}]
 description = ""
 readme = "README.md"
 dependencies = [
     "click",
-    "python-decouple",
     "python-dotenv",
     "GitPython",
     "tqdm",
@@ -21,7 +20,6 @@ dependencies = [
     "validators",
     "kubernetes",
     "humanfriendly",
-    "python-gnupg",
     "requests",
     "expandvars",
     "mergedeep",

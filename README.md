@@ -67,7 +67,6 @@ stack manage --dir ~/deployments/todo stop
 
 For any other installation, follow along below and **adapt these instructions based on the specifics of your system.**
 
-
 Ensure that the following are already installed:
 
 - [Python3](https://wiki.python.org/moin/BeginnersGuide/Download): `python3 --version` >= `3.8.10` (the Python3 shipped in Ubuntu 20+ is good to go)
