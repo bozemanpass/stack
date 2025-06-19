@@ -22,6 +22,7 @@ import ruamel.yaml
 from pathlib import Path
 from dotenv import dotenv_values
 from typing import Mapping
+
 from stack.constants import deployment_file_name, compose_file_prefix
 
 
@@ -123,10 +124,16 @@ def get_parsed_deployment_spec(spec_file):
         sys.exit(1)
 
 
-def stack_is_external(stack: str):
+def stack_is_external(stack):
     # Bit of a hack: if the supplied stack string represents
     # a path that exists then we assume it must be external
-    return Path(stack).exists() if stack is not None else False
+    if isinstance(stack, Path):
+        return stack.exists()
+    elif isinstance(stack, str):
+        return Path(stack).exists()
+    elif stack:  # a Stac
+        return stack.file_path.exists()
+    return False
 
 
 def stack_is_in_deployment(stack: Path):
