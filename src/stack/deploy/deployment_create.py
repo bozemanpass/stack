@@ -119,8 +119,8 @@ def _fixup_pod_file(pod, spec, compose_dir):
                 pod["services"][container_name]["ports"] = container_ports
 
 
-def _commands_plugin_paths(stack_name: str):
-    plugin_paths = get_plugin_code_paths(stack_name)
+def _commands_plugin_paths(stack: str):
+    plugin_paths = get_plugin_code_paths(stack)
     ret = [p.joinpath("deploy", "commands.py") for p in plugin_paths]
     return ret
 
@@ -158,7 +158,7 @@ def call_stack_deploy_create(deploy_command_context, deployment_context):
         stacks = [spec.load_stack()]
 
     for stack in stacks:
-        python_file_paths = _commands_plugin_paths(stack.name)
+        python_file_paths = _commands_plugin_paths(stack)
         for python_file_path in python_file_paths:
             if python_file_path.exists():
                 spec = util.spec_from_file_location("commands", python_file_path)

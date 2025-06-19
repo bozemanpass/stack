@@ -268,14 +268,19 @@ class Stack:
 
 # Caller can pass either the name of a stack, or a path to a stack file
 def get_parsed_stack_config(stack):
+    if isinstance(stack, Stack):
+        return stack
+
     stack_file_path = get_stack_path(stack).joinpath(constants.stack_file_name)
     if stack_file_path.exists():
         return Stack(stack).init_from_file(stack_file_path)
+
     # We try here to generate a useful diagnostic error
     # First check if the stack directory is present
     if stack_file_path.parent.exists():
         error_exit(f"{constants.stack_file_name} file is missing from: {stack}")
-    raise Exception(f"stack {stack} does not exist")
+
+    error_exit(f"stack {stack} does not exist")
 
 
 def get_plugin_code_paths(stack) -> List[Path]:
