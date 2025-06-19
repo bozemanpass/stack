@@ -24,6 +24,7 @@ import git
 
 from git.exc import GitCommandError
 from tqdm import tqdm
+from pathlib import Path
 
 from stack import constants
 from stack.build.build_util import get_containers_in_scope, host_and_path_for_repo, branch_strip
@@ -78,7 +79,7 @@ def _get_repo_current_branch_or_tag(full_filesystem_repo_path):
 def fs_path_for_repo(fully_qualified_repo, dev_root_path):
     repo_host, repo_path, repo_branch = host_and_path_for_repo(fully_qualified_repo)
     repoName = repo_path.split("/")[-1]
-    return os.path.join(dev_root_path, repoName)
+    return Path(os.path.join(dev_root_path, repoName))
 
 
 # TODO: fix the messy arg list here

@@ -38,7 +38,7 @@ class Stack:
     obj: typing.Any
     repo_path: Path
 
-    def __init__(self, name: str) -> None:
+    def __init__(self, name: str = None) -> None:
         self.name = str(name)
         self.obj = {}
         self.file_path = None
@@ -65,6 +65,7 @@ class Stack:
         if isinstance(file_path, str):
             file_path = Path(file_path)
         self.obj = get_yaml().load(open(file_path, "rt"))
+        self.name = self.obj.get("name", self.name)
         self.file_path = file_path.absolute()
         self._determine_repo_path()
         return self
