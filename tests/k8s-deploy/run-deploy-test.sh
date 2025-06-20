@@ -141,18 +141,17 @@ mkdir -p $STACK_REPO_BASE_DIR
 # Test bringing the test container up and down
 # with and without volume removal
 
-STACK_NAME="example-todo-list"
-STACK_PATH="$STACK_REPO_BASE_DIR/$STACK_NAME/stacks/todo"
+STACK_NAME="todo"
 
-$TEST_TARGET_SO fetch stack bozemanpass/$STACK_NAME
-$TEST_TARGET_SO fetch repositories --stack $STACK_PATH
-$TEST_TARGET_SO build containers --stack $STACK_PATH
+$TEST_TARGET_SO fetch stack bozemanpass/example-todo-list
+$TEST_TARGET_SO fetch repositories --stack $STACK_NAME
+$TEST_TARGET_SO build containers --stack $STACK_NAME
 
 # Basic test of creating a deployment
 test_deployment_dir=$STACK_REPO_BASE_DIR/test-deployment-dir
 test_deployment_spec=$STACK_REPO_BASE_DIR/test-deployment-spec.yml
 $TEST_TARGET_SO init --deploy-to k8s-kind \
-  --stack $STACK_PATH \
+  --stack $STACK_NAME \
   --output $test_deployment_spec \
   --http-proxy-fqdn localhost \
   --config REACT_APP_API_URL=http://localhost/api/todos
