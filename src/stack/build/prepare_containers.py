@@ -92,10 +92,11 @@ def process_container(build_context: BuildContext) -> bool:
     build_script_filename = None
 
     # Check if this is in an external stack
-    if stack_is_external(build_context.stack.name):
+    if stack_is_external(build_context.stack):
         if build_context.container.build:
             build_script_filename = Path(build_context.container.file_path).parent.joinpath(build_context.container.build)
             build_dir = build_script_filename.parent
+            build_context.container_build_env["STACK_BUILD_DIR"] = build_dir
         else:
             container_build_script_dir = Path(build_context.stack.name).parent.parent.joinpath("container-build")
             if os.path.exists(container_build_script_dir):
@@ -107,12 +108,14 @@ def process_container(build_context: BuildContext) -> bool:
                     container_build_script_dir = build_context.default_container_base_dir
                 build_dir = container_build_script_dir.joinpath(build_context.container.name.replace("/", "-"))
                 build_script_filename = build_dir.joinpath("build.sh")
+                build_context.container_build_env["STACK_BUILD_DIR"] = build_dir
     if not build_dir:
         build_dir = build_context.default_container_base_dir.joinpath(build_context.container.name.replace("/", "-"))
         build_script_filename = build_dir.joinpath("build.sh")
 
     if opts.o.verbose:
         print(f"Build script filename: {build_script_filename}")
+
     if os.path.exists(build_script_filename):
         build_command = build_script_filename.as_posix()
     else:
@@ -129,6 +132,8 @@ def process_container(build_context: BuildContext) -> bool:
             os.path.join(build_context.default_container_base_dir, "default-build.sh")
             + f" {default_container_tag} {repo_dir_or_build_dir}"
         )
+        build_context.container_build_env["STACK_BUILD_DIR"] = repo_dir_or_build_dir
+
 
     build_context.container_build_env["STACK_IMAGE_NAME"] = build_context.container.name
     if not opts.o.dry_run:

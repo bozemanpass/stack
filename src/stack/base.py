@@ -76,11 +76,4 @@ class package_registry_stack(base_stack):
 
 
 def get_npm_registry_url():
-    # If an auth token is not defined, we assume the default should be the cerc registry
-    # If an auth token is defined, we assume the local gitea should be used.
-    default_npm_registry_url = (
-        "http://gitea.local:3000/api/packages/bozemanpass/npm/"
-        if get_config_setting("BPI_NPM_AUTH_TOKEN", default=None)
-        else "https://git.vdb.to/api/packages/bozemanpass/npm/"
-    )
-    return get_config_setting("STACK_NPM_REGISTRY_URL", default=default_npm_registry_url)
+    return get_config_setting("STACK_NPM_REGISTRY_URL", default="")

@@ -78,8 +78,7 @@ def _get_repo_current_branch_or_tag(full_filesystem_repo_path):
 
 def fs_path_for_repo(fully_qualified_repo, dev_root_path):
     repo_host, repo_path, repo_branch = host_and_path_for_repo(fully_qualified_repo)
-    repoName = repo_path.split("/")[-1]
-    return Path(os.path.join(dev_root_path, repoName))
+    return Path(os.path.join(dev_root_path, repo_host, repo_path))
 
 
 # TODO: fix the messy arg list here
@@ -90,8 +89,8 @@ def process_repo(pull, check_only, git_ssh, dev_root_path, branches_array, fully
     git_ssh_prefix = f"git@{repo_host}:"
     git_http_prefix = f"https://{repo_host}/"
     full_github_repo_path = f"{git_ssh_prefix if git_ssh else git_http_prefix}{repo_path}"
-    repoName = repo_path.split("/")[-1]
-    full_filesystem_repo_path = os.path.join(dev_root_path, repoName)
+    full_filesystem_repo_path = Path(os.path.join(dev_root_path, repo_host, repo_path))
+    full_filesystem_repo_path.parent.mkdir(parents=True, exist_ok=True)
     is_present = os.path.isdir(full_filesystem_repo_path)
     (current_repo_branch_or_tag, is_branch) = (
         _get_repo_current_branch_or_tag(full_filesystem_repo_path) if is_present else (None, None)
