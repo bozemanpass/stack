@@ -24,7 +24,6 @@ import subprocess
 from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
-from stack.config.util import get_dev_root_path
 from stack.constants import compose_file_prefix
 from stack.util import (
     include_exclude_check,
@@ -210,8 +209,6 @@ def _make_runtime_env(ctx):
 
 # stack has to be either PathLike pointing to a stack yml file, or a string with the name of a known stack
 def _make_cluster_context(ctx, stack, include, exclude, cluster, env_file):
-    dev_root_path = get_dev_root_path()
-
     # TODO: hack, this should be encapsulated by the deployment context.
     deployment = stack_is_in_deployment(stack)
     if deployment:
@@ -251,7 +248,7 @@ def _make_cluster_context(ctx, stack, include, exclude, cluster, env_file):
         pod_repository = pod.get("repository", stack_config.get_repo_name())
         pod_path = pod.get("path", ".")
         if include_exclude_check(pod_name, include, exclude):
-            if pod_repository is None or pod_repository == "internal":
+            if pod_repository == "internal":
                 if deployment:
                     compose_file_name = os.path.join(compose_dir, f"{compose_file_prefix}-{pod_name}.yml")
                 else:
@@ -268,8 +265,8 @@ def _make_cluster_context(ctx, stack, include, exclude, cluster, env_file):
                         post_start_commands.append(os.path.join(script_dir, pod_post_start_command))
                 else:
                     # TODO: fix this code for external stack with scripts
-                    pod_root_dir = os.path.join(dev_root_path, pod_repository.split("/")[-1], pod_path)
-                    compose_file_name = os.path.join(pod_root_dir, f"{compose_file_prefix}-{pod_name}.yml")
+                    pod_root_dir = str(stack_config.repo_path)
+                    compose_file_name = os.path.join(pod_root_dir, pod_path, f"{compose_file_prefix}-{pod_name}.yml")
                     pod_pre_start_command = pod.get("pre_start_command")
                     pod_post_start_command = pod.get("post_start_command")
                     if pod_pre_start_command is not None:
