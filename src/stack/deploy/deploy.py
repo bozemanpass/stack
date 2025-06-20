@@ -23,8 +23,14 @@ import subprocess
 
 from dataclasses import dataclass
 from importlib import resources
+from pathlib import Path
+from stack.config.util import get_dev_root_path
 from stack.constants import compose_file_prefix
-from stack.util import include_exclude_check, stack_is_in_deployment, error_exit
+from stack.util import (
+    include_exclude_check,
+    stack_is_in_deployment,
+    resolve_compose_file,
+)
 from stack.deploy.deployer import Deployer, DeployerException
 from stack.deploy.deployer_factory import getDeployer
 from stack.deploy.deploy_types import ClusterContext, DeployCommandContext
@@ -204,12 +210,15 @@ def _make_runtime_env(ctx):
 
 # stack has to be either PathLike pointing to a stack yml file, or a string with the name of a known stack
 def _make_cluster_context(ctx, stack, include, exclude, cluster, env_file):
+    dev_root_path = get_dev_root_path()
+
     # TODO: hack, this should be encapsulated by the deployment context.
     deployment = stack_is_in_deployment(stack)
-    if not deployment:
-        error_exit("cluster context must be in a deployment")
-
-    compose_dir = stack.joinpath("compose")
+    if deployment:
+        compose_dir = stack.joinpath("compose")
+    else:
+        # See: https://stackoverflow.com/questions/25389095/python-get-path-of-root-project-structure
+        compose_dir = Path(__file__).absolute().parent.parent.joinpath("data", "compose")
 
     # See: https://stackoverflow.com/a/20885799/1701505
     from stack import data
@@ -240,18 +249,33 @@ def _make_cluster_context(ctx, stack, include, exclude, cluster, env_file):
     for pod in pods_in_scope:
         pod_name = pod["name"]
         pod_repository = pod.get("repository", stack_config.get_repo_name())
+        pod_path = pod.get("path", ".")
         if include_exclude_check(pod_name, include, exclude):
-            if pod_repository is None or pod_repository == "internal":
-                compose_file_name = os.path.join(compose_dir, f"{compose_file_prefix}-{pod_name}.yml")
+            if pod_repository == "internal":
+                if deployment:
+                    compose_file_name = os.path.join(compose_dir, f"{compose_file_prefix}-{pod_name}.yml")
+                else:
+                    compose_file_name = resolve_compose_file(stack, pod_name)
             else:
-                compose_file_name = os.path.join(compose_dir, f"{compose_file_prefix}-{pod_name}.yml")
-                pod_pre_start_command = pod.get("pre_start_command")
-                pod_post_start_command = pod.get("post_start_command")
-                script_dir = compose_dir.parent.joinpath("pods", pod_name, "scripts")
-                if pod_pre_start_command is not None:
-                    pre_start_commands.append(os.path.join(script_dir, pod_pre_start_command))
-                if pod_post_start_command is not None:
-                    post_start_commands.append(os.path.join(script_dir, pod_post_start_command))
+                if deployment:
+                    compose_file_name = os.path.join(compose_dir, f"{compose_file_prefix}-{pod_name}.yml")
+                    pod_pre_start_command = pod.get("pre_start_command")
+                    pod_post_start_command = pod.get("post_start_command")
+                    script_dir = compose_dir.parent.joinpath("pods", pod_name, "scripts")
+                    if pod_pre_start_command is not None:
+                        pre_start_commands.append(os.path.join(script_dir, pod_pre_start_command))
+                    if pod_post_start_command is not None:
+                        post_start_commands.append(os.path.join(script_dir, pod_post_start_command))
+                else:
+                    # TODO: fix this code for external stack with scripts
+                    pod_root_dir = str(stack_config.repo_path),
+                    compose_file_name = os.path.join(pod_root_dir, pod_path, f"{compose_file_prefix}-{pod_name}.yml")
+                    pod_pre_start_command = pod.get("pre_start_command")
+                    pod_post_start_command = pod.get("post_start_command")
+                    if pod_pre_start_command is not None:
+                        pre_start_commands.append(os.path.join(pod_root_dir, pod_pre_start_command))
+                    if pod_post_start_command is not None:
+                        post_start_commands.append(os.path.join(pod_root_dir, pod_post_start_command))
             compose_files.append(compose_file_name)
         else:
             if ctx.verbose:
