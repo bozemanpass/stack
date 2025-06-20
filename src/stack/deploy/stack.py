@@ -75,7 +75,9 @@ class Stack:
         elif self.name:
             check_path = Path(self.name).absolute()
             if not check_path.exists():
-                check_path = locate_single_stack(self.name)
+                match = locate_single_stack(self.name, fail_on_multiple=False, fail_on_none=False)
+                if match:
+                    check_path = match.file_path.parent.absolute()
         else:
             check_path = None
 
