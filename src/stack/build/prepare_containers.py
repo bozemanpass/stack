@@ -30,7 +30,7 @@ from pathlib import Path
 from python_on_whales import DockerClient
 
 from stack import constants
-from stack.config.util import get_config_setting, get_dev_root_path
+from stack.config.util import get_config_setting, get_dev_root_path, verbose_enabled
 from stack.base import get_npm_registry_url
 from stack.build.build_types import BuildContext
 from stack.build.build_util import ContainerSpec, get_containers_in_scope, container_exists_locally, container_exists_remotely, local_container_arch, host_and_path_for_repo, image_registry_for_repo
@@ -38,8 +38,10 @@ from stack.build.publish import publish_image
 from stack.constants import container_file_name, container_lock_file_name, stack_file_name
 from stack.deploy.stack import Stack, get_parsed_stack_config
 from stack.opts import opts
+from stack.repos.list_stack import resolve_stack
 from stack.repos.setup_repositories import fs_path_for_repo, process_repo
 from stack.util import include_exclude_check, stack_is_external, error_exit, get_yaml, check_if_stack_exists
+
 
 docker = DockerClient()
 
@@ -163,11 +165,10 @@ def command(ctx, stack, include, exclude, git_ssh, build_policy, extra_build_arg
     """build (or fetch pre-built) stack containers"""
     if not stack:
         stack = ctx.obj.stack_path
-    check_if_stack_exists(stack)
+    stack_config = resolve_stack(stack)
 
     dev_root_path = get_dev_root_path()
 
-    stack_config = get_parsed_stack_config(stack)
     required_stacks = stack_config.get_required_stacks_paths()
 
     for stack in required_stacks:
@@ -180,7 +181,7 @@ def command(ctx, stack, include, exclude, git_ssh, build_policy, extra_build_arg
         # See: https://stackoverflow.com/questions/25389095/python-get-path-of-root-project-structure
         default_container_base_dir = Path(__file__).absolute().parent.parent.joinpath("data", "container-build")
 
-        if not opts.o.quiet:
+        if verbose_enabled():
             print(f"Dev Root is: {dev_root_path}")
 
         if not os.path.isdir(dev_root_path):

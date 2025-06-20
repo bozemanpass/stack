@@ -280,7 +280,7 @@ def get_parsed_stack_config(stack):
     if stack_file_path.parent.exists():
         error_exit(f"{constants.stack_file_name} file is missing from: {stack}")
 
-    error_exit(f"stack {stack} does not exist")
+    raise Exception(f"stack {stack} does not exist")
 
 
 def get_plugin_code_paths(stack) -> List[Path]:
@@ -306,7 +306,7 @@ def get_pod_file_path(stack, pod_name: str):
 
 
 def determine_fs_path_for_stack(stack_ref, stack_path):
-    return Path(os.path.sep.join([get_dev_root_path(), os.path.basename(stack_ref), stack_path]))
+    return Path(os.path.sep.join([str(get_dev_root_path()), os.path.basename(stack_ref), str(stack_path)]))
 
 
 def get_pod_script_paths(parsed_stack, pod_name: str):
