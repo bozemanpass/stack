@@ -22,23 +22,20 @@ import sys
 import subprocess
 
 from dataclasses import dataclass
-from getopt import error
 from importlib import resources
-from pathlib import Path
 from stack.config.util import get_dev_root_path
 from stack.constants import compose_file_prefix
 from stack.util import (
     include_exclude_check,
     stack_is_in_deployment,
     resolve_compose_file,
+    error_exit
 )
 from stack.deploy.deployer import Deployer, DeployerException
 from stack.deploy.deployer_factory import getDeployer
 from stack.deploy.deploy_types import ClusterContext, DeployCommandContext
 from stack.deploy.deployment_context import DeploymentContext
 from stack.deploy.stack import Stack, get_parsed_stack_config
-
-from stack.src.stack.util import error_exit
 
 
 def create_deploy_context(
