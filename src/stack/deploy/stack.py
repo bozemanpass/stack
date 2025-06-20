@@ -285,7 +285,7 @@ def get_parsed_stack_config(stack):
     if stack_file_path.parent.exists():
         error_exit(f"{constants.stack_file_name} file is missing from: {stack}")
 
-    raise Exception(f"stack {stack} does not exist")
+    raise Exception(f"stack {stack_file_path} does not exist")
 
 
 def get_plugin_code_paths(stack) -> List[Path]:
