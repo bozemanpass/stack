@@ -64,6 +64,12 @@ class Stack:
         self.name = self.obj.get("name", self.name)
         self.file_path = file_path.absolute()
         self._determine_repo_path()
+        if self.get_repo_name() and "pods" in self.obj:
+            for pod in self.obj["pods"]:
+                if type(pod) is not str:
+                    # Inject the repo if possible
+                    if "repository" not in pod:
+                        pod["repository"] = self.get_repo_name()
         return self
 
     def _determine_repo_path(self):
@@ -238,15 +244,12 @@ class Stack:
 
     def dump(self, output_file_path):
         enhanced = self.obj.copy()
-        if self.get_repo_name():
-            for pod in enhanced["pods"]:
-                if type(pod) is not str:
-                    if "repository" not in pod:
-                        pod["repository"] = self.get_repo_name()
-                    # The script files do not need the full path, just the basename.
-                    for cmd in ["pre_start_command", "post_start_command"]:
-                        if cmd in pod:
-                            pod[cmd] = os.path.basename(pod[cmd])
+        for pod in enhanced["pods"]:
+           # The script files do not need the full path, just the basename.
+           for cmd in ["pre_start_command", "post_start_command"]:
+               if cmd in pod:
+                   pod[cmd] = os.path.basename(pod[cmd])
+
         get_yaml().dump(enhanced, open(output_file_path, "wt"))
 
     def get_plugin_code_paths(self) -> List[Path]:
