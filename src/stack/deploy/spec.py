@@ -226,7 +226,7 @@ class MergedSpec(Spec):
 
     def merge_stacks(self):
         stacks = self.load_stacks()
-        ret = Stack(":".join([s.name for s in stacks]))
+        ret = Stack()
         for stack in stacks:
             merge(ret.obj, stack.obj, strategy=Strategy.ADDITIVE)
         return ret

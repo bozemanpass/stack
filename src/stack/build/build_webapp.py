@@ -70,7 +70,7 @@ def command(ctx, base_container, source_repo, force_rebuild, extra_build_args, t
         logger.log(f"Building base container: {base_container}")
 
     build_context_1 = BuildContext(
-        Stack(None),
+        Stack(),
         ContainerSpec(base_container),
         container_build_dir,
         container_build_env,
@@ -100,7 +100,7 @@ def command(ctx, base_container, source_repo, force_rebuild, extra_build_args, t
         logger.log(f"Building app container: {tag}")
 
     build_context_2 = BuildContext(
-        Stack(None),
+        Stack(),
         ContainerSpec(base_container),
         container_build_dir,
         container_build_env,

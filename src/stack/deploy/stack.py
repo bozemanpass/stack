@@ -76,11 +76,13 @@ class Stack:
             return self.repo_path
 
         if self.file_path:
-            check_path = self.file_path
+            check_path = self.file_path.parent.absolute()
+        elif self.name:
+            check_path = Path(self.name).absolute()
         else:
-            check_path = Path(self.name)
+            check_path = None
 
-        while not self.repo_path and check_path and check_path.absolute().as_posix() != "/":
+        while not self.repo_path and check_path and str(check_path.absolute().as_posix()) not in ["/"]:
             if is_git_repo(check_path):
                 self.repo_path = check_path
             else:
