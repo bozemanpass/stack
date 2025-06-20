@@ -194,19 +194,20 @@ def command(ctx, stack, include, exclude, git_ssh, check_only, pull, branches):
     if not stack:
         stack = ctx.obj.stack_path
 
-    stack_config = resolve_stack(stack)
+    top_stack = resolve_stack(stack)
     required_stacks = []
-    if stack_config.is_super_stack():
-        for stack_refs in stack_config.get_required_stacks():
+    if top_stack.is_super_stack():
+        for stack_refs in stack.get_required_stacks():
             try:
                 repo_path = process_repo(pull, check_only, git_ssh, get_dev_root_path(), None, stack_refs[constants.ref_key])
             except git.exc.GitCommandError as error:
                 error_exit(f"\n******* git command returned error exit status:\n{error}")
             required_stacks.append(os.path.sep.join([repo_path, stack_refs[constants.path_key]]))
     else:
-        required_stacks.append(stack_config)
+        required_stacks.append(top_stack)
 
     for stack in required_stacks:
+        stack = get_parsed_stack_config(stack)
         branches_array = []
 
         if branches:
@@ -225,8 +226,7 @@ def command(ctx, stack, include, exclude, git_ssh, check_only, pull, branches):
                 print("Dev root directory doesn't exist, creating")
             os.makedirs(dev_root_path)
 
-        stack_config = get_parsed_stack_config(stack)
-        repos_in_scope = stack_config.get("repos", [])
+        repos_in_scope = stack.get("repos", [])
 
         # containers can reference an external repo
         containers_in_scope = get_containers_in_scope(stack)
@@ -237,11 +237,11 @@ def command(ctx, stack, include, exclude, git_ssh, check_only, pull, branches):
         if verbose:
             print(f"Repos: {repos_in_scope}")
             if stack:
-                print(f"Stack: {stack}")
+                print(f"Stack: {stack.name}")
 
         if not repos_in_scope:
             if verbose:
-                print(f"NOTE: stack {stack} does not define any repositories")
+                print(f"NOTE: stack {stack.name} does not define any repositories")
             continue
 
         repos = []

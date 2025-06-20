@@ -165,15 +165,13 @@ def command(ctx, stack, include, exclude, git_ssh, build_policy, extra_build_arg
     """build (or fetch pre-built) stack containers"""
     if not stack:
         stack = ctx.obj.stack_path
-    stack_config = resolve_stack(stack)
 
+    parent_stack = resolve_stack(stack)
     dev_root_path = get_dev_root_path()
-
-    required_stacks = stack_config.get_required_stacks_paths()
+    required_stacks = parent_stack.get_required_stacks_paths()
 
     for stack in required_stacks:
-        if not isinstance(stack, Stack):
-            stack = Stack(stack).init_from_file(os.path.join(stack, stack_file_name))
+        stack = get_parsed_stack_config(stack)
 
         if build_policy not in BUILD_POLICIES:
             error_exit(f"{build_policy} is not one of {BUILD_POLICIES}")
