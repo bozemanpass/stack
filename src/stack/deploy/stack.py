@@ -26,10 +26,11 @@ from stack.config.util import get_dev_root_path
 from stack.util import (
     get_yaml,
     get_stack_path,
-    is_git_repo,
     error_exit,
     resolve_compose_file,
 )
+
+from stack.repos.repo_util import host_and_path_for_repo, is_git_repo
 
 
 class Stack:
@@ -306,7 +307,8 @@ def get_pod_file_path(stack, pod_name: str):
 
 
 def determine_fs_path_for_stack(stack_ref, stack_path):
-    return Path(os.path.sep.join([str(get_dev_root_path()), os.path.basename(stack_ref), str(stack_path)]))
+    repo_host, repo_path, repo_branch = host_and_path_for_repo(stack_ref)
+    return Path(os.path.sep.join([str(get_dev_root_path()), str(repo_host), str(repo_path), str(stack_path)]))
 
 
 def get_pod_script_paths(parsed_stack, pod_name: str):

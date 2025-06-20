@@ -14,7 +14,6 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http:#www.gnu.org/licenses/>.
 
-import git
 import os.path
 import sys
 import ruamel.yaml
@@ -181,16 +180,6 @@ def check_if_stack_exists(stack):
         error_exit("Error: Missing option '--stack'.")
     if stack and not stack_is_external(stack) and not STACK_USE_BUILTIN_STACK:
         error_exit(f"Stack {stack} does not exist")
-
-
-def is_git_repo(path):
-    try:
-        _ = git.Repo(path).git_dir
-        return True
-    except:  # noqa: E722
-        pass
-
-    return False
 
 
 def is_primitive(obj):

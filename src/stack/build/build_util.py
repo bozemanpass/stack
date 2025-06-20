@@ -193,29 +193,3 @@ def local_container_arch():
     if this_machine == "aarch64":
         this_machine = "arm64"
     return this_machine
-
-
-def image_registry_for_repo(repository):
-    host, path, _ = host_and_path_for_repo(repository)
-    if "github.com" == host:
-        return f"ghcr.io"
-    elif host:
-        return host
-    return None
-
-
-def branch_strip(s):
-    return s.split("@")[0]
-
-
-def host_and_path_for_repo(fully_qualified_repo):
-    repo_branch_split = fully_qualified_repo.split("@")
-    repo_branch = repo_branch_split[-1] if len(repo_branch_split) > 1 else None
-    repo_host_split = repo_branch_split[0].split("/")
-    # Legacy unqualified repo means github
-    if len(repo_host_split) == 2:
-        return "github.com", "/".join(repo_host_split), repo_branch
-    else:
-        if len(repo_host_split) == 3:
-            # First part is the host
-            return repo_host_split[0], "/".join(repo_host_split[1:]), repo_branch
