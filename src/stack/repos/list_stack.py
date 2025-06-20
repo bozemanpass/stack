@@ -24,7 +24,7 @@ import click
 from stack.config.util import get_dev_root_path, verbose_enabled
 from stack.deploy.stack import Stack, get_parsed_stack_config
 from stack.opts import opts
-from stack.util import error_exit
+from stack.util import error_exit, STACK_USE_BUILTIN_STACK, get_stack_path
 
 
 def locate_stacks_beneath(search_path=get_dev_root_path()):
@@ -36,27 +36,43 @@ def locate_stacks_beneath(search_path=get_dev_root_path()):
     return stacks
 
 
-def locate_single_stack(stack_name, search_path=get_dev_root_path()):
+def locate_single_stack(stack_name, search_path=get_dev_root_path(), fail_on_multiple=True, fail_on_none=True):
     stacks = locate_stacks_beneath(search_path)
     candidates = [s for s in stacks if s.name == stack_name]
     if len(candidates) == 1:
         return candidates[0]
     elif len(candidates) > 1:
-        error_exit(f"multiple stacks named {stack_name} found")
+        if fail_on_multiple:
+            error_exit(f"multiple stacks named {stack_name} found")
+        else:
+            return None
+
+    if fail_on_none:
+        error_exit(f"stack {stack_name} not found")
+
     return None
 
 
 def resolve_stack(stack_name):
+    stack = None
     if stack_name.startswith("/") or (os.path.exists(stack_name) and os.path.isdir(stack_name)):
         stack = get_parsed_stack_config(stack_name)
         if verbose_enabled():
             print(f"Resolved {stack_name} to {stack.file_path.parent}")
     else:
-        stack = locate_single_stack(stack_name)
-        if verbose_enabled():
-            print(f"Resolved {stack_name} to {stack.file_path.parent}")
+        stack = locate_single_stack(stack_name, fail_on_none=False, fail_on_multiple=False)
+        if not stack and STACK_USE_BUILTIN_STACK:
+            # Last ditch...
+            stack_path = get_stack_path(stack_name)
+            if stack_path:
+                stack = get_parsed_stack_config(stack_path)
+
+    if verbose_enabled() and stack:
+        print(f"Resolved {stack_name} to {stack.file_path.parent}")
+
     if not stack:
         error_exit(f"stack {stack_name} not found")
+
     return stack
 
 
