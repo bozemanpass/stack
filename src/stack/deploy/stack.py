@@ -245,10 +245,10 @@ class Stack:
     def dump(self, output_file_path):
         enhanced = self.obj.copy()
         for pod in enhanced["pods"]:
-           # The script files do not need the full path, just the basename.
-           for cmd in ["pre_start_command", "post_start_command"]:
-               if cmd in pod:
-                   pod[cmd] = os.path.basename(pod[cmd])
+            # The script files do not need the full path, just the basename.
+            for cmd in ["pre_start_command", "post_start_command"]:
+                if cmd in pod:
+                    pod[cmd] = os.path.basename(pod[cmd])
 
         get_yaml().dump(enhanced, open(output_file_path, "wt"))
 
