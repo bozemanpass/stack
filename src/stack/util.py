@@ -130,7 +130,7 @@ def stack_is_external(stack):
     # a path that exists then we assume it must be external
     if STACK_USE_BUILTIN_STACK and isinstance(stack, str):
         stack_path = Path(__file__).absolute().parent.joinpath("data", "stacks", stack)
-        return stack_path.exists()
+        return not stack_path.exists()
     return True
 
 
