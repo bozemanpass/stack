@@ -36,9 +36,8 @@ from stack.build.build_types import BuildContext
 from stack.build.build_util import ContainerSpec, get_containers_in_scope, container_exists_locally, container_exists_remotely, local_container_arch
 from stack.build.publish import publish_image
 from stack.constants import container_file_name, container_lock_file_name, stack_file_name
-from stack.deploy.stack import Stack, get_parsed_stack_config
+from stack.deploy.stack import Stack, get_parsed_stack_config, resolve_stack
 from stack.opts import opts
-from stack.repos.list_stack import resolve_stack
 from stack.repos.repo_util import host_and_path_for_repo, image_registry_for_repo, fs_path_for_repo, process_repo
 from stack.util import include_exclude_check, stack_is_external, error_exit, get_yaml, check_if_stack_exists
 

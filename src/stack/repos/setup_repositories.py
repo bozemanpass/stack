@@ -25,9 +25,8 @@ import git
 from stack import constants
 from stack.build.build_util import get_containers_in_scope
 from stack.config.util import get_config_setting, get_dev_root_path
-from stack.deploy.stack import get_parsed_stack_config
+from stack.deploy.stack import get_parsed_stack_config, resolve_stack
 from stack.opts import opts
-from stack.repos.list_stack import resolve_stack
 from stack.repos.repo_util import process_repo, parse_branches, branch_strip
 from stack.util import (
     include_exclude_check,

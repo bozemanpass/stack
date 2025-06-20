@@ -21,8 +21,7 @@ from stack.config.util import get_config_setting
 from stack.deploy.deploy import create_deploy_context
 from stack.deploy.deployment_create import init_operation
 from stack.deploy.spec import MergedSpec
-from stack.deploy.stack import get_parsed_stack_config, determine_fs_path_for_stack
-from stack.repos.list_stack import resolve_stack
+from stack.deploy.stack import get_parsed_stack_config, determine_fs_path_for_stack, resolve_stack
 from stack.util import global_options2, error_exit, get_yaml
 
 

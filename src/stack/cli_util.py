@@ -22,7 +22,7 @@ import importlib.util
 from click import Context, HelpFormatter
 from gettext import gettext as _
 
-from stack.repos.list_stack import resolve_stack
+from stack.deploy.stack import resolve_stack
 
 
 class StackCLI(click.Group):

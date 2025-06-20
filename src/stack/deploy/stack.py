@@ -22,13 +22,8 @@ from pathlib import Path
 from typing import Set, List
 
 from stack import constants
-from stack.config.util import get_dev_root_path
-from stack.util import (
-    get_yaml,
-    get_stack_path,
-    error_exit,
-    resolve_compose_file,
-)
+from stack.config.util import get_dev_root_path, verbose_enabled
+from stack.util import get_yaml, get_stack_path, error_exit, resolve_compose_file, STACK_USE_BUILTIN_STACK
 
 from stack.repos.repo_util import host_and_path_for_repo, is_git_repo
 
@@ -79,6 +74,8 @@ class Stack:
             check_path = self.file_path.parent.absolute()
         elif self.name:
             check_path = Path(self.name).absolute()
+            if not check_path.exists():
+                check_path = locate_single_stack(self.name)
         else:
             check_path = None
 
@@ -340,3 +337,52 @@ def pod_has_scripts(parsed_stack, pod_name: str):
             if pod["name"] == pod_name:
                 result = "pre_start_command" in pod or "post_start_command" in pod
     return result
+
+
+def locate_stacks_beneath(search_path=get_dev_root_path()):
+    stacks = []
+    if search_path.exists():
+        for path in search_path.rglob("stack.yml"):
+            stacks.append(Stack().init_from_file(path))
+
+    return stacks
+
+
+def locate_single_stack(stack_name, search_path=get_dev_root_path(), fail_on_multiple=True, fail_on_none=True):
+    stacks = locate_stacks_beneath(search_path)
+    candidates = [s for s in stacks if s.name == stack_name]
+    if len(candidates) == 1:
+        return candidates[0]
+    elif len(candidates) > 1:
+        if fail_on_multiple:
+            error_exit(f"multiple stacks named {stack_name} found")
+        else:
+            return None
+
+    if fail_on_none:
+        error_exit(f"stack {stack_name} not found")
+
+    return None
+
+
+def resolve_stack(stack_name):
+    stack = None
+    if stack_name.startswith("/") or (os.path.exists(stack_name) and os.path.isdir(stack_name)):
+        stack = get_parsed_stack_config(stack_name)
+        if verbose_enabled():
+            print(f"Resolved {stack_name} to {stack.file_path.parent}")
+    else:
+        stack = locate_single_stack(stack_name, fail_on_none=False, fail_on_multiple=False)
+        if not stack and STACK_USE_BUILTIN_STACK:
+            # Last ditch...
+            stack_path = get_stack_path(stack_name)
+            if stack_path:
+                stack = get_parsed_stack_config(stack_path)
+
+    if verbose_enabled() and stack:
+        print(f"Resolved {stack_name} to {stack.file_path.parent}")
+
+    if not stack:
+        error_exit(f"stack {stack_name} not found")
+
+    return stack
