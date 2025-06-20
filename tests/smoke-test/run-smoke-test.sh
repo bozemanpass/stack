@@ -21,17 +21,17 @@ echo "Cloning repositories into: $STACK_REPO_BASE_DIR"
 rm -rf $STACK_REPO_BASE_DIR
 mkdir -p $STACK_REPO_BASE_DIR
 # Test pulling a stack
-$TEST_TARGET_SO fetch repositories --stack internal-stack-test
+$TEST_TARGET_SO fetch repositories --stack test
 # Test building the a stack container
-$TEST_TARGET_SO build containers --stack internal-stack-test
+$TEST_TARGET_SO build containers --stack test
 # Build one example containers
-$TEST_TARGET_SO build containers --stack internal-stack-test --include bpi/builder-js
+$TEST_TARGET_SO build containers --stack test --include bpi/builder-js
 echo "Images in the local registry:"
 docker image ls -a
 test_deployment_dir=$STACK_REPO_BASE_DIR/test-deployment-dir
 test_deployment_spec=$STACK_REPO_BASE_DIR/test-deployment-spec.yml
 # Deploy the test container
-$TEST_TARGET_SO init --stack internal-stack-test --output $test_deployment_spec
+$TEST_TARGET_SO init --stack test --output $test_deployment_spec
 $TEST_TARGET_SO deploy --spec-file $test_deployment_spec --deployment-dir $test_deployment_dir
 # Up
 $TEST_TARGET_SO manage --dir $test_deployment_dir start
@@ -39,5 +39,5 @@ $TEST_TARGET_SO manage --dir $test_deployment_dir start
 $TEST_TARGET_SO manage --dir $test_deployment_dir stop
 # Run same test but not using the stack definition
 # Test building the a stack container
-$TEST_TARGET_SO build containers --stack internal-stack-test --include bpi/test-container
+$TEST_TARGET_SO build containers --stack test --include bpi/test-container
 echo "Test passed"

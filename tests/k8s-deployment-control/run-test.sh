@@ -67,14 +67,14 @@ echo "Version reported is: ${reported_version_string}"
 echo "Cloning repositories into: $STACK_REPO_BASE_DIR"
 rm -rf $STACK_REPO_BASE_DIR
 mkdir -p $STACK_REPO_BASE_DIR
-$TEST_TARGET_SO fetch repositories --stack internal-stack-test
-$TEST_TARGET_SO build containers --stack internal-stack-test
+$TEST_TARGET_SO fetch repositories --stack test
+$TEST_TARGET_SO build containers --stack test
 # Test basic stack deploy to k8s
 test_deployment_dir=$STACK_REPO_BASE_DIR/test-deployment-dir
 test_deployment_spec=$STACK_REPO_BASE_DIR/test-deployment-spec.yml
 
 # Create a deployment that we can use to check our test cases
-$TEST_TARGET_SO --stack internal-stack-test deploy --deploy-to k8s-kind init --output $test_deployment_spec
+$TEST_TARGET_SO --stack test deploy --deploy-to k8s-kind init --output $test_deployment_spec
 # Check the file now exists
 if [ ! -f "$test_deployment_spec" ]; then
     echo "deploy init test: spec file not present"
@@ -83,7 +83,7 @@ if [ ! -f "$test_deployment_spec" ]; then
 fi
 echo "deploy init test: passed"
 
-$TEST_TARGET_SO --stack internal-stack-test deploy --spec-file $test_deployment_spec --deployment-dir $test_deployment_dir
+$TEST_TARGET_SO --stack test deploy --spec-file $test_deployment_spec --deployment-dir $test_deployment_dir
 # Check the deployment dir exists
 if [ ! -d "$test_deployment_dir" ]; then
     echo "deploy create test: deployment directory not present"
