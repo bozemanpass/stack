@@ -196,12 +196,12 @@ def command(ctx, stack, include, exclude, git_ssh, check_only, pull, branches):
     top_stack = resolve_stack(stack)
     required_stacks = []
     if top_stack.is_super_stack():
-        for stack_refs in stack.get_required_stacks():
+        for stack_refs in top_stack.get_required_stacks():
             try:
                 repo_path = process_repo(pull, check_only, git_ssh, get_dev_root_path(), None, stack_refs[constants.ref_key])
             except git.exc.GitCommandError as error:
                 error_exit(f"\n******* git command returned error exit status:\n{error}")
-            required_stacks.append(os.path.sep.join([repo_path, stack_refs[constants.path_key]]))
+            required_stacks.append(repo_path.joinpath(stack_refs[constants.path_key]))
     else:
         required_stacks.append(top_stack)
 
