@@ -25,12 +25,7 @@ from dataclasses import dataclass
 from importlib import resources
 from stack.config.util import get_dev_root_path
 from stack.constants import compose_file_prefix
-from stack.util import (
-    include_exclude_check,
-    stack_is_in_deployment,
-    resolve_compose_file,
-    error_exit
-)
+from stack.util import include_exclude_check, stack_is_in_deployment, error_exit
 from stack.deploy.deployer import Deployer, DeployerException
 from stack.deploy.deployer_factory import getDeployer
 from stack.deploy.deploy_types import ClusterContext, DeployCommandContext
@@ -210,8 +205,6 @@ def _make_runtime_env(ctx):
 
 # stack has to be either PathLike pointing to a stack yml file, or a string with the name of a known stack
 def _make_cluster_context(ctx, stack, include, exclude, cluster, env_file):
-    dev_root_path = get_dev_root_path()
-
     # TODO: hack, this should be encapsulated by the deployment context.
     deployment = stack_is_in_deployment(stack)
     if not deployment:
