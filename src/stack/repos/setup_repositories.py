@@ -24,15 +24,16 @@ import git
 
 from git.exc import GitCommandError
 from tqdm import tqdm
+from pathlib import Path
 
 from stack import constants
 from stack.build.build_util import get_containers_in_scope, host_and_path_for_repo, branch_strip
 from stack.config.util import get_config_setting, get_dev_root_path
 from stack.deploy.stack import get_parsed_stack_config
 from stack.opts import opts
+from stack.repos.list_stack import resolve_stack
 from stack.util import (
     is_git_repo,
-    check_if_stack_exists,
     include_exclude_check,
     error_exit,
 )
@@ -78,7 +79,7 @@ def _get_repo_current_branch_or_tag(full_filesystem_repo_path):
 def fs_path_for_repo(fully_qualified_repo, dev_root_path):
     repo_host, repo_path, repo_branch = host_and_path_for_repo(fully_qualified_repo)
     repoName = repo_path.split("/")[-1]
-    return os.path.join(dev_root_path, repoName)
+    return Path(os.path.join(dev_root_path, repoName))
 
 
 # TODO: fix the messy arg list here
@@ -155,7 +156,7 @@ def process_repo(pull, check_only, git_ssh, dev_root_path, branches_array, fully
             # git checkout works for both branches and tags
             git_repo.git.checkout(branch_to_checkout)
         else:
-            if opts.o.verbose:
+            if not opts.o.quiet:
                 print(f"repo {repo_path} is already on branch/tag {branch_to_checkout}")
 
     return full_filesystem_repo_path
@@ -192,21 +193,21 @@ def command(ctx, stack, include, exclude, git_ssh, check_only, pull, branches):
 
     if not stack:
         stack = ctx.obj.stack_path
-    check_if_stack_exists(stack)
 
+    top_stack = resolve_stack(stack)
     required_stacks = []
-    stack_config = get_parsed_stack_config(stack)
-    if stack_config.is_super_stack():
-        for stack_refs in stack_config.get_required_stacks():
+    if top_stack.is_super_stack():
+        for stack_refs in stack.get_required_stacks():
             try:
                 repo_path = process_repo(pull, check_only, git_ssh, get_dev_root_path(), None, stack_refs[constants.ref_key])
             except git.exc.GitCommandError as error:
                 error_exit(f"\n******* git command returned error exit status:\n{error}")
             required_stacks.append(os.path.sep.join([repo_path, stack_refs[constants.path_key]]))
     else:
-        required_stacks.append(stack)
+        required_stacks.append(top_stack)
 
     for stack in required_stacks:
+        stack = get_parsed_stack_config(stack)
         branches_array = []
 
         if branches:
@@ -217,7 +218,7 @@ def command(ctx, stack, include, exclude, git_ssh, check_only, pull, branches):
 
         dev_root_path = get_dev_root_path()
 
-        if not quiet:
+        if verbose:
             print(f"Dev Root is: {dev_root_path}")
 
         if not os.path.isdir(dev_root_path):
@@ -225,8 +226,7 @@ def command(ctx, stack, include, exclude, git_ssh, check_only, pull, branches):
                 print("Dev root directory doesn't exist, creating")
             os.makedirs(dev_root_path)
 
-        stack_config = get_parsed_stack_config(stack)
-        repos_in_scope = stack_config.get("repos", [])
+        repos_in_scope = stack.get("repos", [])
 
         # containers can reference an external repo
         containers_in_scope = get_containers_in_scope(stack)
@@ -237,10 +237,11 @@ def command(ctx, stack, include, exclude, git_ssh, check_only, pull, branches):
         if verbose:
             print(f"Repos: {repos_in_scope}")
             if stack:
-                print(f"Stack: {stack}")
+                print(f"Stack: {stack.name}")
 
         if not repos_in_scope:
-            print(f"WARN: stack {stack} does not define any repositories")
+            if not opts.o.quiet:
+                print(f"NOTE: stack {stack.name} does not define any repositories")
             continue
 
         repos = []

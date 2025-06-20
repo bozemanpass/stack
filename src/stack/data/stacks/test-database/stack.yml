@@ -1,5 +1,5 @@
 version: "1.0"
-name: test
+name: internal-stack-testdb
 description: "A test database stack"
 repos:
 containers:

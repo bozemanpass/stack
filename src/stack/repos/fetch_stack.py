@@ -23,8 +23,7 @@ import click
 from git import exc
 
 from stack.build.build_util import host_and_path_for_repo
-from stack.config.util import get_config_setting, get_dev_root_path
-from stack.opts import opts
+from stack.config.util import get_config_setting, get_dev_root_path, verbose_enabled
 from stack.repos.setup_repositories import process_repo
 from stack.util import error_exit
 
@@ -38,7 +37,7 @@ from stack.util import error_exit
 def command(ctx, stack_locator, git_ssh, check_only, pull):
     """clone a stack repository"""
     dev_root_path = get_dev_root_path()
-    if not opts.o.quiet:
+    if verbose_enabled():
         print(f"Dev Root is: {dev_root_path}")
 
     try:

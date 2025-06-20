@@ -22,8 +22,7 @@ import importlib.util
 from click import Context, HelpFormatter
 from gettext import gettext as _
 
-from stack.constants import stack_file_name
-from stack.util import error_exit, get_yaml
+from stack.repos.list_stack import resolve_stack
 
 
 class StackCLI(click.Group):
@@ -63,12 +62,8 @@ class StackCLI(click.Group):
 
 
 def load_subcommands_from_stack(cli, stack_path: str):
-    stack_file_path = os.path.join(stack_path, stack_file_name)
-    if not os.path.exists(stack_file_path):
-        error_exit(f"{stack_file_name} file is missing from stack: {stack_path}")
-
-    stack_yaml = get_yaml().load(open(stack_file_path, "r"))
-    cmds_path = os.path.join(stack_path, "subcommands")
+    stack = resolve_stack(stack_path)
+    cmds_path = stack.file_path.parent.joinpath("subcommands")
     if os.path.exists(cmds_path):
         p = 0
         for filename in os.listdir(cmds_path):
@@ -80,7 +75,7 @@ def load_subcommands_from_stack(cli, stack_path: str):
                 sys.modules[module_name] = plugin_module
                 spec.loader.exec_module(plugin_module)
                 if hasattr(plugin_module, "command"):
-                    cmd_section = make_safe_name(stack_yaml["name"])
+                    cmd_section = make_safe_name(stack.name)
                     cmd_name = make_safe_name(filename[:-3])
                     if hasattr(plugin_module, "STACK_CLI_CMD_NAME"):
                         cmd_name = plugin_module.STACK_CLI_CMD_NAME

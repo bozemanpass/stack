@@ -1,5 +1,5 @@
 version: "1.0"
-name: test
+name: internal-stack-test
 description: "A test stack"
 repos:
   - bozemanpass/stack-test-project

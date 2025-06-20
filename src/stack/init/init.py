@@ -22,7 +22,8 @@ from stack.deploy.deploy import create_deploy_context
 from stack.deploy.deployment_create import init_operation
 from stack.deploy.spec import MergedSpec
 from stack.deploy.stack import get_parsed_stack_config, determine_fs_path_for_stack
-from stack.util import check_if_stack_exists, global_options2, error_exit, get_yaml
+from stack.repos.list_stack import resolve_stack
+from stack.util import global_options2, error_exit, get_yaml
 
 
 def _parse_http_proxy(raw_val: str):
@@ -145,9 +146,8 @@ def command(
 
     if not stack:
         stack = ctx.obj.stack_path
-    check_if_stack_exists(stack)
 
-    top_stack_config = get_parsed_stack_config(stack)
+    top_stack_config = resolve_stack(stack)
     required_stacks = top_stack_config.get_required_stacks_paths()
     config_variables = {}
     for c in config:

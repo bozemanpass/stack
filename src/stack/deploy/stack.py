@@ -38,7 +38,7 @@ class Stack:
     obj: typing.Any
     repo_path: Path
 
-    def __init__(self, name: str) -> None:
+    def __init__(self, name: str = None) -> None:
         self.name = str(name)
         self.obj = {}
         self.file_path = None
@@ -65,6 +65,7 @@ class Stack:
         if isinstance(file_path, str):
             file_path = Path(file_path)
         self.obj = get_yaml().load(open(file_path, "rt"))
+        self.name = self.obj.get("name", self.name)
         self.file_path = file_path.absolute()
         self._determine_repo_path()
         return self
@@ -267,14 +268,19 @@ class Stack:
 
 # Caller can pass either the name of a stack, or a path to a stack file
 def get_parsed_stack_config(stack):
+    if isinstance(stack, Stack):
+        return stack
+
     stack_file_path = get_stack_path(stack).joinpath(constants.stack_file_name)
     if stack_file_path.exists():
         return Stack(stack).init_from_file(stack_file_path)
+
     # We try here to generate a useful diagnostic error
     # First check if the stack directory is present
     if stack_file_path.parent.exists():
         error_exit(f"{constants.stack_file_name} file is missing from: {stack}")
-    error_exit(f"stack {stack} does not exist")
+
+    raise Exception(f"stack {stack} does not exist")
 
 
 def get_plugin_code_paths(stack) -> List[Path]:
@@ -300,7 +306,7 @@ def get_pod_file_path(stack, pod_name: str):
 
 
 def determine_fs_path_for_stack(stack_ref, stack_path):
-    return Path(os.path.sep.join([get_dev_root_path(), os.path.basename(stack_ref), stack_path]))
+    return Path(os.path.sep.join([str(get_dev_root_path()), os.path.basename(stack_ref), str(stack_path)]))
 
 
 def get_pod_script_paths(parsed_stack, pod_name: str):

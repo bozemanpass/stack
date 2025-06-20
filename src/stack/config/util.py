@@ -107,7 +107,7 @@ def _get_from_file(key):
 
 
 def get_dev_root_path():
-    return get_config_setting("STACK_REPO_BASE_DIR")
+    return Path(get_config_setting("STACK_REPO_BASE_DIR"))
 
 
 def debug_enabled():

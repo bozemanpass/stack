@@ -79,10 +79,13 @@ class ContainerSpec:
         return self
 
 
-def get_containers_in_scope(stack: str):
+def get_containers_in_scope(stack):
     containers_in_scope = []
     if stack:
-        stack_config = get_parsed_stack_config(stack)
+        if isinstance(stack, str):
+            stack_config = get_parsed_stack_config(stack)
+        else:
+            stack_config = stack
         if "containers" not in stack_config or stack_config["containers"] is None:
             warn_exit(f"stack {stack} does not define any containers")
         raw_containers = stack_config['containers']

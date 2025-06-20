@@ -20,7 +20,7 @@ import sys
 
 from stack.cli_util import StackCLI, load_subcommands_from_stack
 from stack.command_types import CommandOptions
-from stack.repos import fetch
+from stack.repos import fetch, list
 from stack.build import build
 from stack.config import config
 from stack.config.util import get_config_setting
@@ -72,6 +72,7 @@ cli.add_command(deployment.command, "manage")
 cli.add_command(update.command, "update")
 cli.add_command(version.command, "version")
 cli.add_command(webapp.command, "webapp")
+cli.add_command(list.command, "list")
 
 # We only try to load external commands from an external stack.
 if not STACK_USE_BUILTIN_STACK:
