@@ -23,7 +23,6 @@ import subprocess
 
 from dataclasses import dataclass
 from importlib import resources
-from stack.config.util import get_dev_root_path
 from stack.constants import compose_file_prefix
 from stack.util import include_exclude_check, stack_is_in_deployment, error_exit
 from stack.deploy.deployer import Deployer, DeployerException
