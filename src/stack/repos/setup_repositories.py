@@ -156,7 +156,7 @@ def process_repo(pull, check_only, git_ssh, dev_root_path, branches_array, fully
             # git checkout works for both branches and tags
             git_repo.git.checkout(branch_to_checkout)
         else:
-            if opts.o.verbose:
+            if not opts.o.quiet:
                 print(f"repo {repo_path} is already on branch/tag {branch_to_checkout}")
 
     return full_filesystem_repo_path
@@ -240,7 +240,7 @@ def command(ctx, stack, include, exclude, git_ssh, check_only, pull, branches):
                 print(f"Stack: {stack.name}")
 
         if not repos_in_scope:
-            if verbose:
+            if not opts.o.quiet:
                 print(f"NOTE: stack {stack.name} does not define any repositories")
             continue
 

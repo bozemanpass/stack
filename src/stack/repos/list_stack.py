@@ -77,11 +77,11 @@ def resolve_stack(stack_name):
 
 
 @click.command()
-@click.argument("stack-locator", required=False)
-@click.option("--names-only", is_flag=True, default=False, help="only show stack names")
-@click.option("--paths-only", is_flag=True, default=False, help="only show stack paths")
+@click.argument("filter", required=False)
+@click.option("--name-only", is_flag=True, default=False, help="only show stack names")
+@click.option("--path-only", is_flag=True, default=False, help="only show stack paths")
 @click.pass_context
-def command(ctx, stack_locator, names_only, paths_only):
+def command(ctx, filter, name_only, path_only):
     """list available stacks"""
     dev_root_path = get_dev_root_path()
     if opts.o.verbose:
@@ -92,8 +92,8 @@ def command(ctx, stack_locator, names_only, paths_only):
     stacks = locate_stacks_beneath(search_path)
     stacks.sort(key=lambda s: s.name)
 
-    if stack_locator:
-        stacks = [s for s in stacks if stack_locator in str(s.file_path) or stack_locator in s.name]
+    if filter:
+        stacks = [s for s in stacks if filter in str(s.file_path) or filter in s.name]
 
     max_name_len = 0
     max_path_len = 0
@@ -103,9 +103,9 @@ def command(ctx, stack_locator, names_only, paths_only):
 
     padding = 8
     for stack in stacks:
-        if names_only:
+        if name_only:
             print(stack.name)
-        elif paths_only:
+        elif path_only:
             print(str(stack.file_path.parent))
         else:
             print(f"{stack.name.ljust(max_name_len + padding)} {str(stack.file_path.parent).ljust(max_path_len + 8)}")
