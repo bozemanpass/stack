@@ -256,7 +256,7 @@ class Stack:
             else:
                 pod_root_dir = os.path.join(
                     get_dev_root_path(),
-                    pod.get("repository", self.get_repo_name()).split("@")[0].split("/")[-1],
+                    pod.get("repository", self.get_repo_name()).split("@")[0],
                     pod.get("path", "."),
                 )
                 result.add(Path(os.path.join(pod_root_dir, "stack")))
@@ -293,13 +293,13 @@ def get_pod_file_path(stack, pod_name: str):
     result = None
     pods = stack.get_pods()
     if type(pods[0]) is str:
-        result = resolve_compose_file(stack.name, pod_name)
+        result = resolve_compose_file(str(stack.file_path.parent), pod_name)
     else:
         for pod in pods:
             if pod["name"] == pod_name:
                 pod_root_dir = os.path.join(
                     get_dev_root_path(),
-                    pod.get("repository", stack.get_repo_name()).split("@")[0].split("/")[-1],
+                    pod.get("repository", stack.get_repo_name()).split("@")[0],
                     pod.get("path", "."),
                 )
                 result = os.path.join(pod_root_dir, f"{constants.compose_file_prefix}.yml")
@@ -319,7 +319,7 @@ def get_pod_script_paths(parsed_stack, pod_name: str):
             if pod["name"] == pod_name:
                 pod_root_dir = os.path.join(
                     get_dev_root_path(),
-                    pod.get("repository", parsed_stack.get_repo_name()).split("@")[0].split("/")[-1],
+                    pod.get("repository", parsed_stack.get_repo_name()).split("@")[0],
                     pod.get("path", "."),
                 )
                 if "pre_start_command" in pod:

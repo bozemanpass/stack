@@ -65,8 +65,11 @@ def get_pod_list(parsed_stack):
 # and if not found there, internally
 def resolve_config_dir(stack, config_dir_name: str):
     if stack_is_external(stack):
-        # First try looking in the external stack for the compose file
-        config_base = Path(stack).parent.parent.joinpath("config")
+        print(stack.file_path.parent, config_dir_name)
+        if stack.repo_path:
+            config_base = stack.repo_path.joinpath("config")
+        else:
+            config_base = stack.file_path.parent.parent.parent.joinpath("config")
         proposed_dir = config_base.joinpath(config_dir_name)
         if proposed_dir.exists():
             return proposed_dir
