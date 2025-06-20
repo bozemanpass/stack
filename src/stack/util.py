@@ -40,6 +40,9 @@ def include_exclude_check(s, include, exclude):
 
 
 def get_stack_path(stack):
+    if isinstance(stack, os.PathLike):
+        return stack
+
     if stack_is_external(stack):
         if isinstance(stack, str):
             stack_path = Path(stack)
@@ -52,7 +55,6 @@ def get_stack_path(stack):
         # In order to be compatible with Python 3.8 we need to use this hack to get the path:
         # See: https://stackoverflow.com/questions/25389095/python-get-path-of-root-project-structure
         stack_path = Path(__file__).absolute().parent.joinpath("data", "stacks", stack)
-    print(stack_path)
     return stack_path
 
 
