@@ -41,7 +41,7 @@ def include_exclude_check(s, include, exclude):
 
 def get_stack_path(stack):
     if stack_is_external(stack):
-        if isinstance(str, stack):
+        if isinstance(stack, str):
             stack_path = Path(stack)
         else:
             try:
