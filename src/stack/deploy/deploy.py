@@ -253,7 +253,7 @@ def _make_cluster_context(ctx, stack, include, exclude, cluster, env_file):
         if include_exclude_check(pod_name, include, exclude):
             if pod_repository is None or pod_repository == "internal":
                 if deployment:
-                    compose_file_name = os.path.join(compose_dir, f"{compose_file_prefix}-{pod_path}.yml")
+                    compose_file_name = os.path.join(compose_dir, f"{compose_file_prefix}-{pod_name}.yml")
                 else:
                     compose_file_name = resolve_compose_file(stack, pod_name)
             else:
@@ -268,7 +268,7 @@ def _make_cluster_context(ctx, stack, include, exclude, cluster, env_file):
                         post_start_commands.append(os.path.join(script_dir, pod_post_start_command))
                 else:
                     # TODO: fix this code for external stack with scripts
-                    pod_root_dir = os.path.join(dev_root_path, pod_repository.split("/")[-1], pod["path"])
+                    pod_root_dir = os.path.join(dev_root_path, pod_repository.split("/")[-1], pod_path)
                     compose_file_name = os.path.join(pod_root_dir, f"{compose_file_prefix}-{pod_name}.yml")
                     pod_pre_start_command = pod.get("pre_start_command")
                     pod_post_start_command = pod.get("post_start_command")
