@@ -26,7 +26,6 @@ from stack.config.util import get_dev_root_path
 from stack.opts import opts
 
 
-
 class GitProgress(git.RemoteProgress):
     def __init__(self):
         super().__init__()
