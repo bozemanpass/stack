@@ -130,7 +130,7 @@ def stack_is_external(stack):
         return stack.exists()
     elif isinstance(stack, str):
         return Path(stack).exists()
-    elif stack:  # a Stack
+    elif stack and stack.file_path:  # a Stack
         return stack.file_path.exists()
     return False
 
