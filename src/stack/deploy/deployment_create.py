@@ -541,7 +541,7 @@ def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec,
         config_dirs = {pod}
         config_dirs = config_dirs.union(extra_config_dirs)
         for config_dir in config_dirs:
-            source_config_dir = resolve_config_dir(parsed_stack.name, config_dir)
+            source_config_dir = resolve_config_dir(parsed_stack, config_dir)
             if os.path.exists(source_config_dir):
                 destination_config_dir = deployment_dir_path.joinpath("config", config_dir)
                 # If the same config dir appears in multiple pods, it may already have been copied
@@ -555,14 +555,14 @@ def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec,
             _copy_files_to_directory(script_paths, destination_script_dir)
         if parsed_spec.is_kubernetes_deployment():
             for configmap in parsed_spec.get_configmaps():
-                source_config_dir = resolve_config_dir(parsed_stack.name, configmap)
+                source_config_dir = resolve_config_dir(parsed_stack, configmap)
                 if os.path.exists(source_config_dir):
                     destination_config_dir = deployment_dir_path.joinpath("configmaps", configmap)
                     copytree(source_config_dir, destination_config_dir, dirs_exist_ok=True)
         else:
             # TODO: We should probably only do this if the volume is marked :ro.
             for volume_name, volume_path in parsed_spec.get_volumes().items():
-                source_config_dir = resolve_config_dir(parsed_stack.name, volume_name)
+                source_config_dir = resolve_config_dir(parsed_stack, volume_name)
                 # Only copy if the source exists and is _not_ empty.
                 if os.path.exists(source_config_dir) and os.listdir(source_config_dir):
                     destination_config_dir = deployment_dir_path.joinpath(volume_path)

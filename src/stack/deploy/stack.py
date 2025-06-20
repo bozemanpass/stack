@@ -26,10 +26,11 @@ from stack.config.util import get_dev_root_path
 from stack.util import (
     get_yaml,
     get_stack_path,
-    is_git_repo,
     error_exit,
     resolve_compose_file,
 )
+
+from stack.repos.repo_util import host_and_path_for_repo, is_git_repo
 
 
 class Stack:
@@ -255,7 +256,7 @@ class Stack:
             else:
                 pod_root_dir = os.path.join(
                     get_dev_root_path(),
-                    pod.get("repository", self.get_repo_name()).split("@")[0].split("/")[-1],
+                    pod.get("repository", self.get_repo_name()).split("@")[0],
                     pod.get("path", "."),
                 )
                 result.add(Path(os.path.join(pod_root_dir, "stack")))
@@ -292,13 +293,13 @@ def get_pod_file_path(stack, pod_name: str):
     result = None
     pods = stack.get_pods()
     if type(pods[0]) is str:
-        result = resolve_compose_file(stack.name, pod_name)
+        result = resolve_compose_file(str(stack.file_path.parent), pod_name)
     else:
         for pod in pods:
             if pod["name"] == pod_name:
                 pod_root_dir = os.path.join(
                     get_dev_root_path(),
-                    pod.get("repository", stack.get_repo_name()).split("@")[0].split("/")[-1],
+                    pod.get("repository", stack.get_repo_name()).split("@")[0],
                     pod.get("path", "."),
                 )
                 result = os.path.join(pod_root_dir, f"{constants.compose_file_prefix}.yml")
@@ -306,7 +307,8 @@ def get_pod_file_path(stack, pod_name: str):
 
 
 def determine_fs_path_for_stack(stack_ref, stack_path):
-    return Path(os.path.sep.join([str(get_dev_root_path()), os.path.basename(stack_ref), str(stack_path)]))
+    repo_host, repo_path, repo_branch = host_and_path_for_repo(stack_ref)
+    return Path(os.path.sep.join([str(get_dev_root_path()), str(repo_host), str(repo_path), str(stack_path)]))
 
 
 def get_pod_script_paths(parsed_stack, pod_name: str):
@@ -317,7 +319,7 @@ def get_pod_script_paths(parsed_stack, pod_name: str):
             if pod["name"] == pod_name:
                 pod_root_dir = os.path.join(
                     get_dev_root_path(),
-                    pod.get("repository", parsed_stack.get_repo_name()).split("@")[0].split("/")[-1],
+                    pod.get("repository", parsed_stack.get_repo_name()).split("@")[0],
                     pod.get("path", "."),
                 )
                 if "pre_start_command" in pod:

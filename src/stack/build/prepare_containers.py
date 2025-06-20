@@ -33,13 +33,13 @@ from stack import constants
 from stack.config.util import get_config_setting, get_dev_root_path, verbose_enabled
 from stack.base import get_npm_registry_url
 from stack.build.build_types import BuildContext
-from stack.build.build_util import ContainerSpec, get_containers_in_scope, container_exists_locally, container_exists_remotely, local_container_arch, host_and_path_for_repo, image_registry_for_repo
+from stack.build.build_util import ContainerSpec, get_containers_in_scope, container_exists_locally, container_exists_remotely, local_container_arch
 from stack.build.publish import publish_image
 from stack.constants import container_file_name, container_lock_file_name, stack_file_name
 from stack.deploy.stack import Stack, get_parsed_stack_config
 from stack.opts import opts
 from stack.repos.list_stack import resolve_stack
-from stack.repos.setup_repositories import fs_path_for_repo, process_repo
+from stack.repos.repo_util import host_and_path_for_repo, image_registry_for_repo, fs_path_for_repo, process_repo
 from stack.util import include_exclude_check, stack_is_external, error_exit, get_yaml, check_if_stack_exists
 
 
@@ -92,10 +92,11 @@ def process_container(build_context: BuildContext) -> bool:
     build_script_filename = None
 
     # Check if this is in an external stack
-    if stack_is_external(build_context.stack.name):
+    if stack_is_external(build_context.stack):
         if build_context.container.build:
             build_script_filename = Path(build_context.container.file_path).parent.joinpath(build_context.container.build)
             build_dir = build_script_filename.parent
+            build_context.container_build_env["STACK_BUILD_DIR"] = build_dir
         else:
             container_build_script_dir = Path(build_context.stack.name).parent.parent.joinpath("container-build")
             if os.path.exists(container_build_script_dir):
@@ -107,28 +108,33 @@ def process_container(build_context: BuildContext) -> bool:
                     container_build_script_dir = build_context.default_container_base_dir
                 build_dir = container_build_script_dir.joinpath(build_context.container.name.replace("/", "-"))
                 build_script_filename = build_dir.joinpath("build.sh")
+                build_context.container_build_env["STACK_BUILD_DIR"] = build_dir
     if not build_dir:
         build_dir = build_context.default_container_base_dir.joinpath(build_context.container.name.replace("/", "-"))
         build_script_filename = build_dir.joinpath("build.sh")
 
     if opts.o.verbose:
         print(f"Build script filename: {build_script_filename}")
+
     if os.path.exists(build_script_filename):
         build_command = build_script_filename.as_posix()
     else:
         if opts.o.verbose:
             print(f"No script file found: {build_script_filename}, using default build script")
-        repo_dir = build_context.container.ref.split("/")[-1] if build_context.container.ref else build_context.container.name.split("/")[-1]
-        # TODO: make this less of a hack -- should be specified in some metadata somewhere
-        # Check if we have a repo for this container. If not, set the context dir to the container-build subdir
-        repo_full_path = os.path.join(build_context.dev_root_path, repo_dir)
+        if build_context.container.ref:
+            repo_full_path = fs_path_for_repo(build_context.container.ref)
+        else:
+            repo_full_path = build_context.stack.repo_path
+
         if build_context.container.path:
-            repo_full_path = os.path.join(repo_full_path, build_context.container.path)
-        repo_dir_or_build_dir = repo_full_path if os.path.exists(repo_full_path) else build_dir
+            repo_full_path = repo_full_path.joinpath(build_context.container.path)
+        repo_dir_or_build_dir = repo_full_path if repo_full_path.exists() else build_dir
         build_command = (
             os.path.join(build_context.default_container_base_dir, "default-build.sh")
             + f" {default_container_tag} {repo_dir_or_build_dir}"
         )
+        build_context.container_build_env["STACK_BUILD_DIR"] = repo_dir_or_build_dir
+
 
     build_context.container_build_env["STACK_IMAGE_NAME"] = build_context.container.name
     if not opts.o.dry_run:

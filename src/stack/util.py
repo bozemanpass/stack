@@ -14,7 +14,6 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http:#www.gnu.org/licenses/>.
 
-import git
 import os.path
 import sys
 import ruamel.yaml
@@ -66,8 +65,11 @@ def get_pod_list(parsed_stack):
 # and if not found there, internally
 def resolve_config_dir(stack, config_dir_name: str):
     if stack_is_external(stack):
-        # First try looking in the external stack for the compose file
-        config_base = Path(stack).parent.parent.joinpath("config")
+        print(stack.file_path.parent, config_dir_name)
+        if stack.repo_path:
+            config_base = stack.repo_path.joinpath("config")
+        else:
+            config_base = stack.file_path.parent.parent.parent.joinpath("config")
         proposed_dir = config_base.joinpath(config_dir_name)
         if proposed_dir.exists():
             return proposed_dir
@@ -131,7 +133,7 @@ def stack_is_external(stack):
         return stack.exists()
     elif isinstance(stack, str):
         return Path(stack).exists()
-    elif stack:  # a Stack
+    elif stack and stack.file_path:  # a Stack
         return stack.file_path.exists()
     return False
 
@@ -181,16 +183,6 @@ def check_if_stack_exists(stack):
         error_exit("Error: Missing option '--stack'.")
     if stack and not stack_is_external(stack) and not STACK_USE_BUILTIN_STACK:
         error_exit(f"Stack {stack} does not exist")
-
-
-def is_git_repo(path):
-    try:
-        _ = git.Repo(path).git_dir
-        return True
-    except:  # noqa: E722
-        pass
-
-    return False
 
 
 def is_primitive(obj):
