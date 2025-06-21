@@ -40,8 +40,16 @@ def include_exclude_check(s, include, exclude):
 
 
 def get_stack_path(stack):
+    if isinstance(stack, os.PathLike):
+        return stack
+
     if stack_is_external(stack):
-        stack_path = Path(stack)
+        if hasattr(stack, 'file_path') and stack.file_path:
+            stack_path = stack.file_path.parent
+        elif hasattr(stack, 'name') and stack.name:
+            stack_path = Path(stack.name)
+        else:
+            stack_path = Path(stack)
     else:
         # In order to be compatible with Python 3.8 we need to use this hack to get the path:
         # See: https://stackoverflow.com/questions/25389095/python-get-path-of-root-project-structure
@@ -128,7 +136,7 @@ def get_parsed_deployment_spec(spec_file):
 def stack_is_external(stack):
     if isinstance(stack, str) and stack == "webapp-template":
         # hack for the webapp template
-        return True
+        return False
     elif STACK_USE_BUILTIN_STACK and isinstance(stack, str):
         stack_path = Path(__file__).absolute().parent.joinpath("data", "stacks", stack)
         return not stack_path.exists()
