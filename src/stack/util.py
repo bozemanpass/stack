@@ -44,13 +44,12 @@ def get_stack_path(stack):
         return stack
 
     if stack_is_external(stack):
-        if isinstance(stack, str):
-            stack_path = Path(stack)
+        if hasattr(stack, 'file_path') and stack.file_path:
+            stack_path = stack.file_path.parent
+        elif hasattr(stack, 'name') and stack.name:
+            stack_path = Path(stack.name)
         else:
-            try:
-                stack_path = stack.file_path.parent
-            except:  # noqa: E722
-                stack_path = Path(stack.name)
+            stack_path = Path(stack)
     else:
         # In order to be compatible with Python 3.8 we need to use this hack to get the path:
         # See: https://stackoverflow.com/questions/25389095/python-get-path-of-root-project-structure
