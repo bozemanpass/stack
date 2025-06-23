@@ -18,12 +18,18 @@ import git
 import os
 import sys
 
+import stack.deploy.stack as stack_util
+
 from git.exc import GitCommandError
 from tqdm import tqdm
 from pathlib import Path
 
+from stack import constants
 from stack.config.util import get_dev_root_path
 from stack.opts import opts
+
+from stack.build.build_util import get_containers_in_scope
+from stack.util import include_exclude_check, error_exit
 
 
 class GitProgress(git.RemoteProgress):
@@ -191,3 +197,60 @@ def parse_branches(branches_string):
         return result_array
     else:
         return None
+
+
+def clone_all_repos_for_stack(stack, include=None, exclude=None, pull=False, git_ssh=None):
+    required_stacks = []
+    if stack.is_super_stack():
+        for stack_refs in stack.get_required_stacks():
+            try:
+                repo_path = process_repo(pull, False, git_ssh, get_dev_root_path(), None, stack_refs[constants.ref_key])
+            except git.exc.GitCommandError as error:
+                error_exit(f"\n******* git command returned error exit status:\n{error}")
+            required_stacks.append(repo_path.joinpath(stack_refs[constants.path_key]))
+    else:
+        required_stacks.append(stack)
+
+    for req_stack in required_stacks:
+        req_stack = stack_util.get_parsed_stack_config(req_stack)
+
+        dev_root_path = get_dev_root_path()
+
+        if opts.o.verbose:
+            print(f"Dev Root is: {dev_root_path}")
+
+        if not os.path.isdir(dev_root_path):
+            if not opts.o.quiet:
+                print("Dev root directory doesn't exist, creating")
+            os.makedirs(dev_root_path)
+
+        repos_in_scope = req_stack.get("repos", [])
+
+        # containers can reference an external repo
+        containers_in_scope = get_containers_in_scope(req_stack)
+        for c in containers_in_scope:
+            if c.ref and c.ref not in repos_in_scope:
+                repos_in_scope.append(c.ref)
+
+        if opts.o.verbose:
+            print(f"Repos: {repos_in_scope}")
+            print(f"Stack: {req_stack.name}")
+
+        if not repos_in_scope:
+            if not opts.o.quiet:
+                print(f"NOTE: stack {req_stack.name} does not define any repositories")
+            continue
+
+        repos = []
+        for repo in repos_in_scope:
+            if include_exclude_check(branch_strip(repo), include, exclude):
+                repos.append(repo)
+            else:
+                if opts.o.verbose:
+                    print(f"Excluding: {repo}")
+
+        for repo in repos:
+            try:
+                process_repo(pull, False, git_ssh, dev_root_path, None, repo)
+            except git.exc.GitCommandError as error:
+                error_exit(f"\n******* git command returned error exit status:\n{error}")

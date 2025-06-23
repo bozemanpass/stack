@@ -24,7 +24,7 @@ import subprocess
 from pathlib import Path
 from python_on_whales import DockerClient
 
-from stack.deploy.stack import get_parsed_stack_config
+import stack.deploy.stack as stack_util
 from stack.opts import opts
 from stack.util import warn_exit, get_yaml, error_exit
 
@@ -83,7 +83,7 @@ def get_containers_in_scope(stack):
     containers_in_scope = []
     if stack:
         if isinstance(stack, str):
-            stack_config = get_parsed_stack_config(stack)
+            stack_config = stack_util.get_parsed_stack_config(stack)
         else:
             stack_config = stack
         if "containers" not in stack_config or stack_config["containers"] is None:

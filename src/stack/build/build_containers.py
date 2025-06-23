@@ -40,7 +40,7 @@ from stack.deploy.stack import Stack, get_parsed_stack_config, resolve_stack
 from stack.opts import opts
 from stack.repos.repo_util import host_and_path_for_repo, image_registry_for_repo, fs_path_for_repo, process_repo
 from stack.util import include_exclude_check, stack_is_external, error_exit, get_yaml, check_if_stack_exists
-
+from stack.repos.repo_util import clone_all_repos_for_stack
 
 docker = DockerClient()
 
@@ -154,27 +154,19 @@ def process_container(build_context: BuildContext) -> bool:
         return True
 
 
-@click.command()
-@click.option("--stack", help="path to the stack", required=False)
-@click.option("--include", help="only build these containers")
-@click.option("--exclude", help="don't build these containers")
-@click.option("--git-ssh", is_flag=True, default=get_config_setting("git-ssh", False), help="use SSH for git rather than HTTPS")
-@click.option("--build-policy", default=BUILD_POLICIES[0], help=f"Available policies: {BUILD_POLICIES}")
-@click.option("--extra-build-args", help="Supply extra arguments to build")
-@click.option("--no-pull", is_flag=True, default=False, help="Don't pull remote images (useful with k8s deployments).")
-@click.option("--publish-images", is_flag=True, default=False, help="Publish the built images")
-@click.option("--image-registry", help="Specify the remote image registry (default: auto-detect per-container)", default=get_config_setting("image-registry"))
-@click.option("--target-arch", help="Specify a target architecture (only for use with --no-pull)")
-@click.pass_context
-def command(ctx, stack, include, exclude, git_ssh, build_policy, extra_build_args, no_pull, publish_images, image_registry, target_arch):
-    """build (or fetch pre-built) stack containers"""
-    if not stack:
-        stack = ctx.obj.stack_path
 
-    parent_stack = resolve_stack(stack)
+def build_containers(parent_stack,
+                     build_policy=get_config_setting("build-policy", BUILD_POLICIES[0]),
+                     image_registry=get_config_setting("image-registry"),
+                     publish_images=get_config_setting("publish-images", False),
+                     include=None,
+                     exclude=None,
+                     extra_build_args=None,
+                     git_ssh=get_config_setting("git-ssh", False),
+                     target_arch=None,
+                     dont_pull_images=False):
     dev_root_path = get_dev_root_path()
     required_stacks = parent_stack.get_required_stacks_paths()
-
     for stack in required_stacks:
         stack = get_parsed_stack_config(stack)
 
@@ -191,8 +183,8 @@ def command(ctx, stack, include, exclude, git_ssh, build_policy, extra_build_arg
             print("Dev root directory doesn't exist, creating")
 
         if target_arch and target_arch != local_container_arch():
-            if not no_pull:
-                error_exit("--target-arch requires --no-pull")
+            if not dont_pull_images:
+                error_exit("--target-arch requires --dont-pull-images")
             if build_policy != "prebuilt-remote":
                 error_exit("--target-arch requires --build-policy prebuilt-remote")
 
@@ -221,8 +213,7 @@ def command(ctx, stack, include, exclude, git_ssh, build_policy, extra_build_arg
             if stack_container.ref:
                 fs_path_for_container_specs = fs_path_for_repo(stack_container.ref, dev_root_path)
                 if not os.path.exists(fs_path_for_container_specs):
-                    print(f"Error: Missing container repo for {fs_path_for_container_specs}, run fetch repositories")
-                    sys.exit(1)
+                    process_repo(False, False, git_ssh, dev_root_path, [], stack_container.ref)
 
                 image_registries_to_check = [r for r in [image_registry, image_registry_for_repo(stack_container.ref)] if r]
 
@@ -248,9 +239,9 @@ def command(ctx, stack, include, exclude, git_ssh, build_policy, extra_build_arg
                     target_fs_repo_path = fs_path_for_repo(container_spec.ref, dev_root_path)
                     # does the ref include a hash?
                     if (
-                        branch_or_hash_from_spec
-                        and len(branch_or_hash_from_spec) == 40
-                        and all(c in string.hexdigits for c in branch_or_hash_from_spec)
+                            branch_or_hash_from_spec
+                            and len(branch_or_hash_from_spec) == 40
+                            and all(c in string.hexdigits for c in branch_or_hash_from_spec)
                     ):
                         if not locked_hash:
                             target_hash = branch_or_hash_from_spec
@@ -293,7 +284,7 @@ def command(ctx, stack, include, exclude, git_ssh, build_policy, extra_build_arg
                                     print(f"Container {image_registry_to_pull_this_container}:{container_tag} exists remotely.")
                                 else:
                                     print(f"Container {container_tag} exists remotely.")
-                                container_needs_pulled = not no_pull
+                                container_needs_pulled = not dont_pull_images
                                 container_needs_built = False
 
                     if container_needs_built:
@@ -368,3 +359,34 @@ def command(ctx, stack, include, exclude, git_ssh, build_policy, extra_build_arg
                     error_exit(f"No image registry specified to push {container_tag}")
                 container_version = container_tag.split(":")[-1]
                 publish_image(stack_local_tag, image_registry_to_push_this_container, container_version)
+
+
+
+@click.command()
+@click.option("--stack", help="path to the stack", required=False)
+@click.option("--include", help="only build these containers")
+@click.option("--exclude", help="don't build these containers")
+@click.option("--git-ssh", is_flag=True, default=get_config_setting("git-ssh", False), help="use SSH for git rather than HTTPS")
+@click.option("--build-policy", default=BUILD_POLICIES[0], help=f"Available policies: {BUILD_POLICIES}")
+@click.option("--extra-build-args", help="Supply extra arguments to build")
+@click.option("--dont-pull-images", is_flag=True, default=False, help="Don't pull remote images (useful with k8s deployments).")
+@click.option("--publish-images", is_flag=True, default=False, help="Publish the built images")
+@click.option("--image-registry", help="Specify the remote image registry (default: auto-detect per-container)", default=get_config_setting("image-registry"))
+@click.option("--target-arch", help="Specify a target architecture (only for use with --dont-pull-images)")
+@click.pass_context
+def command(ctx, stack, include, exclude, git_ssh, build_policy, extra_build_args, dont_pull_images, publish_images, image_registry, target_arch):
+    """build stack containers"""
+    if not stack:
+        stack = ctx.obj.stack_path
+
+    stack = resolve_stack(stack)
+    build_containers(stack,
+                     build_policy,
+                     image_registry,
+                     publish_images,
+                     include,
+                     exclude,
+                     extra_build_args,
+                     git_ssh,
+                     target_arch,
+                     dont_pull_images)

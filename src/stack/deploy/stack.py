@@ -21,11 +21,11 @@ import typing
 from pathlib import Path
 from typing import Set, List
 
+import stack.repos.repo_util as repo_util
+
 from stack import constants
 from stack.config.util import get_dev_root_path, verbose_enabled
 from stack.util import get_yaml, get_stack_path, error_exit, resolve_compose_file, STACK_USE_BUILTIN_STACK
-
-from stack.repos.repo_util import host_and_path_for_repo, is_git_repo
 
 
 class Stack:
@@ -88,7 +88,7 @@ class Stack:
             check_path = None
 
         while not self.repo_path and check_path and str(check_path.absolute().as_posix()) not in ["/"]:
-            if is_git_repo(check_path):
+            if repo_util.is_git_repo(check_path):
                 self.repo_path = check_path
             else:
                 check_path = check_path.parent
@@ -311,7 +311,7 @@ def get_pod_file_path(stack, pod_name: str):
 
 
 def determine_fs_path_for_stack(stack_ref, stack_path):
-    repo_host, repo_path, repo_branch = host_and_path_for_repo(stack_ref)
+    repo_host, repo_path, repo_branch = repo_util.host_and_path_for_repo(stack_ref)
     return Path(os.path.sep.join([str(get_dev_root_path()), str(repo_host), str(repo_path), str(stack_path)]))
 
 
@@ -371,6 +371,8 @@ def locate_single_stack(stack_name, search_path=get_dev_root_path(), fail_on_mul
 
 
 def resolve_stack(stack_name):
+    if not stack_name:
+        error_exit("stack name cannot be empty")
     stack = None
     if stack_name.startswith("/") or (os.path.exists(stack_name) and os.path.isdir(stack_name)):
         stack = get_parsed_stack_config(stack_name)

@@ -15,14 +15,14 @@
 
 import click
 
-from stack.build.prepare_containers import command as prepare_containers
+from stack.build.build_containers import command as build_containers
 
 
-@click.group()
+@click.group(hidden=True)
 @click.pass_context
 def command(ctx):
     """build stack components (containers, etc.)"""
     pass
 
 
-command.add_command(prepare_containers, "containers")
+command.add_command(build_containers, "containers")

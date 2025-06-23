@@ -27,7 +27,7 @@ import sys
 
 from pathlib import Path
 
-from stack.build import prepare_containers
+from stack.build import build_containers
 from stack.build.build_types import BuildContext
 from stack.build.build_util import ContainerSpec
 from stack.config.util import get_dev_root_path
@@ -63,7 +63,7 @@ def command(ctx, base_container, source_repo, force_rebuild, extra_build_args, t
         base_container = determine_base_container(source_repo)
 
     # First build the base container.
-    container_build_env = prepare_containers.make_container_build_env(dev_root_path, container_build_dir, debug,
+    container_build_env = build_containers.make_container_build_env(dev_root_path, container_build_dir, debug,
                                                                     force_rebuild, extra_build_args)
 
     if verbose:
@@ -76,7 +76,7 @@ def command(ctx, base_container, source_repo, force_rebuild, extra_build_args, t
         container_build_env,
         dev_root_path,
     )
-    ok = prepare_containers.process_container(build_context_1)
+    ok = build_containers.process_container(build_context_1)
     if not ok:
         logger.log("ERROR: Build failed.")
         sys.exit(1)
@@ -106,7 +106,7 @@ def command(ctx, base_container, source_repo, force_rebuild, extra_build_args, t
         container_build_env,
         dev_root_path,
     )
-    ok = prepare_containers.process_container(build_context_2)
+    ok = build_containers.process_container(build_context_2)
     if not ok:
         logger.log("ERROR: Build failed.")
         sys.exit(1)

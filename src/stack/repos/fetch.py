@@ -16,15 +16,13 @@
 import click
 
 from stack.repos.fetch_stack import command as fetch_stack
-from stack.repos.setup_repositories import command as setup_repositories
 
 
 @click.group()
 @click.pass_context
 def command(ctx):
-    """clone stacks and their required repositories"""
+    """clone repositories"""
     pass
 
 
-command.add_command(fetch_stack, "stack")
-command.add_command(setup_repositories, "repositories")
+command.add_command(fetch_stack, "repo")
