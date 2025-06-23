@@ -21,7 +21,7 @@ from stack.repos.fetch_stack import command as fetch_stack
 @click.group()
 @click.pass_context
 def command(ctx):
-    """clone repositories"""
+    """clone repos, etc."""
     pass
 
 
