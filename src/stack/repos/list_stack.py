@@ -27,10 +27,9 @@ from stack.deploy.stack import locate_stacks_beneath
 
 @click.command()
 @click.argument("filter", required=False)
-@click.option("--name-only", is_flag=True, default=False, help="only show stack names")
-@click.option("--path-only", is_flag=True, default=False, help="only show stack paths")
+@click.option("--show-path", is_flag=True, default=False, help="show stack path")
 @click.pass_context
-def command(ctx, filter, name_only, path_only):
+def command(ctx, filter, show_path):
     """list available stacks"""
     dev_root_path = get_dev_root_path()
     if opts.o.verbose:
@@ -52,9 +51,7 @@ def command(ctx, filter, name_only, path_only):
 
     padding = 8
     for stack in stacks:
-        if name_only:
-            print(stack.name)
-        elif path_only:
-            print(str(stack.file_path.parent))
-        else:
+        if show_path:
             print(f"{stack.name.ljust(max_name_len + padding)} {str(stack.file_path.parent).ljust(max_path_len + 8)}")
+        else:
+            print(stack.name)
