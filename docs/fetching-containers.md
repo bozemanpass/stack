@@ -14,6 +14,7 @@ Other build policies include:
 * `prebuilt`   -   Use only prebuilt images, whether they are local or remote.
 * `prebuilt-local`   -   Use only prebuilt images available locally.
 * `prebuilt-remote`   -   Use only prebuilt images available remotely.
+* `fetch-repos`   -   Don't build anything, just clone repos.
 
 When building, the resulting containers can be published to the image registry with `--publish-images`.  They will be
 published remotely with the form `<image-name>:<git_hash_of_container_repo>` such as `bpi/gitea:ae0af8ea5b2de99a49add2b7f7b76dde62a8a617`.
@@ -28,11 +29,11 @@ stack from an `arm64` laptop but intending to deploy to an `x64` Kubernetes clus
 ## Usage
 ```
 # Build locally and then publish remotely.
-$ stack --stack ~/bpi/path/to/my/stack build containers --build-policy build-force --publish-images --image-registry registry.digitalocean.com/example
+$ stack prepare --stack my-stack --build-policy build-force --publish-images --image-registry registry.digitalocean.com/example
 
 # Download remote images.
-$ stack --stack ~/bpi/path/to/my/stack build containers --build-policy prebuilt-remote --image-registry registry.digitalocean.com/example
+$ stack prepare --stack my-stack --build-policy prebuilt-remote --image-registry registry.digitalocean.com/example
 
 # Check if a remote image is available but don't pull it.
-$ stack --stack ~/bpi/path/to/my/stack build containers --build-policy prebuilt-remote --no-pull --target-arch x64 --image-registry registry.digitalocean.com/example
+$ stack prepare --stack my-stack --build-policy prebuilt-remote --no-pull --target-arch x64 --image-registry registry.digitalocean.com/example
 ```

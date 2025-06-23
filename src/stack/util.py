@@ -44,9 +44,9 @@ def get_stack_path(stack):
         return stack
 
     if stack_is_external(stack):
-        if hasattr(stack, 'file_path') and stack.file_path:
+        if hasattr(stack, "file_path") and stack.file_path:
             stack_path = stack.file_path.parent
-        elif hasattr(stack, 'name') and stack.name:
+        elif hasattr(stack, "name") and stack.name:
             stack_path = Path(stack.name)
         else:
             stack_path = Path(stack)

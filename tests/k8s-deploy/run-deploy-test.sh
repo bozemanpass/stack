@@ -143,9 +143,8 @@ mkdir -p $STACK_REPO_BASE_DIR
 
 STACK_NAME="todo"
 
-$TEST_TARGET_SO fetch stack bozemanpass/example-todo-list
-$TEST_TARGET_SO fetch repositories --stack $STACK_NAME
-$TEST_TARGET_SO build containers --stack $STACK_NAME
+$TEST_TARGET_SO fetch repo bozemanpass/example-todo-list
+$TEST_TARGET_SO prepare --stack $STACK_NAME
 
 # Basic test of creating a deployment
 test_deployment_dir=$STACK_REPO_BASE_DIR/test-deployment-dir
