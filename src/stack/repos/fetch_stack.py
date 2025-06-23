@@ -30,9 +30,9 @@ from stack.util import error_exit
 @click.command()
 @click.argument("repo-locator")
 @click.option("--git-ssh", is_flag=True, default=get_config_setting("git-ssh", False), help="use SSH for git rather than HTTPS")
-@click.option("--pull", is_flag=True, default=False, help="pull the latest changes for an existing repo")
+@click.option("--git-pull", is_flag=True, default=False, help="pull the latest changes for an existing repo")
 @click.pass_context
-def command(ctx, repo_locator, git_ssh, pull):
+def command(ctx, repo_locator, git_ssh, git_pull):
     """clone a repository"""
     dev_root_path = get_dev_root_path()
     if verbose_enabled():
@@ -44,6 +44,6 @@ def command(ctx, repo_locator, git_ssh, pull):
         error_exit(f"{repo_locator} is not a valid stack locator")
 
     try:
-        process_repo(pull, False, git_ssh, dev_root_path, None, repo_locator)
+        process_repo(git_pull, False, git_ssh, dev_root_path, None, repo_locator)
     except exc.GitCommandError as error:
         error_exit(f"\n******* git command returned error exit status:\n{error}")

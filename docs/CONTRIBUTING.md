@@ -47,20 +47,23 @@ In addition to the pre-requisites listed in the [README](/README.md), the follow
       BPI stack
 
       Options:
-         --stack TEXT  path to the stack to build/deploy
-         --verbose     more detailed output
-         --debug       enable debug logging
-         -h, --help    Show this message and exit.
+         --verbose       more detailed output
+         --debug         enable debug logging
+         --stack TEXT    path to the stack
+         --profile TEXT  name of the configuration profile to use
+         -h, --help      Show this message and exit.
 
       Core Commands:
-         deploy              deploy a stack
-         deployment          manage a deployment
-         fetch stack         clone a stack repository
-         build containers  build or download stack containers
-         fetch repositories  clone the repositories needed by the stack
-         update              update shiv binary from a distribution url
-         version             print tool version
-         webapp              build, run, and deploy webapps
+         config   manage configuration settings for the stack command
+         deploy   deploy a stack
+         fetch    clone repositories
+         init     create a stack specification file
+         list     list available stacks
+         manage   manage a deployed stack (start, stop, etc.)
+         prepare  prepare a stack by cloning repositories and building and...
+         update   update shiv binary from a distribution url
+         version  print tool version
+         webapp   build, run, and deploy webapps
    ```
 
 ## Build a zipapp (single file distributable script)

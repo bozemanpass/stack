@@ -2,39 +2,52 @@
 
 Sub-commands and flags
 
-## fetch stack
+## fetch stack repo
 ```
-$ stack fetch stack bozemanpass/example-todo-list
-```
-
-## fetch repositories
-
-Clone the repositories for a stack:
-```
-$ stack fetch repositories --stack ~/bpi/example-todo-list/stacks/todo
-```
-Pull latest commits from origin:
-```
-$ stack fetch repositories --stack ~/bpi/example-todo-list/stacks/todo --pull
-```
-Use SSH rather than https:
-```
-$ stack fetch repositories --stack ~/bpi/example-todo-list/stacks/todo --git-ssh
+$ stack fetch repo bozemanpass/example-todo-list
 ```
 
-## build containers
+## list stacks
 
-Build all containers:
 ```
-$ stack build containers --stack ~/bpi/example-todo-list/stacks/todo
+$ stack list
+fixturenet-eth               /home/example/.stack/repos/github.com/bozemanpass/fixturenet-eth-stack/stacks/fixturenet-eth
+siwe-express-example         /home/example/.stack/repos/github.com/bozemanpass/siwe-express-example/stacks/siwe-express-example
+siwe-on-fixturenet           /home/example/.stack/repos/github.com/bozemanpass/siwe-express-example/stacks/siwe-on-fixturenet1
+todo                         /home/example/.stack/repos/github.com/bozemanpass/example-todo-list/stacks/todo
+```
+Filter:
+```
+$ stack list todo
+todo                         /home/example/.stack/repos/github.com/bozemanpass/example-todo-list/stacks/todo
+```
+Show names only:
+```
+$ stack list --name-only
+fixturenet-eth
+siwe-express-example
+siwe-on-fixturenet
+todo
+```
+Show paths only and filter:
+```
+$ stack list --path-only todo
+/home/example/.stack/repos/github.com/bozemanpass/example-todo-list/stacks/todo
+```
+
+## prepare the stack containers
+
+Download repos and build containers:
+```
+$ stack prepare --stack todo
 ```
 Build a specific container:
 ```
-$ stack build containers --stack ~/bpi/example-todo-list/stacks/todo --include "bpi/todo-frontend"
+$ stack prepare --stack todo --include-containers "bpi/todo-frontend"
 ```
 Force full rebuild of container images:
 ```
-$ stack build containers --stack ~/bpi/example-todo-list/stacks/todo --build-policy build-force
+$ stack prepare --stack todo --build-policy build-force
 ```
 
 See [fetching-containers](fetching-containers.md) for more information on fetching, building,
@@ -44,17 +57,17 @@ and checking for container images.
 
 Create a configuration spec file with the default values:
 ```
-$ stack init --stack ~/bpi/example-todo-list/stacks/todo --output todo.yml
+$ stack init --stack todo --output todo.yml
 ```
 
 Map stack ports to localhost:
 ```
-$ stack init --stack ~/bpi/example-todo-list/stacks/todo --output todo.yml --map-ports-to-host localhost-same
+$ stack init --stack todo --output todo.yml --map-ports-to-host localhost-same
 ```
 
 Set a configuration value:
 ```
-$ stack init --stack ~/bpi/example-todo-list/stacks/todo --output todo.yml \
+$ stack init --stack todo --output todo.yml \
     --map-ports-to-host localhost-same \
     --config REACT_APP_API_URL=http://127.0.0.1:5000/api/todos
 ```
@@ -63,7 +76,7 @@ Full Kubernetes configuration with image registry, HTTP ingress, and environment
 ```
 $ stack init \
     --deploy-to k8s \
-    --stack ~/bpi/example-todo-list/stacks/todo \
+    --stack todo \
     --output todo.yml                         \
     --image-registry $IMAGE_REGISTRY \
     --kube-config /path/to/kubeconfig.yaml \

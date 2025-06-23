@@ -30,7 +30,7 @@ PREPARE_POLICIES = BUILD_POLICIES[:] + ["fetch-repos"]
 @click.option("--include-repos", help="only clone these repositories")
 @click.option("--exclude-repos", help="don't clone these repositories")
 @click.option("--git-ssh", is_flag=True, default=get_config_setting("git-ssh", False), help="use SSH for git rather than HTTPS")
-@click.option("--pull", is_flag=True, default=False, help="pull the latest changes for an existing repo")
+@click.option("--git-pull", is_flag=True, default=False, help="pull the latest changes for an existing repo")
 @click.option("--build-policy", default=PREPARE_POLICIES[0], help=f"Available policies: {PREPARE_POLICIES}")
 @click.option("--extra-build-args", help="Supply extra arguments to build")
 @click.option("--dont-pull-images", is_flag=True, default=False, help="Don't pull remote images (useful with k8s deployments).")
@@ -50,7 +50,7 @@ def command(
         include_repos,
         exclude_repos,
         git_ssh,
-        pull,
+        git_pull,
         build_policy,
         extra_build_args,
         dont_pull_images,
@@ -58,13 +58,13 @@ def command(
         image_registry,
         target_arch,
 ):
-    """prepare a stack by cloning repositories and building and downloading containers"""
+    """build or download stack containers"""
 
     if build_policy not in PREPARE_POLICIES:
         error_exit(f"{build_policy} is not one of {PREPARE_POLICIES}")
 
     stack = resolve_stack(stack)
-    clone_all_repos_for_stack(stack, include_repos, exclude_repos, pull, git_ssh)
+    clone_all_repos_for_stack(stack, include_repos, exclude_repos, git_pull, git_ssh)
 
     if build_policy == "fetch-repos":
         return
