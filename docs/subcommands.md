@@ -32,20 +32,23 @@ Usage: stack [OPTIONS] COMMAND [ARGS]...
   BPI stack
 
 Options:
-  --verbose     more detailed output
-  --debug       enable debug logging
-  --stack TEXT  path to the stack
-  -h, --help    Show this message and exit.
+   --verbose       more detailed output
+   --debug         enable debug logging
+   --stack TEXT    path to the stack
+   --profile TEXT  name of the configuration profile to use
+   -h, --help      Show this message and exit.
 
 Core Commands:
-  build    build stack components (containers, etc.)
-  config   make configuration files for deploying a stack
-  deploy   deploy a stack
-  fetch    clone stacks and their required repositories
-  manage   manage a deployed stack (start, stop, etc.)
-  update   update shiv binary from a distribution url
-  version  print tool version
-  webapp   build, run, and deploy webapps
+   config   manage configuration settings for the stack command
+   deploy   deploy a stack
+   fetch    clone repositories
+   init     create a stack specification file
+   list     list available stacks
+   manage   manage a deployed stack (start, stop, etc.)
+   prepare  prepare a stack by cloning repositories and building and...
+   update   update shiv binary from a distribution url
+   version  print tool version
+   webapp   build, run, and deploy webapps
 
 Example Commands:
   example-hello  hello description here
