@@ -11,28 +11,22 @@ $ stack fetch repo bozemanpass/example-todo-list
 
 ```
 $ stack list
-fixturenet-eth               /home/example/.stack/repos/github.com/bozemanpass/fixturenet-eth-stack/stacks/fixturenet-eth
-siwe-express-example         /home/example/.stack/repos/github.com/bozemanpass/siwe-express-example/stacks/siwe-express-example
-siwe-on-fixturenet           /home/example/.stack/repos/github.com/bozemanpass/siwe-express-example/stacks/siwe-on-fixturenet1
-todo                         /home/example/.stack/repos/github.com/bozemanpass/example-todo-list/stacks/todo
-```
-Filter:
-```
-$ stack list todo
-todo                         /home/example/.stack/repos/github.com/bozemanpass/example-todo-list/stacks/todo
-```
-Show names only:
-```
-$ stack list --name-only
 fixturenet-eth
 siwe-express-example
 siwe-on-fixturenet
 todo
 ```
-Show paths only and filter:
+Filter:
 ```
-$ stack list --path-only todo
-/home/example/.stack/repos/github.com/bozemanpass/example-todo-list/stacks/todo
+$ stack list fixturenet
+fixturenet-eth
+siwe-on-fixturenet
+```
+```
+Show paths and filter:
+```
+$ stack list --show-path todo
+todo         /home/example/.stack/repos/github.com/bozemanpass/example-todo-list/stacks/todo
 ```
 
 ## prepare the stack containers
