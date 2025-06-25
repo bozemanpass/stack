@@ -170,16 +170,15 @@ def command(
         http_proxy_target = [_parse_http_proxy(t) for t in http_proxy_target]
 
     specs = []
+    warned_about_http_prefix = False
     for i, stack in enumerate(required_stacks):
         http_prefix = None
         if top_stack_config.is_super_stack():
             http_prefix = http_prefix_for(stack)
         if http_prefix:
-            if deploy_to not in [constants.k8s_kind_deploy_type, constants.k8s_deploy_type]:
-                print(
-                    f"WARN: {stack} has an {constants.http_proxy_prefix_key} of {http_prefix}, which is "
-                    f"only supported in k8s deployments. HTTP paths will be unchanged in a {deploy_to} deployment."
-                )
+            if not warned_about_http_prefix and deploy_to not in [constants.k8s_kind_deploy_type, constants.k8s_deploy_type]:
+                print(f"NOTE: {constants.http_proxy_prefix_key} setting is only used when deploying to Kubernetes.")
+                warned_about_http_prefix = True
 
         inner_stack_config = get_parsed_stack_config(stack)
         http_proxy_targets = inner_stack_config.get_http_proxy_targets(http_prefix)
