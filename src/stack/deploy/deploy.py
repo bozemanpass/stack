@@ -245,7 +245,7 @@ def _make_cluster_context(ctx, stack, include, exclude, cluster, env_file):
     post_start_commands = []
     for pod in pods_in_scope:
         pod_name = pod["name"]
-        pod_repository = pod.get("repository", stack_config.get_repo_name())
+        pod_repository = pod.get("repository", stack_config.get_repo_ref())
         pod_path = pod.get("path", ".")
         if include_exclude_check(pod_name, include, exclude):
             if pod_repository == "internal":

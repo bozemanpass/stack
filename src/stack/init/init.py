@@ -15,6 +15,7 @@ import socket
 # along with this program.  If not, see <http:#www.gnu.org/licenses/>.
 
 import click
+import os
 
 from stack import constants
 from stack.config.util import get_config_setting
@@ -22,6 +23,7 @@ from stack.deploy.deploy import create_deploy_context
 from stack.deploy.deployment_create import init_operation
 from stack.deploy.spec import MergedSpec
 from stack.deploy.stack import get_parsed_stack_config, determine_fs_path_for_stack, resolve_stack
+from stack.repos.repo_util import clone_all_repos_for_stack
 from stack.util import global_options2, error_exit, get_yaml
 
 
@@ -69,6 +71,7 @@ def _output_checks(specs, deploy_to):
 
 @click.command()
 @click.option("--stack", help="path to the stack", required=False)
+@click.option("--git-ssh", is_flag=True, default=get_config_setting("git-ssh", False), help="use SSH for git rather than HTTPS")
 @click.option("--config", help="Provide config variables for the deployment", multiple=True)
 @click.option("--config-file", help="Provide config variables in a file for the deployment")
 @click.option("--cluster", help="specify a non-default cluster name")
@@ -113,6 +116,7 @@ def _output_checks(specs, deploy_to):
 def command(
     ctx,
     stack,
+    git_ssh,
     deploy_to,
     cluster,
     config,
@@ -168,6 +172,11 @@ def command(
         if deploy_to not in [constants.k8s_kind_deploy_type, constants.k8s_deploy_type]:
             error_exit(f"--http-proxy-target is not allowed with a {deploy_to} deployment")
         http_proxy_target = [_parse_http_proxy(t) for t in http_proxy_target]
+
+    for rs in required_stacks:
+        if not os.path.exists(rs):
+            print("Cloning required repos...")
+            clone_all_repos_for_stack(top_stack_config, None, None, False, git_ssh)
 
     specs = []
     warned_about_http_prefix = False
