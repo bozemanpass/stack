@@ -197,8 +197,8 @@ def build_containers(parent_stack,
         containers_in_scope = [c for c in get_containers_in_scope(stack) if include_exclude_check(c.name, include, exclude)]
         for stack_container in containers_in_scope:
             # No container ref means use the stack repo.
-            if (not stack_container.ref or stack_container.ref == ".") and stack.get_repo_name():
-                stack_container.ref = stack.get_repo_name()
+            if (not stack_container.ref or stack_container.ref == ".") and stack.get_repo_ref():
+                stack_container.ref = stack.get_repo_ref()
 
             container_needs_built = True
             container_was_built = False

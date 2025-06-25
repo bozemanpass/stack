@@ -64,7 +64,7 @@ class Stack:
         self.name = self.obj.get("name", self.name)
         self.file_path = file_path.absolute()
         self._determine_repo_path()
-        if self.get_repo_name() and "pods" in self.obj:
+        if self.get_repo_ref() and "pods" in self.obj:
             for pod in self.obj["pods"]:
                 if type(pod) is not str:
                     # Inject the repo if possible
@@ -115,7 +115,7 @@ class Stack:
     def get_repo_name(self):
         ref = self.get_repo_ref()
         if ref:
-            return ref.split("/", 2)[-1]
+            return ref.split("/", 1)[-1]
         return None
 
     def get_repo_url(self):
