@@ -69,7 +69,7 @@ class Stack:
                 if type(pod) is not str:
                     # Inject the repo if possible
                     if "repository" not in pod:
-                        pod["repository"] = self.get_repo_name()
+                        pod["repository"] = self.get_repo_ref()
         return self
 
     def _determine_repo_path(self):
@@ -95,15 +95,27 @@ class Stack:
 
         return self.repo_path
 
+    def get_repo_ref(self):
+        repo_url = self.get_repo_url()
+        if not repo_url:
+            return None
+
+        if repo_url.startswith("https://") or repo_url.startswith("http://"):
+            repo_url = repo_url.split("://", 2)[1]
+            repo_host, repo_name = repo_url.split("/", 1)
+        elif repo_url.startswith("git@"):
+            repo_host, repo_name = repo_url.split(":", 1)
+            repo_host = repo_host[4:]
+
+        if repo_name.endswith(".git"):
+            repo_name = repo_name[:-4]
+
+        return f"{repo_host}/{repo_name}"
+
     def get_repo_name(self):
-        repo = self.get_repo_url()
-        if repo:
-            if repo.startswith("https://") or repo.startswith("http://"):
-                repo = repo.split("://", 2)[1]
-            repo = repo.split(":", 2)[-1]
-            if repo.endswith(".git"):
-                repo = repo[:-4]
-            return repo
+        ref = self.get_repo_ref()
+        if ref:
+            return ref.split("/", 2)[-1]
         return None
 
     def get_repo_url(self):
@@ -137,7 +149,7 @@ class Stack:
         return [p["name"] for p in pods]
 
     def load_pod_file(self, pod_name):
-        pod_file_path = get_pod_file_path(self, pod_name)
+        pod_file_path = self.get_pod_file_path(pod_name)
         if pod_file_path:
             return get_yaml().load(open(pod_file_path, "rt"))
         return None
@@ -260,7 +272,7 @@ class Stack:
             else:
                 pod_root_dir = os.path.join(
                     get_dev_root_path(),
-                    pod.get("repository", self.get_repo_name()).split("@")[0],
+                    pod.get("repository", self.get_repo_ref()).split("@")[0],
                     pod.get("path", "."),
                 )
                 result.add(Path(os.path.join(pod_root_dir, "stack")))
@@ -303,7 +315,7 @@ def get_pod_file_path(stack, pod_name: str):
             if pod["name"] == pod_name:
                 pod_root_dir = os.path.join(
                     get_dev_root_path(),
-                    pod.get("repository", stack.get_repo_name()).split("@")[0],
+                    pod.get("repository", stack.get_repo_ref()).split("@")[0],
                     pod.get("path", "."),
                 )
                 result = os.path.join(pod_root_dir, f"{constants.compose_file_prefix}.yml")
@@ -323,7 +335,7 @@ def get_pod_script_paths(parsed_stack, pod_name: str):
             if pod["name"] == pod_name:
                 pod_root_dir = os.path.join(
                     get_dev_root_path(),
-                    pod.get("repository", parsed_stack.get_repo_name()).split("@")[0],
+                    pod.get("repository", parsed_stack.get_repo_ref()).split("@")[0],
                     pod.get("path", "."),
                 )
                 if "pre_start_command" in pod:
