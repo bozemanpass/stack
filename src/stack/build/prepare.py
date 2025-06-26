@@ -29,7 +29,7 @@ PREPARE_POLICIES = BUILD_POLICIES[:] + ["fetch-repos"]
 @click.option("--exclude-containers", help="don't build/download these containers")
 @click.option("--include-repos", help="only clone these repositories")
 @click.option("--exclude-repos", help="don't clone these repositories")
-@click.option("--git-ssh", is_flag=True, default=get_config_setting("git-ssh", False), help="use SSH for git rather than HTTPS")
+@click.option("--git-ssh/--no-git-ssh", is_flag=True, default=get_config_setting("git-ssh", False), help="use SSH for git rather than HTTPS")
 @click.option("--git-pull", is_flag=True, default=False, help="pull the latest changes for an existing repo")
 @click.option("--build-policy", default=PREPARE_POLICIES[0], help=f"Available policies: {PREPARE_POLICIES}")
 @click.option("--extra-build-args", help="Supply extra arguments to build")

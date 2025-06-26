@@ -29,7 +29,7 @@ from stack.util import error_exit
 
 @click.command()
 @click.argument("repo-locator")
-@click.option("--git-ssh", is_flag=True, default=get_config_setting("git-ssh", False), help="use SSH for git rather than HTTPS")
+@click.option("--git-ssh/--no-git-ssh", is_flag=True, default=get_config_setting("git-ssh", False), help="use SSH for git rather than HTTPS")
 @click.option("--git-pull", is_flag=True, default=False, help="pull the latest changes for an existing repo")
 @click.pass_context
 def command(ctx, repo_locator, git_ssh, git_pull):

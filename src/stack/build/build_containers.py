@@ -366,7 +366,7 @@ def build_containers(parent_stack,
 @click.option("--stack", help="path to the stack", required=False)
 @click.option("--include", help="only build these containers")
 @click.option("--exclude", help="don't build these containers")
-@click.option("--git-ssh", is_flag=True, default=get_config_setting("git-ssh", False), help="use SSH for git rather than HTTPS")
+@click.option("--git-ssh/--no-git-ssh", is_flag=True, default=get_config_setting("git-ssh", False), help="use SSH for git rather than HTTPS")
 @click.option("--build-policy", default=BUILD_POLICIES[0], help=f"Available policies: {BUILD_POLICIES}")
 @click.option("--extra-build-args", help="Supply extra arguments to build")
 @click.option("--dont-pull-images", is_flag=True, default=False, help="Don't pull remote images (useful with k8s deployments).")
