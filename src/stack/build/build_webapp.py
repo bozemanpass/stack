@@ -32,7 +32,7 @@ from stack.build.build_types import BuildContext
 from stack.build.build_util import ContainerSpec
 from stack.config.util import get_dev_root_path
 from stack.deploy.stack import Stack
-from stack.deploy.webapp.util import determine_base_container, TimedLogger
+from stack.deploy.webapp.util import determine_base_container
 
 
 
@@ -45,7 +45,6 @@ from stack.deploy.webapp.util import determine_base_container, TimedLogger
 @click.pass_context
 def command(ctx, base_container, source_repo, force_rebuild, extra_build_args, tag):
     '''build the specified webapp container'''
-    logger = TimedLogger()
 
     # See: https://stackoverflow.com/questions/25389095/python-get-path-of-root-project-structure
     container_build_dir = Path(__file__).absolute().parent.parent.joinpath("data", "container-build")

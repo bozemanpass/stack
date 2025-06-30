@@ -30,7 +30,7 @@ from stack.opts import opts
 from stack.build.build_util import get_containers_in_scope
 from stack.util import include_exclude_check, error_exit
 
-from stack.log import log_debug, log_info, get_log_file
+from stack.log import log_debug, log_info, get_log_file, is_info_enabled, log_is_console
 
 
 class GitProgress(git.RemoteProgress):
@@ -135,7 +135,7 @@ def process_repo(pull, check_only, git_ssh, dev_root_path, branches_array, fully
                     if is_branch:
                         git_repo = git.Repo(full_filesystem_repo_path)
                         origin = git_repo.remotes.origin
-                        origin.pull(progress=None if opts.o.log else GitProgress())
+                        origin.pull(progress=GitProgress() if log_is_console() and is_info_enabled() else None)
                     else:
                         log_info("skipping pull because this repo is not on a branch")
                 else:
@@ -147,7 +147,7 @@ def process_repo(pull, check_only, git_ssh, dev_root_path, branches_array, fully
             git.Repo.clone_from(
                 full_github_repo_path,
                 full_filesystem_repo_path,
-                progress=None if opts.o.quiet else GitProgress(),
+                progress=GitProgress() if log_is_console() and is_info_enabled() else None,
             )
         else:
             log_info("(git clone skipped)")
