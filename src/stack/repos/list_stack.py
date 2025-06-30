@@ -20,7 +20,6 @@
 import click
 
 from stack.config.util import get_dev_root_path
-from stack.opts import opts
 
 from stack.deploy.stack import locate_stacks_beneath
 

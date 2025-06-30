@@ -20,6 +20,7 @@
 # STACK_REPO_BASE_DIR defaults to ~/bpi
 
 import click
+import json
 import git
 import os
 
@@ -28,7 +29,7 @@ from pathlib import Path
 from python_on_whales import DockerClient
 
 from stack import constants
-from stack.config.util import get_config_setting, get_dev_root_path, verbose_enabled
+from stack.config.util import get_config_setting, get_dev_root_path
 from stack.base import get_npm_registry_url
 from stack.build.build_types import BuildContext
 from stack.build.build_util import ContainerSpec, get_containers_in_scope, container_exists_locally, container_exists_remotely, local_container_arch
@@ -40,7 +41,7 @@ from stack.repos.repo_util import host_and_path_for_repo, image_registry_for_rep
 from stack.util import include_exclude_check, stack_is_external, error_exit, get_yaml, check_if_stack_exists
 from stack.repos.repo_util import clone_all_repos_for_stack
 
-from stack.log import log_error, log_info, log_debug, log_warn, output_main
+from stack.log import log_error, log_info, log_debug, log_warn, output_main, is_info_enabled
 
 from stack.util import run_shell_command
 
@@ -83,8 +84,7 @@ def make_container_build_env(dev_root_path: str, default_container_base_dir: str
 
 
 def process_container(build_context: BuildContext) -> bool:
-    if not opts.o.quiet:
-        log_info(f"Building: {build_context.container.name}:stack")
+    log_info(f"Building: {build_context.container.name}:stack")
 
     default_container_tag = f"{build_context.container.name}:stack"
     build_context.container_build_env.update({"STACK_DEFAULT_CONTAINER_IMAGE_TAG": default_container_tag})
@@ -142,7 +142,7 @@ def process_container(build_context: BuildContext) -> bool:
             build_context.container_build_env["PATH"] = os.environ["PATH"]
         log_debug(f"Executing: {build_command} with environment: {build_context.container_build_env}")
 
-        build_result = run_shell_command(build_command, env=build_context.container_build_env)
+        build_result = run_shell_command(build_command, env=build_context.container_build_env, quiet=not is_info_enabled())
 
         log_debug(f"Return code is: {build_result}")
         if build_result != 0:
@@ -335,11 +335,7 @@ def build_containers(parent_stack,
                     if container_exists_locally(stack_legacy_tag) and not container_exists_locally(stack_local_tag):
                         docker.image.tag(stack_legacy_tag, stack_local_tag)
                 else:
-                    log_error(f"Error running build for {build_context.container}")
-                    if not opts.o.continue_on_error:
-                        error_exit("container build failed and --continue-on-error not set, exiting")
-                    else:
-                        log_error("****** Container Build Error, continuing because --continue-on-error is set")
+                    error_exit(f"container build failed for: {build_context.container}")
 
             if container_tag:
                 # We won't have a local copy with prebuilt-remote and --no-pull
@@ -363,7 +359,8 @@ def build_containers(parent_stack,
 
             finished_containers.append(container_spec)
 
-    output_main(f"Finished preparing containers: {[c.name for c in finished_containers]}")
+    log_info("Prepared containers:")
+    output_main(json.dumps([c.name for c in finished_containers]))
 
 
 

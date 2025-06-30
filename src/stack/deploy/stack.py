@@ -24,7 +24,8 @@ from typing import Set, List
 import stack.repos.repo_util as repo_util
 
 from stack import constants
-from stack.config.util import get_dev_root_path, verbose_enabled
+from stack.config.util import get_dev_root_path
+from stack.log import log_debug
 from stack.util import get_yaml, get_stack_path, error_exit, resolve_compose_file, STACK_USE_BUILTIN_STACK
 
 
@@ -388,8 +389,7 @@ def resolve_stack(stack_name):
     stack = None
     if stack_name.startswith("/") or (os.path.exists(stack_name) and os.path.isdir(stack_name)):
         stack = get_parsed_stack_config(stack_name)
-        if verbose_enabled():
-            print(f"Resolved {stack_name} to {stack.file_path.parent}")
+        log_debug(f"Resolved {stack_name} to {stack.file_path.parent}")
     else:
         stack = locate_single_stack(stack_name, fail_on_none=False, fail_on_multiple=False)
         if not stack and STACK_USE_BUILTIN_STACK:
@@ -398,8 +398,8 @@ def resolve_stack(stack_name):
             if stack_path:
                 stack = get_parsed_stack_config(stack_path)
 
-    if verbose_enabled() and stack:
-        print(f"Resolved {stack_name} to {stack.file_path.parent}")
+    if stack:
+        log_debug(f"Resolved {stack_name} to {stack.file_path.parent}")
 
     if not stack:
         error_exit(f"stack {stack_name} not found")

@@ -17,15 +17,14 @@
 from datetime import timedelta
 from typing import List, Any
 
-from stack.config.util import debug_enabled
 from stack.deploy.deploy_types import DeployCommandContext, VolumeMapping
 from stack.deploy.stack import get_parsed_stack_config
+from stack.log import log_debug
 from stack.util import (
     get_yaml,
     get_pod_list,
     resolve_compose_file,
 )
-from stack.opts import opts
 
 
 TIME_UNITS = {"s": "seconds", "m": "minutes", "h": "hours", "d": "days", "w": "weeks"}
@@ -76,8 +75,7 @@ def parsed_pod_files_map_from_file_names(pod_files):
         with open(pod_file, "r") as pod_file_descriptor:
             parsed_pod_file = get_yaml().load(pod_file_descriptor)
             parsed_pod_yaml_map[pod_file] = parsed_pod_file
-    if opts.o.debug:
-        print(f"parsed_pod_yaml_map: {parsed_pod_yaml_map}")
+    log_debug(f"parsed_pod_yaml_map: {parsed_pod_yaml_map}")
     return parsed_pod_yaml_map
 
 
@@ -92,8 +90,7 @@ def images_for_deployment(pod_files: List[str]):
             service_info = services[service_name]
             image = service_info["image"]
             image_set.add(image)
-    if opts.o.debug:
-        print(f"image_set: {image_set}")
+    log_debug(f"image_set: {image_set}")
     return image_set
 
 
@@ -110,8 +107,7 @@ def run_container_command(ctx: DeployCommandContext, service: str, command: str,
     deployer = ctx.deployer
     container_image = _container_image_from_service(ctx.stack, service)
     docker_volumes = _volumes_to_docker(mounts)
-    if debug_enabled():
-        print(f"Running this command in {service} container: {command}")
+    log_debug(f"Running this command in {service} container: {command}")
     docker_output = deployer.run(
         container_image,
         ["-c", command],

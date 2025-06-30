@@ -30,7 +30,7 @@ from stack.opts import opts
 from stack.build.build_util import get_containers_in_scope
 from stack.util import include_exclude_check, error_exit
 
-from stack.log import log_debug, output_main, output_sub, log_info, get_log_file
+from stack.log import log_debug, log_info, get_log_file
 
 
 class GitProgress(git.RemoteProgress):
@@ -118,13 +118,12 @@ def process_repo(pull, check_only, git_ssh, dev_root_path, branches_array, fully
     (current_repo_branch_or_tag, is_branch) = (
         _get_repo_current_branch_or_tag(full_filesystem_repo_path) if is_present else (None, None)
     )
-    if not opts.o.quiet:
-        present_text = (
-            f"already exists active {'branch' if is_branch else 'ref'}: {current_repo_branch_or_tag}"
-            if is_present
-            else "Needs to be fetched"
-        )
-        log_debug(f"Checking: {full_filesystem_repo_path}: {present_text}")
+    present_text = (
+        f"already exists active {'branch' if is_branch else 'ref'}: {current_repo_branch_or_tag}"
+        if is_present
+        else "Needs to be fetched"
+    )
+    log_debug(f"Checking: {full_filesystem_repo_path}: {present_text}")
     # Quick check that it's actually a repo
     if is_present:
         if not is_git_repo(full_filesystem_repo_path):
@@ -136,7 +135,7 @@ def process_repo(pull, check_only, git_ssh, dev_root_path, branches_array, fully
                     if is_branch:
                         git_repo = git.Repo(full_filesystem_repo_path)
                         origin = git_repo.remotes.origin
-                        origin.pull(progress=None if opts.o.quiet else GitProgress())
+                        origin.pull(progress=None if opts.o.log else GitProgress())
                     else:
                         log_info("skipping pull because this repo is not on a branch")
                 else:
@@ -174,8 +173,7 @@ def process_repo(pull, check_only, git_ssh, dev_root_path, branches_array, fully
             # git checkout works for both branches and tags
             git_repo.git.checkout(branch_to_checkout)
         else:
-            if not opts.o.quiet:
-                log_info(f"repo {repo_path} is already on branch/tag {branch_to_checkout}")
+            log_debug(f"repo {repo_path} is already on branch/tag {branch_to_checkout}")
 
     return full_filesystem_repo_path
 

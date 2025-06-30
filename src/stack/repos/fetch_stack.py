@@ -22,7 +22,7 @@ import click
 
 from git import exc
 
-from stack.config.util import get_config_setting, get_dev_root_path, verbose_enabled
+from stack.config.util import get_config_setting, get_dev_root_path
 from stack.repos.repo_util import host_and_path_for_repo, process_repo
 from stack.util import error_exit
 

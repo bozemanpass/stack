@@ -19,8 +19,7 @@ import os
 from abc import ABC, abstractmethod
 from stack.config.util import get_config_setting
 from stack.deploy.deploy import get_stack_status
-
-from stack.log import log_error
+from stack.log import log_error, log_debug
 
 
 def get_stack(config, stack):
@@ -50,8 +49,7 @@ class package_registry_stack(base_stack):
         # Check if we were given an external registry URL
         url_from_environment = os.environ.get("STACK_NPM_REGISTRY_URL")
         if url_from_environment:
-            if self.config.verbose:
-                print(f"Using package registry url from STACK_NPM_REGISTRY_URL: {url_from_environment}")
+            log_debug(f"Using package registry url from STACK_NPM_REGISTRY_URL: {url_from_environment}")
             self.url = url_from_environment
         else:
             # Otherwise we expect to use the local package-registry stack
@@ -59,8 +57,7 @@ class package_registry_stack(base_stack):
             registry_running = get_stack_status(self.config, "package-registry")
             if registry_running:
                 # If it is available, get its mapped port and construct its URL
-                if self.config.debug:
-                    print("Found local package registry stack is up")
+                log_debug("Found local package registry stack is up")
                 # TODO: get url from deploy-stack
                 self.url = "http://gitea.local:3000/api/packages/bozemanpass/npm/"
             else:

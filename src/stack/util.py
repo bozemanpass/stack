@@ -18,15 +18,13 @@ import os.path
 import asyncio
 import sys
 import ruamel.yaml
-from termcolor import colored
 
 from pathlib import Path
 from dotenv import dotenv_values
 from typing import Mapping
 
 from stack.constants import deployment_file_name, compose_file_prefix
-
-from stack.log import log_error, log_warn, get_log_file, output_sub
+from stack.log import log_error, log_warn, output_subcmd, log_debug
 
 STACK_USE_BUILTIN_STACK = "true" == os.environ.get("STACK_USE_BUILTIN_STACK", "false")
 
@@ -40,17 +38,20 @@ async def _read_stream(stream, cb):
             break
 
 
-async def _stream_subprocess(cmd, env, stdout_cb, stderr_cb):
-    process = await asyncio.create_subprocess_shell(cmd, env=env, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+async def _stream_subprocess(cmd, env, cwd, stdout_cb, stderr_cb):
+    process = await asyncio.create_subprocess_shell(
+        cmd, env=env, cwd=cwd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+    )
 
     await asyncio.gather(
-        _read_stream(process.stdout, lambda l: stdout_cb(l.decode().rstrip())),
-        _read_stream(process.stderr, lambda l: stderr_cb(l.decode().rstrip()))
+        _read_stream(process.stdout, lambda lout: stdout_cb(lout.decode().rstrip())),
+        _read_stream(process.stderr, lambda lerr: stderr_cb(lerr.decode().rstrip())),
     )
+
     return await process.wait()
 
 
-def _sub_execute(cmd, env=os.environ, stdout_cb=output_sub, stderr_cb=output_sub):
+def _sub_execute(cmd, env=os.environ, cwd=None, stdout_cb=output_subcmd, stderr_cb=output_subcmd):
     rc = 1
     loop = asyncio.new_event_loop()
     try:
@@ -58,16 +59,32 @@ def _sub_execute(cmd, env=os.environ, stdout_cb=output_sub, stderr_cb=output_sub
             _stream_subprocess(
                 cmd,
                 env,
+                cwd,
                 stdout_cb,
                 stderr_cb,
-            ))
+            )
+        )
     finally:
         loop.close()
     return rc
 
 
-def run_shell_command(cmd, env=os.environ):
-    return  _sub_execute(cmd, env=env)
+def run_shell_command(cmd, env=os.environ, cwd=None, quiet=False, check_result=True):
+    output_fn = output_subcmd
+    if quiet:
+
+        def noop(*args):
+            pass
+
+        output_fn = noop
+
+    log_debug(f"Running: {cmd} with env {env}")
+    rc = _sub_execute(cmd, env=env, cwd=cwd, stdout_cb=output_fn, stderr_cb=output_fn)
+    log_debug(f"rc={rc} for {cmd}")
+    if check_result and rc != 0:
+        error_exit(f"{cmd} failed with rc={rc}")
+
+    return rc
 
 
 def include_exclude_check(s, include, exclude):
@@ -170,9 +187,8 @@ def get_parsed_deployment_spec(spec_file):
             return deploy_spec
     except FileNotFoundError as error:
         # We try here to generate a useful diagnostic error
-        print(f"Error: spec file: {spec_file_path} does not exist")
-        print(f"Exiting, error: {error}")
-        sys.exit(1)
+        log_error(f"Error: spec file: {spec_file_path} does not exist")
+        error_exit(f"Exiting, error: {error}")
 
 
 def stack_is_external(stack):

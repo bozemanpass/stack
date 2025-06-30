@@ -17,6 +17,8 @@
 import click
 from importlib import resources, metadata
 
+from stack.log import output_main
+
 
 @click.command()
 @click.pass_context
@@ -33,4 +35,4 @@ def command(ctx):
     else:
         version_string = metadata.version("stack") + "-unknown"
 
-    print(version_string)
+    output_main(version_string)

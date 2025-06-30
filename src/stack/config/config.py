@@ -17,6 +17,7 @@ import click
 import json
 
 from stack.config.util import get_config, save_config, get_config_setting
+from stack.log import output_main
 from stack.util import get_yaml, is_primitive
 
 
@@ -62,10 +63,8 @@ def set_config_value(key, value):
 def command(ctx):
     """manage configuration settings for the stack command"""
 
-    if ctx.parent.obj.debug:
-        print(f"ctx.parent.obj: {ctx.parent.obj}")
-
     # Subcommand is executed now, by the magic of click
+    pass
 
 
 @click.command()
@@ -75,7 +74,7 @@ def show(ctx):
     config = get_config()
     yaml = get_yaml()
     if config:
-        click.echo(yaml.dumps(config))
+        output_main(yaml.dumps(config))
 
 
 @click.command()
@@ -90,11 +89,11 @@ def get(ctx, key):
 
     if is_primitive(value):
         if isinstance(value, bool):
-            click.echo(str(value).lower())
+            output_main(str(value).lower())
         else:
-            click.echo(value)
+            output_main(value)
     else:
-        click.echo(get_yaml().dumps(value))
+        output_main(get_yaml().dumps(value))
 
 
 @click.command()

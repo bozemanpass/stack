@@ -17,7 +17,6 @@
 import click
 import os
 import random
-import sys
 
 from importlib import util
 from pathlib import Path
@@ -25,7 +24,7 @@ from typing import List
 from shutil import copy, copyfile, copytree
 from secrets import token_hex
 from stack import constants
-from stack.opts import opts
+from stack.log import log_debug, log_warn
 from stack.util import (
     get_stack_path,
     get_yaml,
@@ -68,7 +67,7 @@ def _create_bind_dir_if_relative(volume, path_string, compose_dir):
         absolute_path.mkdir(parents=True, exist_ok=True)
     else:
         if not path.exists():
-            print(f"WARN: mount path for volume {volume} does not exist: {path_string}")
+            log_warn(f"WARN: mount path for volume {volume} does not exist: {path_string}")
 
 
 # See: https://stackoverflow.com/questions/45699189/editing-docker-compose-yml-with-pyyaml
@@ -109,7 +108,7 @@ def _fixup_pod_file(pod, spec, compose_dir):
                         # Just make the dir (if necessary)
                         _create_bind_dir_if_relative(volume, volume_cfg, compose_dir)
         else:
-            print(f"Warning: ConfigMaps not supported for {deployment_type}")
+            log_warn(f"Warning: ConfigMaps not supported for {deployment_type}")
 
     # Fix up ports
     if "network" in spec and "ports" in spec["network"]:
@@ -231,10 +230,9 @@ def _get_mapped_ports(stack: Stack, map_recipe: str):
                             # Replace instances of "- XX" with "- 0.0.0.0:<rnd>:XX"
                             ports_array[x] = f"0.0.0.0:{random_port}:{unmapped_port}"
                         else:
-                            print("Error: bad map_recipe")
+                            error_exit("bad map_recipe")
             else:
-                print(f"Error: --map-ports-to-host must specify one of: {port_map_recipes}")
-                sys.exit(1)
+                error_exit(f"--map-ports-to-host must specify one of: {port_map_recipes}")
     return ports
 
 
@@ -247,8 +245,7 @@ def _parse_config_variables(variable_values: str):
             for value_pair in value_pairs:
                 variable_value_pair = value_pair.split("=")
                 if len(variable_value_pair) != 2:
-                    print(f"ERROR: config argument is not valid: {variable_values}")
-                    sys.exit(1)
+                    error_exit(f"config argument is not valid: {variable_values}")
                 variable_name = variable_value_pair[0]
                 variable_value = variable_value_pair[1]
                 result_values[variable_name] = variable_value
@@ -281,7 +278,7 @@ def init_operation(  # noqa: C901
         if image_registry:
             spec_file_content.update({constants.image_registry_key: image_registry})
         elif deployer_type == "k8s":
-            print("WARN: --image-registry not specified, only default container registries (eg, Docker Hub) will be available")
+            log_warn("WARN: --image-registry not specified, only default container registries (eg, Docker Hub) will be available")
         if k8s_http_proxy_targets:
             routes = []
             for target in k8s_http_proxy_targets:
@@ -368,8 +365,7 @@ def init_operation(  # noqa: C901
 
     spec = call_stack_config_init(deploy_command_context, Spec(obj=spec_file_content))
 
-    if opts.o.debug:
-        print(f"Creating spec file for stack: {stack} with content: {spec}")
+    log_debug(f"Creating spec file for stack: {stack} with content: {spec}")
 
     if output:
         spec.dump(output)
@@ -425,9 +421,6 @@ def _check_volume_definitions(spec):
 def create(ctx, cluster, spec_file, deployment_dir):
     """deploy a stack"""
 
-    if ctx.parent.obj.debug:
-        print(f"ctx.parent.obj: {ctx.parent.obj}")
-
     ctx.obj = create_deploy_context(
         global_options2(ctx),
         None,
@@ -439,7 +432,6 @@ def create(ctx, cluster, spec_file, deployment_dir):
         None,
     )
 
-    global_context = ctx.parent.obj
     if len(spec_file) == 1:
         spec = load_spec(spec_file[0])
     else:
@@ -447,8 +439,7 @@ def create(ctx, cluster, spec_file, deployment_dir):
         for sf in spec_file:
             spec.merge(load_spec(sf))
 
-    if global_context.verbose:
-        print(spec)
+    log_debug(spec)
 
     deployment_command_context = ctx.obj
     return create_operation(
@@ -461,8 +452,7 @@ def create(ctx, cluster, spec_file, deployment_dir):
 # The init command's implementation is in a separate function so that we can
 # call it from other commands, bypassing the click decoration stuff
 def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec, deployment_dir):
-    if opts.o.debug:
-        print(f"parsed spec: {parsed_spec}")
+    log_debug(f"parsed spec: {parsed_spec}")
     _check_volume_definitions(parsed_spec)
 
     deployment_type = parsed_spec[constants.deploy_to_key]
@@ -511,8 +501,7 @@ def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec,
         extra_config_dirs = _find_extra_config_dirs(parsed_pod_file, pod)
         destination_pod_dir = destination_pods_dir.joinpath(pod)
         os.mkdir(destination_pod_dir)
-        if opts.o.debug:
-            print(f"extra config dirs: {extra_config_dirs}")
+        log_debug(f"extra config dirs: {extra_config_dirs}")
         _fixup_pod_file(parsed_pod_file, parsed_spec, destination_compose_dir)
 
         if deployment_type == "compose":

@@ -1,8 +1,4 @@
 # Copyright © 2025 Bozeman Pass, Inc.
-import io
-import sys
-
-import colorama
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
@@ -16,8 +12,10 @@ import colorama
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http:#www.gnu.org/licenses/>.
 
-from termcolor import colored
+import datetime
+import sys
 
+from termcolor import colored
 from stack.opts import opts
 
 
@@ -27,6 +25,42 @@ LOG_LEVELS = {
     "warn": 40,
     "error": 50,
 }
+
+
+class _TimedLogger:
+    def __init__(self):
+        self.start = datetime.datetime.now()
+        self.last = self.start
+
+    def log(self, msg, file, show_step_time=False, show_total_time=False):
+        prefix = f"{datetime.datetime.utcnow()}"
+        if show_step_time:
+            prefix += f" - {datetime.datetime.now() - self.last} (step)"
+        if show_total_time:
+            prefix += f" - {datetime.datetime.now() - self.start} (total)"
+        print(f"{prefix}: {msg}", file=file)
+        if file:
+            file.flush()
+        self.last = datetime.datetime.now()
+
+
+_logger = _TimedLogger()
+
+
+def is_debug_enabled():
+    return is_level_enabled(LOG_LEVELS["debug"])
+
+
+def is_info_enabled():
+    return is_level_enabled(LOG_LEVELS["info"])
+
+
+def is_warn_enabled():
+    return is_level_enabled(LOG_LEVELS["warn"])
+
+
+def is_level_enabled(level):
+    return opts.o.log_level <= level
 
 
 def get_log_file():
@@ -55,13 +89,14 @@ def get_log_color(level: int):
     return ""
 
 
-def raw_log(message, level):
-    if level >= opts.o.log_level:
+def raw_log(message, level, color=None):
+    if is_level_enabled(level):
         output = get_log_file()
-        color = get_log_color(level)
-        if color :
+        if color is None:
+            color = get_log_color(level)
+        if color:
             message = colored(message, color)
-        print(f"{message}", file=output)
+        _logger.log(f"{message}", file=output)
 
 
 def log_debug(message):
@@ -84,30 +119,13 @@ def log_error(message):
     raw_log(message, level)
 
 
-def output_main(message):
+def output_main(message, console=sys.stdout, bold=False):
     if not log_is_console():
-        print(
-            message,
-            file=get_log_file()
-        )
-    print(message)
+        _logger.log(message, file=get_log_file())
+    print(colored(message, attrs=["bold"] if bold else None), file=console)
 
 
-def output_sub(message):
+def output_subcmd(message, console=sys.stderr):
     if not log_is_console():
-        print(
-            message,
-            file=get_log_file()
-        )
-    print(colored(message, "magenta"))
-
-
-def log_colorize_console_for_subprocess():
-    if log_is_console():
-        print(colorama.Style.RESET_ALL, file=get_log_file(), end="")
-        print(colorama.Fore.MAGENTA, file=get_log_file())
-
-
-def log_reset_console_color():
-    if log_is_console():
-        print(colorama.Style.RESET_ALL, file=get_log_file(), end="")
+        _logger.log(message, file=get_log_file())
+    _logger.log(colored(message, "magenta"), file=console)

@@ -20,6 +20,7 @@ from stack.deploy.compose.deploy_docker import (
     DockerDeployer,
     DockerDeployerConfigGenerator,
 )
+from stack.util import error_exit
 
 
 def getDeployerConfigGenerator(type: str, deployment_context):
@@ -28,7 +29,7 @@ def getDeployerConfigGenerator(type: str, deployment_context):
     elif type == constants.k8s_deploy_type or type == constants.k8s_kind_deploy_type:
         return K8sDeployerConfigGenerator(type, deployment_context)
     else:
-        print(f"ERROR: deploy-to {type} is not valid")
+        error_exit(f"deploy-to {type} is not valid")
 
 
 def getDeployer(type: str, deployment_context, compose_files, compose_project_name, compose_env_file):
@@ -49,4 +50,4 @@ def getDeployer(type: str, deployment_context, compose_files, compose_project_na
             compose_env_file,
         )
     else:
-        print(f"ERROR: deploy-to {type} is not valid")
+        error_exit(f"deploy-to {type} is not valid")

@@ -26,8 +26,8 @@ import shutil
 import validators
 
 from stack.config.util import get_config_setting
-
 from stack.log import log_debug, output_main
+from stack.util import error_exit
 
 DEFAULT_URL = "https://github.com/bozemanpass/stack/releases/latest/download/stack"
 
@@ -38,11 +38,6 @@ def _download_url(url: str, file_path: Path):
     with open(file_path, "wb") as f:
         shutil.copyfileobj(r.raw, f)
     return r.status_code
-
-
-def _error_exit(s: str):
-    print(s)
-    sys.exit(1)
 
 
 # Note at present this probably won't work on non-Unix based OSes like Windows
@@ -57,7 +52,7 @@ def command(ctx, check_only, distribution_url):
     # Get the distribution URL from config
     # Sanity check the URL
     if not validators.url(distribution_url):
-        _error_exit(f"ERROR: distribution url: {distribution_url} is not valid")
+        error_exit(f"ERROR: distribution url: {distribution_url} is not valid")
     # Figure out the filename for ourselves
     shiv_binary_path = Path(sys.argv[0])
     timestamp_filename = f"stack-download-{datetime.datetime.now().strftime('%y%m%d-%H%M%S')}"
@@ -67,7 +62,7 @@ def command(ctx, check_only, distribution_url):
     status_code = _download_url(distribution_url, temp_download_path)
     if status_code != 200:
         os.unlink(temp_download_path)
-        _error_exit(f"HTTP error {status_code} downloading from {distribution_url}")
+        error_exit(f"HTTP error {status_code} downloading from {distribution_url}")
     # Set the executable bit
     existing_mode = os.stat(temp_download_path)
     os.chmod(temp_download_path, existing_mode.st_mode | stat.S_IXUSR)

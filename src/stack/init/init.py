@@ -18,6 +18,7 @@ import click
 import os
 
 from stack import constants
+from stack.log import log_info, log_debug, log_warn
 from stack.config.util import get_config_setting
 from stack.deploy.deploy import create_deploy_context
 from stack.deploy.deployment_create import init_operation
@@ -48,7 +49,7 @@ def _output_checks(specs, deploy_to):
 
     if deploy_to in [constants.k8s_kind_deploy_type, constants.k8s_deploy_type]:
         if not merged.get_http_proxy():
-            print("WARN: Not HTTP proxy settings specified, no external HTTP access will be configured.")
+            log_info("NOTE: No HTTP proxy settings specified, external HTTP access will not be configured.")
         else:
             known_targets = set()
             for svc, ports in merged.get_network_ports().items():
@@ -59,8 +60,8 @@ def _output_checks(specs, deploy_to):
             for proxy in merged.get_http_proxy():
                 for route in proxy[constants.routes_key]:
                     if route[constants.proxy_to_key] not in known_targets:
-                        print(
-                            f"WARN: Unable to match http-proxy target {route[constants.proxy_to_key]} "
+                        log_warn(
+                            f"Unable to match http-proxy target {route[constants.proxy_to_key]} "
                             f"to a ClusterIP service and port."
                         )
                     if route[constants.path_key] in paths:
@@ -132,9 +133,6 @@ def command(
     map_ports_to_host,
 ):
     """create a stack specification file"""
-    if ctx.parent.obj.debug:
-        print(f"ctx.parent.obj: {ctx.parent.obj}")
-
     if deploy_to is None:
         deploy_to = "compose"
 
@@ -177,7 +175,7 @@ def command(
 
     for rs in required_stacks:
         if not os.path.exists(rs):
-            print("Cloning required repos...")
+            log_debug("Cloning required repos...")
             clone_all_repos_for_stack(top_stack_config, None, None, False, git_ssh)
 
     specs = []
@@ -188,7 +186,7 @@ def command(
             http_prefix = http_prefix_for(stack)
         if http_prefix:
             if not warned_about_http_prefix and deploy_to not in [constants.k8s_kind_deploy_type, constants.k8s_deploy_type]:
-                print(f"NOTE: {constants.http_proxy_prefix_key} setting is only used when deploying to Kubernetes.")
+                log_info(f"NOTE: {constants.http_proxy_prefix_key} setting is only used when deploying to Kubernetes.")
                 warned_about_http_prefix = True
 
         inner_stack_config = get_parsed_stack_config(stack)

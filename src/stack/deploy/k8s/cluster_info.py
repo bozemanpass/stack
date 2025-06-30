@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any, List, Set
 
 from stack import constants
-from stack.opts import opts
+from stack.log import log_debug, log_warn
 from stack.util import env_var_map_from_file
 from stack.deploy.k8s.helpers import (
     named_volumes_from_pod_files,
@@ -108,8 +108,7 @@ class ClusterInfo:
             merge_envs(envs_from_compose_file(env_vars_from_file, service_env), service_env)
         )
 
-        if opts.o.debug:
-            print(f"Env vars: {self.environment_variables.map}")
+        log_debug(f"Env vars: {self.environment_variables.map}")
 
     def get_ingress(self, use_tls=False, certificate=None, def_cluster_issuer="letsencrypt-prod"):
         # No ingress for a deployment that has no http-proxy defined, for now
@@ -118,8 +117,7 @@ class ClusterInfo:
         if http_proxy_info_list:
             # TODO: handle multiple definitions
             http_proxy_info = http_proxy_info_list[0]
-            if opts.o.debug:
-                print(f"http-proxy: {http_proxy_info}")
+            log_debug(f"http-proxy: {http_proxy_info}")
             # TODO: good enough parsing for webapp setupment for now
             host_name = http_proxy_info[constants.host_name_key]
             rules = []
@@ -141,8 +139,7 @@ class ClusterInfo:
                 elif "(" not in path:
                     path = f"/()({path.lstrip('/')}.*)"
                 proxy_to = route[constants.proxy_to_key]
-                if opts.o.debug:
-                    print(f"proxy config: {path} -> {proxy_to}")
+                log_debug(f"proxy config: {path} -> {proxy_to}")
                 # proxy_to has the form <container>:<port>
                 proxy_to_svc, proxy_to_port = proxy_to.split(":")
                 paths.append(
@@ -207,20 +204,17 @@ class ClusterInfo:
         result = []
         spec_volumes = self.spec.get_volumes()
         named_volumes = named_volumes_from_pod_files(self.parsed_pod_yaml_map)
-        if opts.o.debug:
-            print(f"Spec Volumes: {spec_volumes}")
-            print(f"Named Volumes: {named_volumes}")
+        log_debug(f"Spec Volumes: {spec_volumes}")
+        log_debug(f"Named Volumes: {named_volumes}")
         for volume_name, volume_path in spec_volumes.items():
             if volume_name not in named_volumes:
-                if opts.o.debug:
-                    print(f"{volume_name} not in pod files")
+                log_debug(f"{volume_name} not in pod files")
                 continue
             resources = self.spec.get_volume_resources(volume_name)
             if not resources:
                 resources = DEFAULT_VOLUME_RESOURCES
 
-            if opts.o.debug:
-                print(f"{volume_name} Resources: {resources}")
+            log_debug(f"{volume_name} Resources: {resources}")
 
             labels = {
                 "app": self.app_name,
@@ -253,8 +247,7 @@ class ClusterInfo:
         named_volumes = named_volumes_from_pod_files(self.parsed_pod_yaml_map)
         for cfg_map_name in spec_configmaps.keys():
             if cfg_map_name not in named_volumes:
-                if opts.o.debug:
-                    print(f"{cfg_map_name} not in pod files")
+                log_debug(f"{cfg_map_name} not in pod files")
                 continue
 
             cfg_map_path = self.spec.fully_qualified_path(cfg_map_name)
@@ -285,17 +278,15 @@ class ClusterInfo:
             # We only need to create a volume if it is fully qualified HostPath.
             # Otherwise, we create the PVC and expect the node to allocate the volume for us.
             if not volume_path:
-                if opts.o.debug:
-                    print(f"{volume_name} does not require an explicit PersistentVolume, since it is not a bind-mount.")
+                log_debug(f"{volume_name} does not require an explicit PersistentVolume, since it is not a bind-mount.")
                 continue
 
             if volume_name not in named_volumes:
-                if opts.o.debug:
-                    print(f"{volume_name} not in pod files")
+                log_debug(f"{volume_name} not in pod files")
                 continue
 
             if not os.path.isabs(volume_path):
-                print(f"WARN: {volume_name}:{volume_path} is not absolute, cannot bind volume.")
+                log_warn(f"WARN: {volume_name}:{volume_path} is not absolute, cannot bind volume.")
                 continue
 
             resources = self.spec.get_volume_resources(volume_name)
@@ -347,8 +338,7 @@ class ClusterInfo:
                     merged_envs = merge_envs(envs_from_compose_file(service_info["environment"], merged_envs), merged_envs)
 
                 envs = envs_from_environment_variables_map(merged_envs)
-                if opts.o.debug:
-                    print(f"Merged envs: {envs}")
+                log_debug(f"Merged envs: {envs}")
 
                 liveness_probe = None
                 if "healthcheck" in service_info:

@@ -15,7 +15,6 @@
 # along with this program.  If not, see <http:#www.gnu.org/licenses/>.
 
 import os
-import subprocess
 import re
 
 from expandvars import expand
@@ -27,30 +26,21 @@ from typing import Set, Mapping, List
 from stack.build.build_util import container_exists_locally
 from stack.deploy.deploy_util import parsed_pod_files_map_from_file_names
 from stack.deploy.deployer import DeployerException
-from stack.opts import opts
-from stack.util import get_k8s_dir, error_exit
+from stack.log import log_info, log_debug
+from stack.util import get_k8s_dir, error_exit, run_shell_command
 
 
 DEFAULT_K8S_NAMESPACE = "default"
 
 
-def _shell_command(command: str):
-    if opts.o.debug:
-        print(f"Running: {command}")
-    result = subprocess.run(command, shell=True)
-    if opts.o.debug:
-        print(f"Result: {result}")
-    return result
-
-
 def create_cluster(name: str, config_file: str):
-    result = _shell_command(f"kind create cluster --name {name} --config {config_file}")
+    result = run_shell_command(f"kind create cluster --name {name} --config {config_file}")
     if result.returncode != 0:
         raise DeployerException(f"kind create cluster failed: {result}")
 
 
 def destroy_cluster(name: str):
-    _shell_command(f"kind delete cluster --name {name}")
+    run_shell_command(f"kind delete cluster --name {name}")
 
 
 def wait_for_ingress_in_kind():
@@ -67,9 +57,9 @@ def wait_for_ingress_in_kind():
             if event["object"].status.container_statuses:
                 if event["object"].status.container_statuses[0].ready is True:
                     if warned_waiting:
-                        print("Ingress controller is ready")
+                        log_info("Ingress controller is ready")
                     return
-            print("Waiting for ingress controller to become ready...")
+            log_info("Waiting for ingress controller to become ready...")
             warned_waiting = True
     error_exit("ERROR: Timed out waiting for ingress to become ready")
 
@@ -77,18 +67,17 @@ def wait_for_ingress_in_kind():
 def install_ingress_for_kind():
     api_client = client.ApiClient()
     ingress_install = os.path.abspath(get_k8s_dir().joinpath("components", "ingress", "ingress-nginx-kind-deploy.yaml"))
-    if opts.o.debug:
-        print("Installing nginx ingress controller in kind cluster")
+    log_debug("Installing nginx ingress controller in kind cluster")
     utils.create_from_yaml(api_client, yaml_file=ingress_install)
 
 
 def load_images_into_kind(kind_cluster_name: str, image_set: Set[str]):
     for image in image_set:
         if not container_exists_locally(image):
-            result = _shell_command(f"docker pull {image}")
+            result = run_shell_command(f"docker pull {image}")
             if result.returncode != 0:
                 raise DeployerException(f"kind create cluster failed: {result}")
-        result = _shell_command(f"kind load docker-image {image} --name {kind_cluster_name}")
+        result = run_shell_command(f"kind load docker-image {image} --name {kind_cluster_name}")
         if result.returncode != 0:
             raise DeployerException(f"kind create cluster failed: {result}")
 
@@ -96,8 +85,7 @@ def load_images_into_kind(kind_cluster_name: str, image_set: Set[str]):
 def pods_in_deployment(core_api: client.CoreV1Api, deployment_name: str):
     pods = []
     pod_response = core_api.list_namespaced_pod(namespace=DEFAULT_K8S_NAMESPACE, label_selector=f"app={deployment_name}")
-    if opts.o.debug:
-        print(f"pod_response: {pod_response}")
+    log_debug(f"pod_response: {pod_response}")
     for pod_info in pod_response.items:
         pod_name = pod_info.metadata.name
         pods.append(pod_name)
@@ -107,8 +95,7 @@ def pods_in_deployment(core_api: client.CoreV1Api, deployment_name: str):
 def containers_in_pod(core_api: client.CoreV1Api, pod_name: str):
     containers = []
     pod_response = core_api.read_namespaced_pod(pod_name, namespace=DEFAULT_K8S_NAMESPACE)
-    if opts.o.debug:
-        print(f"pod_response: {pod_response}")
+    log_debug(f"pod_response: {pod_response}")
     pod_containers = pod_response.spec.containers
     for pod_container in pod_containers:
         containers.append(pod_container.name)
@@ -164,16 +151,14 @@ def volume_mounts_for_service(parsed_pod_files, service):
                         volumes = service_obj["volumes"]
                         for mount_string in volumes:
                             # Looks like: test-data:/data or test-data:/data:ro or test-data:/data:rw
-                            if opts.o.debug:
-                                print(f"mount_string: {mount_string}")
+                            log_debug(f"mount_string: {mount_string}")
                             mount_split = mount_string.split(":")
                             volume_name = mount_split[0]
                             mount_path = mount_split[1]
                             mount_options = mount_split[2] if len(mount_split) == 3 else None
-                            if opts.o.debug:
-                                print(f"volume_name: {volume_name}")
-                                print(f"mount path: {mount_path}")
-                                print(f"mount options: {mount_options}")
+                            log_debug(f"volume_name: {volume_name}")
+                            log_debug(f"mount path: {mount_path}")
+                            log_debug(f"mount options: {mount_options}")
                             volume_device = client.V1VolumeMount(
                                 mount_path=mount_path,
                                 name=volume_name,
@@ -254,15 +239,13 @@ def _generate_kind_mounts(parsed_pod_files, deployment_dir, deployment_context):
                     volumes = service_obj["volumes"]
                     for mount_string in volumes:
                         # Looks like: test-data:/data or test-data:/data:ro or test-data:/data:rw
-                        if opts.o.debug:
-                            print(f"mount_string: {mount_string}")
+                        log_debug(f"mount_string: {mount_string}")
                         mount_split = mount_string.split(":")
                         volume_name = mount_split[0]
                         mount_path = mount_split[1]
-                        if opts.o.debug:
-                            print(f"volume_name: {volume_name}")
-                            print(f"map: {volume_host_path_map}")
-                            print(f"mount path: {mount_path}")
+                        log_debug(f"volume_name: {volume_name}")
+                        log_debug(f"map: {volume_host_path_map}")
+                        log_debug(f"mount path: {mount_path}")
                         if volume_name not in deployment_context.spec.get_configmaps():
                             if volume_host_path_map[volume_name]:
                                 volume_definitions.append(

@@ -20,9 +20,7 @@ from dataclasses import dataclass
 class CommandOptions:
     profile: str = None
     stack_path: str = None
-    quiet: bool = False
     log_level: int = 30
     log_file: str = None
     dry_run: bool = False
     debug: bool = False
-    continue_on_error: bool = False
