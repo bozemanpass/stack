@@ -34,8 +34,8 @@ DEFAULT_K8S_NAMESPACE = "default"
 
 
 def create_cluster(name: str, config_file: str):
-    result = run_shell_command(f"kind create cluster --name {name} --config {config_file}")
-    if result.returncode != 0:
+    rc = run_shell_command(f"kind create cluster --name {name} --config {config_file}")
+    if rc != 0:
         raise DeployerException(f"kind create cluster failed: {result}")
 
 
@@ -75,10 +75,10 @@ def load_images_into_kind(kind_cluster_name: str, image_set: Set[str]):
     for image in image_set:
         if not container_exists_locally(image):
             result = run_shell_command(f"docker pull {image}")
-            if result.returncode != 0:
+            if result != 0:
                 raise DeployerException(f"kind create cluster failed: {result}")
         result = run_shell_command(f"kind load docker-image {image} --name {kind_cluster_name}")
-        if result.returncode != 0:
+        if result != 0:
             raise DeployerException(f"kind create cluster failed: {result}")
 
 
