@@ -32,13 +32,13 @@ class _TimedLogger:
         self.start = datetime.datetime.now()
         self.last = self.start
 
-    def log(self, msg, file, show_step_time=False, show_total_time=False):
+    def log(self, msg, file, end=None, show_step_time=False, show_total_time=False):
         prefix = f"{datetime.datetime.utcnow()}"
         if show_step_time:
             prefix += f" - {datetime.datetime.now() - self.last} (step)"
         if show_total_time:
             prefix += f" - {datetime.datetime.now() - self.start} (total)"
-        print(f"{prefix}: {msg}", file=file)
+        print(f"{prefix}: {msg}", file=file, end=end)
         if file:
             file.flush()
         self.last = datetime.datetime.now()
@@ -119,13 +119,13 @@ def log_error(message):
     raw_log(message, level)
 
 
-def output_main(message, console=sys.stdout, bold=False):
+def output_main(message, console=sys.stdout, end=None, bold=False):
     if not log_is_console():
-        _logger.log(message, file=get_log_file())
-    print(colored(message, attrs=["bold"] if bold else None), file=console)
+        _logger.log(message, file=get_log_file(), end=end)
+    print(colored(message, attrs=["bold"] if bold else None), end=end, file=console)
 
 
-def output_subcmd(message, console=sys.stderr):
+def output_subcmd(message, console=sys.stderr, end=None):
     if not log_is_console():
-        _logger.log(message, file=get_log_file())
-    _logger.log(colored(message, "magenta"), file=console)
+        _logger.log(message, file=get_log_file(), end=end)
+    _logger.log(colored(message, "magenta"), end=end, file=console)
