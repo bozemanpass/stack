@@ -36,7 +36,7 @@ DEFAULT_K8S_NAMESPACE = "default"
 def create_cluster(name: str, config_file: str):
     rc = run_shell_command(f"kind create cluster --name {name} --config {config_file}")
     if rc != 0:
-        raise DeployerException(f"kind create cluster failed: {result}")
+        raise DeployerException(f"kind create cluster failed: {rc}")
 
 
 def destroy_cluster(name: str):
