@@ -24,6 +24,8 @@ from stack.opts import opts
 
 from stack.deploy.stack import locate_stacks_beneath
 
+from stack.log import log_debug, output_main
+
 
 @click.command()
 @click.argument("filter", required=False)
@@ -32,8 +34,7 @@ from stack.deploy.stack import locate_stacks_beneath
 def command(ctx, filter, show_path):
     """list available stacks"""
     dev_root_path = get_dev_root_path()
-    if opts.o.verbose:
-        print(f"Dev Root is: {dev_root_path}")
+    log_debug(f"Dev Root is: {dev_root_path}")
 
     search_path = dev_root_path
 
@@ -52,6 +53,6 @@ def command(ctx, filter, show_path):
     padding = 8
     for stack in stacks:
         if show_path:
-            print(f"{stack.name.ljust(max_name_len + padding)} {str(stack.file_path.parent).ljust(max_path_len + 8)}")
+            output_main(f"{stack.name.ljust(max_name_len + padding)} {str(stack.file_path.parent).ljust(max_path_len + 8)}")
         else:
-            print(stack.name)
+            output_main(stack.name)

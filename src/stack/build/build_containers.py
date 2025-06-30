@@ -22,8 +22,6 @@
 import click
 import git
 import os
-import subprocess
-import sys
 
 from pathlib import Path
 
@@ -41,6 +39,10 @@ from stack.opts import opts
 from stack.repos.repo_util import host_and_path_for_repo, image_registry_for_repo, fs_path_for_repo, process_repo
 from stack.util import include_exclude_check, stack_is_external, error_exit, get_yaml, check_if_stack_exists
 from stack.repos.repo_util import clone_all_repos_for_stack
+
+from stack.log import log_error, log_info, log_debug, log_warn, output_main
+
+from stack.util import run_shell_command
 
 docker = DockerClient()
 
@@ -82,7 +84,7 @@ def make_container_build_env(dev_root_path: str, default_container_base_dir: str
 
 def process_container(build_context: BuildContext) -> bool:
     if not opts.o.quiet:
-        print(f"Building: {build_context.container.name}:stack")
+        log_info(f"Building: {build_context.container.name}:stack")
 
     default_container_tag = f"{build_context.container.name}:stack"
     build_context.container_build_env.update({"STACK_DEFAULT_CONTAINER_IMAGE_TAG": default_container_tag})
@@ -112,14 +114,12 @@ def process_container(build_context: BuildContext) -> bool:
         build_dir = build_context.default_container_base_dir.joinpath(build_context.container.name.replace("/", "-"))
         build_script_filename = build_dir.joinpath("build.sh")
 
-    if opts.o.verbose:
-        print(f"Build script filename: {build_script_filename}")
+    log_debug(f"Build script filename: {build_script_filename}")
 
     if os.path.exists(build_script_filename):
         build_command = build_script_filename.as_posix()
     else:
-        if opts.o.verbose:
-            print(f"No script file found: {build_script_filename}, using default build script")
+        log_debug(f"No script file found: {build_script_filename}, using default build script")
         if build_context.container.ref:
             repo_full_path = fs_path_for_repo(build_context.container.ref)
         else:
@@ -140,17 +140,17 @@ def process_container(build_context: BuildContext) -> bool:
         # No PATH at all causes failures with podman.
         if "PATH" not in build_context.container_build_env:
             build_context.container_build_env["PATH"] = os.environ["PATH"]
-        if opts.o.verbose:
-            print(f"Executing: {build_command} with environment: {build_context.container_build_env}")
-        build_result = subprocess.run(build_command, shell=True, env=build_context.container_build_env)
-        if opts.o.verbose:
-            print(f"Return code is: {build_result.returncode}")
-        if build_result.returncode != 0:
+        log_debug(f"Executing: {build_command} with environment: {build_context.container_build_env}")
+
+        build_result = run_shell_command(build_command, env=build_context.container_build_env)
+
+        log_debug(f"Return code is: {build_result}")
+        if build_result != 0:
             return False
         else:
             return True
     else:
-        print("Skipped")
+        log_info("Skipped")
         return True
 
 
@@ -167,6 +167,7 @@ def build_containers(parent_stack,
                      dont_pull_images=False):
     dev_root_path = get_dev_root_path()
     required_stacks = parent_stack.get_required_stacks_paths()
+    finished_containers = []
     for stack in required_stacks:
         stack = get_parsed_stack_config(stack)
 
@@ -176,11 +177,10 @@ def build_containers(parent_stack,
         # See: https://stackoverflow.com/questions/25389095/python-get-path-of-root-project-structure
         default_container_base_dir = Path(__file__).absolute().parent.parent.joinpath("data", "container-build")
 
-        if verbose_enabled():
-            print(f"Dev Root is: {dev_root_path}")
+        log_debug("Dev Root is: {dev_root_path}")
 
         if not os.path.isdir(dev_root_path):
-            print("Dev root directory doesn't exist, creating")
+            log_debug("Dev root directory doesn't exist, creating")
 
         if target_arch and target_arch != local_container_arch():
             if not dont_pull_images:
@@ -256,7 +256,7 @@ def build_containers(parent_stack,
                             git_hash = result.split()[0]
                             if locked_hash:
                                 if git_hash != locked_hash:
-                                    print(
+                                    log_warn(
                                         f"WARN: Locked hash {locked_hash} from {container_lock_file_path} does not match remote hash {git_hash} for {container_spec.ref}."
                                     )
                             else:
@@ -271,7 +271,7 @@ def build_containers(parent_stack,
                     exists_locally = container_exists_locally(container_tag)
 
                     if exists_locally and build_policy in ["as-needed", "prebuilt", "prebuilt-local"]:
-                        print(f"Container {container_tag} exists locally.")
+                        log_info(f"Container {container_tag} exists locally.")
                         container_needs_pulled = False
                         container_needs_built = False
                         # Tag the local copy to point at it.
@@ -281,9 +281,9 @@ def build_containers(parent_stack,
                             exists_remotely, image_registry_to_pull_this_container = container_exists_remotely(container_tag, image_registries_to_check, target_arch)
                             if exists_remotely:
                                 if image_registry_to_pull_this_container:
-                                    print(f"Container {image_registry_to_pull_this_container}:{container_tag} exists remotely.")
+                                    log_info(f"Container {image_registry_to_pull_this_container}:{container_tag} exists remotely.")
                                 else:
-                                    print(f"Container {container_tag} exists remotely.")
+                                    log_info(f"Container {container_tag} exists remotely.")
                                 container_needs_pulled = not dont_pull_images
                                 container_needs_built = False
 
@@ -291,14 +291,14 @@ def build_containers(parent_stack,
                         if build_policy in ["prebuilt", "prebuilt-local", "prebuilt-remote"]:
                             error_exit(f"Container {container_tag} not available prebuilt.")
                         else:
-                            print(f"Container {container_tag} needs to be built.")
+                            log_info(f"Container {container_tag} needs to be built.")
                             container_needs_pulled = False
                             container_needs_built = True
                             if not os.path.exists(target_fs_repo_path):
                                 reconstructed_ref = f"{container_spec.ref.split('@')[0]}@{target_hash}"
                                 process_repo(False, False, git_ssh, dev_root_path, [], reconstructed_ref)
                             else:
-                                print(
+                                log_info(
                                     f"Building {container_tag} from {target_fs_repo_path}\n\t"
                                     "IMPORTANT: source files may include changes or be on a different branch than specified in container.yml."
                                 )
@@ -327,6 +327,7 @@ def build_containers(parent_stack,
                     except:
                         pass
 
+                log_info(f"Building {container_spec.name}")
                 result = process_container(build_context)
                 if result:
                     container_was_built = True
@@ -334,12 +335,11 @@ def build_containers(parent_stack,
                     if container_exists_locally(stack_legacy_tag) and not container_exists_locally(stack_local_tag):
                         docker.image.tag(stack_legacy_tag, stack_local_tag)
                 else:
-                    print(f"Error running build for {build_context.container}")
+                    log_error(f"Error running build for {build_context.container}")
                     if not opts.o.continue_on_error:
                         error_exit("container build failed and --continue-on-error not set, exiting")
-                        sys.exit(1)
                     else:
-                        print("****** Container Build Error, continuing because --continue-on-error is set")
+                        log_error("****** Container Build Error, continuing because --continue-on-error is set")
 
             if container_tag:
                 # We won't have a local copy with prebuilt-remote and --no-pull
@@ -358,7 +358,12 @@ def build_containers(parent_stack,
                 if not image_registry_to_push_this_container:
                     error_exit(f"No image registry specified to push {container_tag}")
                 container_version = container_tag.split(":")[-1]
+                log_info(f"Publishing {container_tag} to {image_registry_to_push_this_container}")
                 publish_image(stack_local_tag, image_registry_to_push_this_container, container_version)
+
+            finished_containers.append(container_spec)
+
+    output_main(f"Finished preparing containers: {[c.name for c in finished_containers]}")
 
 
 

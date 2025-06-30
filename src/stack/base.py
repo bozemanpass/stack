@@ -20,6 +20,8 @@ from abc import ABC, abstractmethod
 from stack.config.util import get_config_setting
 from stack.deploy.deploy import get_stack_status
 
+from stack.log import log_error
+
 
 def get_stack(config, stack):
     if stack == "package-registry":
@@ -63,11 +65,11 @@ class package_registry_stack(base_stack):
                 self.url = "http://gitea.local:3000/api/packages/bozemanpass/npm/"
             else:
                 # If not, print a message about how to start it and return fail to the caller
-                print(
+                log_error(
                     "ERROR: The package-registry stack is not running, and no external registry "
                     "specified with STACK_NPM_REGISTRY_URL"
                 )
-                print("ERROR: Start the local package registry with: stack --stack package-registry deploy up")
+                log_error("ERROR: Start the local package registry with: stack --stack package-registry deploy up")
                 return False
         return True
 

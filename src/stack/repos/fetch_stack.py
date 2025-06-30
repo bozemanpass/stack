@@ -26,6 +26,8 @@ from stack.config.util import get_config_setting, get_dev_root_path, verbose_ena
 from stack.repos.repo_util import host_and_path_for_repo, process_repo
 from stack.util import error_exit
 
+from stack.log import log_debug
+
 
 @click.command()
 @click.argument("repo-locator")
@@ -37,8 +39,7 @@ from stack.util import error_exit
 def command(ctx, repo_locator, git_ssh, git_pull):
     """clone a repository"""
     dev_root_path = get_dev_root_path()
-    if verbose_enabled():
-        print(f"Dev Root is: {dev_root_path}")
+    log_debug(f"Dev Root is: {dev_root_path}")
 
     try:
         _, _, _ = host_and_path_for_repo(repo_locator)

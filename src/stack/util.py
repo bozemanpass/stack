@@ -15,8 +15,10 @@
 # along with this program.  If not, see <http:#www.gnu.org/licenses/>.
 
 import os.path
+import asyncio
 import sys
 import ruamel.yaml
+from termcolor import colored
 
 from pathlib import Path
 from dotenv import dotenv_values
@@ -24,8 +26,48 @@ from typing import Mapping
 
 from stack.constants import deployment_file_name, compose_file_prefix
 
+from stack.log import log_error, log_warn, get_log_file, output_sub
 
 STACK_USE_BUILTIN_STACK = "true" == os.environ.get("STACK_USE_BUILTIN_STACK", "false")
+
+
+async def _read_stream(stream, cb):
+    while True:
+        line = await stream.readline()
+        if line:
+            cb(line)
+        else:
+            break
+
+
+async def _stream_subprocess(cmd, env, stdout_cb, stderr_cb):
+    process = await asyncio.create_subprocess_shell(cmd, env=env, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+
+    await asyncio.gather(
+        _read_stream(process.stdout, lambda l: stdout_cb(l.decode().rstrip())),
+        _read_stream(process.stderr, lambda l: stderr_cb(l.decode().rstrip()))
+    )
+    return await process.wait()
+
+
+def _sub_execute(cmd, env=os.environ, stdout_cb=output_sub, stderr_cb=output_sub):
+    rc = 1
+    loop = asyncio.new_event_loop()
+    try:
+        rc = loop.run_until_complete(
+            _stream_subprocess(
+                cmd,
+                env,
+                stdout_cb,
+                stderr_cb,
+            ))
+    finally:
+        loop.close()
+    return rc
+
+
+def run_shell_command(cmd, env=os.environ):
+    return  _sub_execute(cmd, env=env)
 
 
 def include_exclude_check(s, include, exclude):
@@ -170,12 +212,12 @@ def global_options2(ctx):
 
 
 def error_exit(s):
-    print(f"ERROR: {s}")
+    log_error(f"ERROR: {s}")
     sys.exit(1)
 
 
 def warn_exit(s):
-    print(f"WARN: {s}")
+    log_warn(f"WARN: {s}")
     sys.exit(0)
 
 

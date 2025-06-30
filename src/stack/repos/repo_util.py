@@ -16,7 +16,6 @@
 
 import git
 import os
-import sys
 
 import stack.deploy.stack as stack_util
 
@@ -31,11 +30,13 @@ from stack.opts import opts
 from stack.build.build_util import get_containers_in_scope
 from stack.util import include_exclude_check, error_exit
 
+from stack.log import log_debug, output_main, output_sub, log_info, get_log_file
+
 
 class GitProgress(git.RemoteProgress):
     def __init__(self):
         super().__init__()
-        self.pbar = tqdm(unit="B", ascii=True, unit_scale=True)
+        self.pbar = tqdm(unit="B", ascii=True, unit_scale=True, file=get_log_file())
 
     def update(self, op_code, cur_count, max_count=None, message=""):
         self.pbar.total = max_count
@@ -106,8 +107,7 @@ def fs_path_for_repo(fully_qualified_repo, dev_root_path=get_dev_root_path()):
 
 # TODO: fix the messy arg list here
 def process_repo(pull, check_only, git_ssh, dev_root_path, branches_array, fully_qualified_repo):
-    if opts.o.verbose:
-        print(f"Processing repo: {fully_qualified_repo}")
+    log_debug(f"Processing repo: {fully_qualified_repo}")
     repo_host, repo_path, repo_branch = host_and_path_for_repo(fully_qualified_repo)
     git_ssh_prefix = f"git@{repo_host}:"
     git_http_prefix = f"https://{repo_host}/"
@@ -124,29 +124,26 @@ def process_repo(pull, check_only, git_ssh, dev_root_path, branches_array, fully
             if is_present
             else "Needs to be fetched"
         )
-        print(f"Checking: {full_filesystem_repo_path}: {present_text}")
+        log_debug(f"Checking: {full_filesystem_repo_path}: {present_text}")
     # Quick check that it's actually a repo
     if is_present:
         if not is_git_repo(full_filesystem_repo_path):
-            print(f"Error: {full_filesystem_repo_path} does not contain a valid git repository")
-            sys.exit(1)
+            error_exit(f"{full_filesystem_repo_path} does not contain a valid git repository")
         else:
             if pull:
-                if opts.o.verbose:
-                    print(f"Running git pull for {full_filesystem_repo_path}")
+                log_debug(f"Running git pull for {full_filesystem_repo_path}")
                 if not check_only:
                     if is_branch:
                         git_repo = git.Repo(full_filesystem_repo_path)
                         origin = git_repo.remotes.origin
                         origin.pull(progress=None if opts.o.quiet else GitProgress())
                     else:
-                        print("skipping pull because this repo is not on a branch")
+                        log_info("skipping pull because this repo is not on a branch")
                 else:
-                    print("(git pull skipped)")
+                    log_info("(git pull skipped)")
     if not is_present:
         # Clone
-        if opts.o.verbose:
-            print(f"Running git clone for {full_github_repo_path} into {full_filesystem_repo_path}")
+        log_debug(f"Running git clone for {full_github_repo_path} into {full_filesystem_repo_path}")
         if not opts.o.dry_run:
             git.Repo.clone_from(
                 full_github_repo_path,
@@ -154,12 +151,12 @@ def process_repo(pull, check_only, git_ssh, dev_root_path, branches_array, fully
                 progress=None if opts.o.quiet else GitProgress(),
             )
         else:
-            print("(git clone skipped)")
+            log_info("(git clone skipped)")
     # Checkout the requested branch, if one was specified
     branch_to_checkout = None
     if branches_array:
         # Find the current repo in the branches list
-        print("Checking")
+        log_info("Checking")
         for repo_branch in branches_array:
             repo_branch_tuple = repo_branch.split(" ")
             if repo_branch_tuple[0] == branch_strip(fully_qualified_repo):
@@ -172,14 +169,13 @@ def process_repo(pull, check_only, git_ssh, dev_root_path, branches_array, fully
         if current_repo_branch_or_tag is None or (
             current_repo_branch_or_tag and (current_repo_branch_or_tag != branch_to_checkout)
         ):
-            if not opts.o.quiet:
-                print(f"switching to branch {branch_to_checkout} in repo {repo_path}")
+            log_debug(f"switching to branch {branch_to_checkout} in repo {repo_path}")
             git_repo = git.Repo(full_filesystem_repo_path)
             # git checkout works for both branches and tags
             git_repo.git.checkout(branch_to_checkout)
         else:
             if not opts.o.quiet:
-                print(f"repo {repo_path} is already on branch/tag {branch_to_checkout}")
+                log_info(f"repo {repo_path} is already on branch/tag {branch_to_checkout}")
 
     return full_filesystem_repo_path
 
@@ -191,8 +187,7 @@ def parse_branches(branches_string):
         for branch_directive in branches_directives:
             split_directive = branch_directive.split("@")
             if len(split_directive) != 2:
-                print(f"Error: branch specified is not valid: {branch_directive}")
-                sys.exit(1)
+                error_exit(f"Error: branch specified is not valid: {branch_directive}")
             result_array.append(f"{split_directive[0]} {split_directive[1]}")
         return result_array
     else:
@@ -215,13 +210,10 @@ def clone_all_repos_for_stack(stack, include=None, exclude=None, pull=False, git
         req_stack = stack_util.get_parsed_stack_config(req_stack)
 
         dev_root_path = get_dev_root_path()
-
-        if opts.o.verbose:
-            print(f"Dev Root is: {dev_root_path}")
+        log_debug(f"Dev Root is: {dev_root_path}")
 
         if not os.path.isdir(dev_root_path):
-            if not opts.o.quiet:
-                print("Dev root directory doesn't exist, creating")
+            log_debug("Dev root directory doesn't exist, creating")
             os.makedirs(dev_root_path)
 
         repos_in_scope = req_stack.get("repos", [])
@@ -232,13 +224,11 @@ def clone_all_repos_for_stack(stack, include=None, exclude=None, pull=False, git
             if c.ref and c.ref not in repos_in_scope:
                 repos_in_scope.append(c.ref)
 
-        if opts.o.verbose:
-            print(f"Repos: {repos_in_scope}")
-            print(f"Stack: {req_stack.name}")
+        log_debug(f"Repos: {repos_in_scope}")
+        log_debug(f"Stack: {req_stack.name}")
 
         if not repos_in_scope:
-            if not opts.o.quiet:
-                print(f"NOTE: stack {req_stack.name} does not define any repositories")
+            log_debug(f"NOTE: stack {req_stack.name} does not define any repositories")
             continue
 
         repos = []
@@ -246,8 +236,7 @@ def clone_all_repos_for_stack(stack, include=None, exclude=None, pull=False, git
             if include_exclude_check(branch_strip(repo), include, exclude):
                 repos.append(repo)
             else:
-                if opts.o.verbose:
-                    print(f"Excluding: {repo}")
+                log_debug(f"Excluding: {repo}")
 
         for repo in repos:
             try:
