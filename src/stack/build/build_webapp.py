@@ -58,7 +58,7 @@ def command(ctx, base_container, source_repo, force_rebuild, extra_build_args, t
         base_container = determine_base_container(source_repo)
 
     # First build the base container.
-    container_build_env = build_containers.make_container_build_env(dev_root_path, container_build_dir, debug,
+    container_build_env = build_containers.make_container_build_env(dev_root_path, container_build_dir,
                                                                     force_rebuild, extra_build_args)
 
     log_debug(f"Building base container: {base_container}")

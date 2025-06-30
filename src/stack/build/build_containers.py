@@ -29,7 +29,7 @@ from pathlib import Path
 from python_on_whales import DockerClient
 
 from stack import constants
-from stack.config.util import get_config_setting, get_dev_root_path
+from stack.config.util import get_config_setting, get_dev_root_path, debug_enabled
 from stack.base import get_npm_registry_url
 from stack.build.build_types import BuildContext
 from stack.build.build_util import ContainerSpec, get_containers_in_scope, container_exists_locally, container_exists_remotely, local_container_arch
@@ -61,7 +61,7 @@ BUILD_POLICIES = [
 #    epilog="Config provided either in .env or settings.ini or env vars: STACK_REPO_BASE_DIR (defaults to ~/bpi)"
 
 
-def make_container_build_env(dev_root_path: str, default_container_base_dir: str, debug: bool, force_rebuild: bool, extra_build_args: str):
+def make_container_build_env(dev_root_path: str, default_container_base_dir: str, force_rebuild: bool, extra_build_args: str):
     container_build_env = {
         "STACK_NPM_REGISTRY_URL": get_npm_registry_url(),
         "STACK_GO_AUTH_TOKEN": get_config_setting("STACK_GO_AUTH_TOKEN", default=""),
@@ -73,7 +73,7 @@ def make_container_build_env(dev_root_path: str, default_container_base_dir: str
         "STACK_IMAGE_LOCAL_TAG": "stack",
         "DOCKER_BUILDKIT": os.environ.get("DOCKER_BUILDKIT", default="0"),
     }
-    container_build_env.update({"STACK_SCRIPT_DEBUG": "true"} if debug else {})
+    container_build_env.update({"STACK_SCRIPT_DEBUG": "true"} if debug_enabled() else {})
     container_build_env.update({"STACK_FORCE_REBUILD": "true"} if force_rebuild else {})
     container_build_env.update({"STACK_CONTAINER_EXTRA_BUILD_ARGS": extra_build_args} if extra_build_args else {})
     docker_host_env = os.getenv("DOCKER_HOST")
@@ -190,7 +190,7 @@ def build_containers(parent_stack,
 
 
         container_build_env = make_container_build_env(
-            dev_root_path, default_container_base_dir, opts.o.debug, "build-force" == build_policy, extra_build_args
+            dev_root_path, default_container_base_dir, "build-force" == build_policy, extra_build_args
         )
 
         # check if we have any repos that specify the container targets / build info
