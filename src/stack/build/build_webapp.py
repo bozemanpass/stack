@@ -34,7 +34,7 @@ from stack.config.util import get_dev_root_path
 from stack.deploy.stack import Stack
 from stack.deploy.webapp.util import determine_base_container
 from stack.util import error_exit
-from stack.log import log_debug
+from stack.log import log_debug, output_main
 
 
 @click.command()
@@ -102,4 +102,4 @@ def command(ctx, base_container, source_repo, force_rebuild, extra_build_args, t
         error_exit("Build failed.")
 
     log_debug(f"App container {base_container} build finished.")
-    log_info("webapp build complete")
+    output_main("webapp build complete")
