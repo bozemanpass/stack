@@ -369,9 +369,9 @@ class K8sDeployer(Deployer):
             pass
 
         output_main("Ingress:")
-        output_main("\tHostname:", hostname)
-        output_main("\tIP:", ip)
-        output_main("\tTLS:", tls)
+        output_main(f"\tHostname: {hostname}")
+        output_main(f"\tIP: {ip}")
+        output_main(f"\tTLS: {tls}")
         output_main("")
         output_main("Pods:")
 
