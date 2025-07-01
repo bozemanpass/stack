@@ -167,7 +167,7 @@ def build_containers(parent_stack,
                      dont_pull_images=False):
     dev_root_path = get_dev_root_path()
     required_stacks = parent_stack.get_required_stacks_paths()
-    finished_containers = []
+    finished_containers = {}
     for stack in required_stacks:
         stack = get_parsed_stack_config(stack)
 
@@ -360,10 +360,13 @@ def build_containers(parent_stack,
                 publish_image(stack_local_tag, image_registry_to_push_this_container, container_version)
 
             log_info(f"Finished {container_spec.name}")
-            finished_containers.append(container_spec)
+            if container_tag:
+                finished_containers[container_tag] = container_spec
+            else:
+                finished_containers[stack_local_tag] = container_spec
 
     log_info("Prepared containers:")
-    output_main(json.dumps([c.name for c in finished_containers]))
+    output_main(json.dumps(list(finished_containers.keys())))
 
 
 

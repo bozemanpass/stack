@@ -114,14 +114,16 @@ def log_info(message, bold=False):
     raw_log(message, level, bold=bold)
 
 
-def log_warn(message, bold=True):
+def log_warn(message, bold=False):
     level = LOG_LEVELS["warn"]
     raw_log(message, level, bold=bold)
 
 
-def log_error(message, bold=True):
+def log_error(message, bold=False):
     level = LOG_LEVELS["error"]
     raw_log(message, level, bold=bold)
+    if not log_is_console():
+        print(colored(message, get_log_color(level), attrs=["reverse", "bold"] if bold else None), file=sys.stderr)
 
 
 def output_main(message, console=sys.stdout, end=None, bold=False):
@@ -131,6 +133,8 @@ def output_main(message, console=sys.stdout, end=None, bold=False):
 
 
 def output_subcmd(message, console=sys.stderr, end=None, bold=False):
+    if log_is_console():
+        _logger.log(colored(message, "magenta", attrs=["reverse", "bold"] if bold else None), end=end, file=console)
+
     if not log_is_console():
         _logger.log(message, file=get_log_file(), end=end)
-    _logger.log(colored(message, "magenta", attrs=["reverse", "bold"] if bold else None), end=end, file=console)
