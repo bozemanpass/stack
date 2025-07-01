@@ -16,6 +16,7 @@
 from datetime import datetime
 from python_on_whales import DockerClient
 
+from stack.log import log_debug
 from stack.opts import opts
 from stack.util import error_exit
 
@@ -30,8 +31,7 @@ def _publish_tag_for_image(local_image_tag: str, remote_repo: str, version: str)
 
 
 def publish_image(local_tag, registry, version=None):
-    if opts.o.verbose:
-        print(f"Publishing this image: {local_tag} to this registry: {registry}")
+    log_debug(f"Publishing this image: {local_tag} to this registry: {registry}")
     docker = DockerClient()
     # Figure out the target image tag
     # Eventually this version will be generated from the source repo state
@@ -40,10 +40,8 @@ def publish_image(local_tag, registry, version=None):
         version = datetime.now().strftime("%Y%m%d%H%M")
     remote_tag = _publish_tag_for_image(local_tag, registry, version)
     # Tag the image thus
-    if opts.o.debug:
-        print(f"Tagging {local_tag} to {remote_tag}")
+    log_debug(f"Tagging {local_tag} to {remote_tag}")
     docker.image.tag(local_tag, remote_tag)
     # Push it to the desired registry
-    if opts.o.verbose:
-        print(f"Pushing image {remote_tag}")
+    log_debug(f"Pushing image {remote_tag}")
     docker.image.push(remote_tag)

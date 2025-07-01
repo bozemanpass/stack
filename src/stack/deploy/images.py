@@ -19,10 +19,10 @@ from typing import Set
 from python_on_whales import DockerClient
 
 from stack import constants
-from stack.opts import opts
 from stack.deploy.deployment_context import DeploymentContext
 from stack.deploy.deploy_types import DeployCommandContext
 from stack.deploy.deploy_util import images_for_deployment
+from stack.log import log_debug
 
 
 def _image_needs_pushed(image: str):
@@ -90,13 +90,11 @@ def push_images_operation(command_context: DeployCommandContext, deployment_cont
     for image in images:
         if _image_needs_pushed(image):
             remote_tag = remote_tag_for_image_unique(image, remote_repo_url, deployment_context.id)
-            if opts.o.verbose:
-                print(f"Tagging {image} to {remote_tag}")
+            log_debug(f"Tagging {image} to {remote_tag}")
             docker.image.tag(image, remote_tag)
     # Run docker push commands to upload
     for image in images:
         if _image_needs_pushed(image):
             remote_tag = remote_tag_for_image_unique(image, remote_repo_url, deployment_context.id)
-            if opts.o.verbose:
-                print(f"Pushing image {remote_tag}")
+            log_debug(f"Pushing image {remote_tag}")
             docker.image.push(remote_tag)

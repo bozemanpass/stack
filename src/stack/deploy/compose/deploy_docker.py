@@ -18,6 +18,7 @@ from pathlib import Path
 from python_on_whales import DockerClient, DockerException
 from stack.deploy.deployer import Deployer, DeployerException, DeployerConfigGenerator
 from stack.deploy.deployment_context import DeploymentContext
+from stack.log import output_main
 from stack.opts import opts
 from stack.util import get_yaml
 
@@ -66,7 +67,7 @@ class DockerDeployer(Deployer):
         if not opts.o.dry_run:
             try:
                 for p in self.docker.compose.ps():
-                    print(f"{p.name}\t{p.state.status}")
+                    output_main(f"{p.name}\t{p.state.status}")
             except DockerException as e:
                 raise DeployerException(e)
 

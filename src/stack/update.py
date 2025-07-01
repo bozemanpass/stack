@@ -26,7 +26,8 @@ import shutil
 import validators
 
 from stack.config.util import get_config_setting
-
+from stack.log import log_debug, output_main
+from stack.util import error_exit
 
 DEFAULT_URL = "https://github.com/bozemanpass/stack/releases/latest/download/stack"
 
@@ -37,11 +38,6 @@ def _download_url(url: str, file_path: Path):
     with open(file_path, "wb") as f:
         shutil.copyfileobj(r.raw, f)
     return r.status_code
-
-
-def _error_exit(s: str):
-    print(s)
-    sys.exit(1)
 
 
 # Note at present this probably won't work on non-Unix based OSes like Windows
@@ -56,18 +52,17 @@ def command(ctx, check_only, distribution_url):
     # Get the distribution URL from config
     # Sanity check the URL
     if not validators.url(distribution_url):
-        _error_exit(f"ERROR: distribution url: {distribution_url} is not valid")
+        error_exit(f"ERROR: distribution url: {distribution_url} is not valid")
     # Figure out the filename for ourselves
     shiv_binary_path = Path(sys.argv[0])
     timestamp_filename = f"stack-download-{datetime.datetime.now().strftime('%y%m%d-%H%M%S')}"
     temp_download_path = shiv_binary_path.parent.joinpath(timestamp_filename)
     # Download the file to a temp filename
-    if ctx.obj.verbose:
-        print(f"Downloading from: {distribution_url} to {temp_download_path}")
+    log_debug(f"Downloading from: {distribution_url} to {temp_download_path}")
     status_code = _download_url(distribution_url, temp_download_path)
     if status_code != 200:
         os.unlink(temp_download_path)
-        _error_exit(f"HTTP error {status_code} downloading from {distribution_url}")
+        error_exit(f"HTTP error {status_code} downloading from {distribution_url}")
     # Set the executable bit
     existing_mode = os.stat(temp_download_path)
     os.chmod(temp_download_path, existing_mode.st_mode | stat.S_IXUSR)
@@ -76,20 +71,19 @@ def command(ctx, check_only, distribution_url):
     same = filecmp.cmp(temp_download_path, shiv_binary_path)
     if same:
         if not ctx.obj.quiet or check_only:
-            print("No update available, latest version already installed")
+            output_main("No update available, latest version already installed")
     else:
         if not ctx.obj.quiet:
-            print("Update available")
+            output_main("Update available")
         if check_only:
             if not ctx.obj.quiet:
-                print("Check-only node, update not installed")
+                output_main("Check-only node, update not installed")
         else:
             if not ctx.obj.quiet:
-                print("Installing...")
-            if ctx.obj.verbose:
-                print(f"Replacing: {shiv_binary_path} with {temp_download_path}")
+                output_main("Installing...")
+            log_debug(f"Replacing: {shiv_binary_path} with {temp_download_path}")
             current_permissions = stat.S_IMODE(os.lstat(shiv_binary_path).st_mode)
             os.replace(temp_download_path, shiv_binary_path)
             os.chmod(shiv_binary_path, current_permissions)
             if not ctx.obj.quiet:
-                print('Run "stack version" to see the newly installed version')
+                output_main('Run "stack version" to see the newly installed version')

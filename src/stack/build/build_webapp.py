@@ -32,8 +32,9 @@ from stack.build.build_types import BuildContext
 from stack.build.build_util import ContainerSpec
 from stack.config.util import get_dev_root_path
 from stack.deploy.stack import Stack
-from stack.deploy.webapp.util import determine_base_container, TimedLogger
-
+from stack.deploy.webapp.util import determine_base_container
+from stack.util import error_exit
+from stack.log import log_debug, output_main
 
 
 @click.command()
@@ -45,29 +46,22 @@ from stack.deploy.webapp.util import determine_base_container, TimedLogger
 @click.pass_context
 def command(ctx, base_container, source_repo, force_rebuild, extra_build_args, tag):
     '''build the specified webapp container'''
-    logger = TimedLogger()
-
-    quiet = ctx.obj.quiet
-    debug = ctx.obj.debug
-    verbose = ctx.obj.verbose
 
     # See: https://stackoverflow.com/questions/25389095/python-get-path-of-root-project-structure
     container_build_dir = Path(__file__).absolute().parent.parent.joinpath("data", "container-build")
 
     dev_root_path = get_dev_root_path()
 
-    if verbose:
-        logger.log(f'Dev Root is: {dev_root_path}')
+    log_debug(f'Dev Root is: {dev_root_path}')
 
     if not base_container:
         base_container = determine_base_container(source_repo)
 
     # First build the base container.
-    container_build_env = build_containers.make_container_build_env(dev_root_path, container_build_dir, debug,
+    container_build_env = build_containers.make_container_build_env(dev_root_path, container_build_dir,
                                                                     force_rebuild, extra_build_args)
 
-    if verbose:
-        logger.log(f"Building base container: {base_container}")
+    log_debug(f"Building base container: {base_container}")
 
     build_context_1 = BuildContext(
         Stack(),
@@ -78,11 +72,9 @@ def command(ctx, base_container, source_repo, force_rebuild, extra_build_args, t
     )
     ok = build_containers.process_container(build_context_1)
     if not ok:
-        logger.log("ERROR: Build failed.")
-        sys.exit(1)
+        error_exit("Build failed.")
 
-    if verbose:
-        logger.log(f"Base container {base_container} build finished.")
+    log_debug(f"Base container {base_container} build finished.")
 
     # Now build the target webapp.  We use the same build script, but with a different Dockerfile and work dir.
     container_build_env["STACK_WEBAPP_BUILD_RUNNING"] = "true"
@@ -96,8 +88,7 @@ def command(ctx, base_container, source_repo, force_rebuild, extra_build_args, t
 
     container_build_env["STACK_CONTAINER_BUILD_TAG"] = tag
 
-    if verbose:
-        logger.log(f"Building app container: {tag}")
+    log_debug(f"Building app container: {tag}")
 
     build_context_2 = BuildContext(
         Stack(),
@@ -108,9 +99,7 @@ def command(ctx, base_container, source_repo, force_rebuild, extra_build_args, t
     )
     ok = build_containers.process_container(build_context_2)
     if not ok:
-        logger.log("ERROR: Build failed.")
-        sys.exit(1)
+        error_exit("Build failed.")
 
-    if verbose:
-        logger.log(f"App container {base_container} build finished.")
-        logger.log("webapp build complete", show_step_time=False, show_total_time=True)
+    log_debug(f"App container {base_container} build finished.")
+    output_main("webapp build complete")

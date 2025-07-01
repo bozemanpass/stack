@@ -17,4 +17,4 @@ from stack.command_types import CommandOptions
 
 
 class opts:
-    o: CommandOptions = None
+    o: CommandOptions = CommandOptions()

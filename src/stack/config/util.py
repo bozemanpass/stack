@@ -14,9 +14,9 @@
 # along with this program.  If not, see <http:#www.gnu.org/licenses/>.
 
 import os
-from pathlib import Path
+import stack.util
 
-from stack.util import get_yaml, is_primitive
+from pathlib import Path
 
 
 _DEFAULTS = {"repo-base-dir": "~/.stack/repos"}
@@ -33,7 +33,7 @@ def get_config_file_path():
 def get_config():
     config_path = get_config_file_path()
     if config_path.exists():
-        yaml = get_yaml()
+        yaml = stack.util.get_yaml()
         return yaml.load(open(config_path, "r"))
 
     return {}
@@ -44,7 +44,7 @@ def save_config(config):
     if not config_path.parent.exists():
         config_path.parent.mkdir(parents=True)
 
-    yaml = get_yaml()
+    yaml = stack.util.get_yaml()
     yaml.dump(config, open(config_path, "w+"))
 
 
@@ -100,7 +100,7 @@ def _get_from_file(key):
             return config.get(part, None)
         else:
             config = config.get(part, {})
-            if is_primitive(config):
+            if stack.util.is_primitive(config):
                 return None
 
     return None
@@ -112,7 +112,3 @@ def get_dev_root_path():
 
 def debug_enabled():
     return get_config_setting("STACK_DEBUG", False)
-
-
-def verbose_enabled():
-    return get_config_setting("STACK_VERBOSE", False)

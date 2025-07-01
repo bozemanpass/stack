@@ -26,6 +26,7 @@ from stack.deploy.deployment_create import init_operation, create_operation
 from stack.deploy.deploy import create_deploy_context
 from stack.deploy.deploy_types import DeployCommandContext
 from stack.deploy.spec import Spec
+from stack.log import log_warn
 
 
 def _fixup_container_tag(deployment_dir: str, image: str):
@@ -129,6 +130,6 @@ def create(ctx, deployment_dir, image, url, kube_config, image_registry, config_
         error_exit("--url is required for k8s deployments")
 
     if kube_config and not image_registry:
-        print("WARN: --image-registry not specified, only default container registries (eg, Docker Hub) will be available")
+        log_warn("WARN: --image-registry not specified, only default container registries (eg, Docker Hub) will be available")
 
     return create_deployment(ctx, deployment_dir, image, url, kube_config, image_registry, config_file)

@@ -15,7 +15,6 @@
 # along with this program.  If not, see <http:#www.gnu.org/licenses/>.
 
 import click
-import sys
 
 from pathlib import Path
 
@@ -37,6 +36,8 @@ from stack.deploy.deploy import (
 from stack.deploy.deploy_types import DeployCommandContext
 from stack.deploy.deployment_context import DeploymentContext
 from stack.deploy.stack import Stack
+from stack.log import output_main
+from stack.util import error_exit
 
 
 @click.group()
@@ -48,11 +49,9 @@ def command(ctx, dir):
     # Check dir is valid
     dir_path = Path(dir)
     if not dir_path.exists():
-        print(f"Error: deployment directory {dir} does not exist")
-        sys.exit(1)
+        error_exit(f"Error: deployment directory {dir} does not exist")
     if not dir_path.is_dir():
-        print(f"Error: supplied deployment directory path {dir} exists but is a file not a directory")
-        sys.exit(1)
+        error_exit(f"Error: supplied deployment directory path {dir} exists but is a file not a directory")
     # Store the deployment context for subcommands
     deployment_context = DeploymentContext()
     deployment_context.init(dir_path)
@@ -186,4 +185,4 @@ def services(ctx):
     stack = Stack(ctx.obj.stack).init_from_file(ctx.obj.stack.joinpath(constants.stack_file_name))
     services = list(stack.get_services().keys())
     services.sort()
-    print("\n".join(services))
+    output_main("\n".join(services))

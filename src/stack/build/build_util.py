@@ -28,6 +28,8 @@ import stack.deploy.stack as stack_util
 from stack.opts import opts
 from stack.util import warn_exit, get_yaml, error_exit
 
+from stack.log import log_debug
+
 
 class StackContainer:
     name: str
@@ -65,8 +67,11 @@ class ContainerSpec:
         return str(self)
 
     def __str__(self):
-        ret = { "name": self.name, "ref": self.ref, "build": self.build, "path": self.path, "file_path": self.file_path }
+        ret = self.toJSON()
         return json.dumps(ret)
+
+    def toJSON(self):
+        return { "name": self.name, "ref": self.ref, "build": self.build, "path": self.path, "file_path": self.file_path }
 
     def init_from_file(self, file_path: Path):
         self.file_path = Path(file_path).as_posix()
@@ -102,10 +107,9 @@ def get_containers_in_scope(stack):
         else:
             containers_in_scope.append(StackContainer(container["name"], ref=container.get("ref"), path=container.get("path")))
 
-    if opts.o.verbose:
-        print(f'Containers: {containers_in_scope}')
-        if stack:
-            print(f"Stack: {stack}")
+    log_debug(f'Containers: {containers_in_scope}')
+    if stack:
+        log_debug(f"Stack: {stack}")
 
     return containers_in_scope
 
@@ -145,8 +149,7 @@ def _docker_manifest_inspect(tag, registry=None):
     if registry:
         full_tag = f"{registry}/{tag}"
 
-    if opts.o.verbose:
-        print(f"Checking for {full_tag}")
+    log_debug(f"Checking for {full_tag}")
 
     # Basic docker command
     manifest_cmd = ["docker", "manifest", "inspect", "--verbose", full_tag]

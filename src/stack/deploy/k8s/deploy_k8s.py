@@ -40,6 +40,7 @@ from stack.deploy.k8s.helpers import generate_kind_config, DEFAULT_K8S_NAMESPACE
 from stack.deploy.k8s.cluster_info import ClusterInfo
 from stack.opts import opts
 from stack.deploy.deployment_context import DeploymentContext
+from stack.log import log_debug, log_warn, log_info, output_main
 from stack.util import error_exit
 
 
@@ -51,8 +52,7 @@ class AttrDict(dict):
 
 def _check_delete_exception(e: client.exceptions.ApiException):
     if e.status == 404:
-        if opts.o.debug:
-            print("Failed to delete object, continuing")
+        log_debug("Failed to delete object, continuing")
     else:
         error_exit(f"k8s api error: {e}")
 
@@ -93,12 +93,11 @@ class K8sDeployer(Deployer):
             compose_project_name,
             deployment_context.spec,
         )
-        if opts.o.debug:
-            print(f"Deployment dir: {deployment_context.deployment_dir}")
-            print(f"Compose files: {compose_files}")
-            print(f"Project name: {compose_project_name}")
-            print(f"Shared Env file: {compose_env_file}")
-            print(f"Type: {type}")
+        log_debug(f"Deployment dir: {deployment_context.deployment_dir}")
+        log_debug(f"Compose files: {compose_files}")
+        log_debug(f"Project name: {compose_project_name}")
+        log_debug(f"Shared Env file: {compose_env_file}")
+        log_debug(f"Type: {type}")
 
     def connect_api(self):
         if self.is_kind():
@@ -115,29 +114,25 @@ class K8sDeployer(Deployer):
         # Create the host-path-mounted PVs for this deployment
         pvs = self.cluster_info.get_pvs()
         for pv in pvs:
-            if opts.o.debug:
-                print(f"Sending this pv: {pv}")
+            log_debug(f"Sending this pv: {pv}")
             if not opts.o.dry_run:
                 try:
                     pv_resp = self.core_api.read_persistent_volume(name=pv.metadata.name)
                     if pv_resp:
-                        if opts.o.debug:
-                            print("PVs already present:")
-                            print(f"{pv_resp}")
+                        log_debug("PVs already present:")
+                        log_debug(f"{pv_resp}")
                         continue
                 except:  # noqa: E722
                     pass
 
                 pv_resp = self.core_api.create_persistent_volume(body=pv)
-                if opts.o.debug:
-                    print("PVs created:")
-                    print(f"{pv_resp}")
+                log_debug("PVs created:")
+                log_debug(f"{pv_resp}")
 
         # Figure out the PVCs for this deployment
         pvcs = self.cluster_info.get_pvcs()
         for pvc in pvcs:
-            if opts.o.debug:
-                print(f"Sending this pvc: {pvc}")
+            log_debug(f"Sending this pvc: {pvc}")
 
             if not opts.o.dry_run:
                 try:
@@ -145,54 +140,46 @@ class K8sDeployer(Deployer):
                         name=pvc.metadata.name, namespace=self.k8s_namespace
                     )
                     if pvc_resp:
-                        if opts.o.debug:
-                            print("PVCs already present:")
-                            print(f"{pvc_resp}")
+                        log_debug("PVCs already present:")
+                        log_debug(f"{pvc_resp}")
                         continue
                 except:  # noqa: E722
                     pass
 
                 pvc_resp = self.core_api.create_namespaced_persistent_volume_claim(body=pvc, namespace=self.k8s_namespace)
-                if opts.o.debug:
-                    print("PVCs created:")
-                    print(f"{pvc_resp}")
+                log_debug("PVCs created:")
+                log_debug(f"{pvc_resp}")
 
         # Figure out the ConfigMaps for this deployment
         config_maps = self.cluster_info.get_configmaps()
         for cfg_map in config_maps:
-            if opts.o.debug:
-                print(f"Sending this ConfigMap: {cfg_map}")
+            log_debug(f"Sending this ConfigMap: {cfg_map}")
             if not opts.o.dry_run:
                 cfg_rsp = self.core_api.create_namespaced_config_map(body=cfg_map, namespace=self.k8s_namespace)
-                if opts.o.debug:
-                    print("ConfigMap created:")
-                    print(f"{cfg_rsp}")
+                log_debug("ConfigMap created:")
+                log_debug(f"{cfg_rsp}")
 
     def _create_deployments(self):
         # Process compose files into a Deployment
         deployments = self.cluster_info.get_deployments(image_pull_policy=None if self.is_kind() else "Always")
         for deployment in deployments:
             # Create the k8s objects
-            if opts.o.debug:
-                print(f"Sending this deployment: {deployment}")
+            log_debug(f"Sending this deployment: {deployment}")
             if not opts.o.dry_run:
                 deployment_resp = self.apps_api.create_namespaced_deployment(body=deployment, namespace=self.k8s_namespace)
-                if opts.o.debug:
-                    print("Deployment created:")
-                    print(
-                        f"{deployment_resp.metadata.namespace} {deployment_resp.metadata.name} \
-                        {deployment_resp.metadata.generation} {deployment_resp.spec.template.spec.containers[0].image}"
-                    )
+                log_debug("Deployment created:")
+                log_debug(
+                    f"{deployment_resp.metadata.namespace} {deployment_resp.metadata.name} \
+                    {deployment_resp.metadata.generation} {deployment_resp.spec.template.spec.containers[0].image}"
+                )
 
         services: client.V1Service = self.cluster_info.get_services()
-        if opts.o.debug:
-            print(f"Sending these services: {services}")
+        log_debug(f"Sending these services: {services}")
         if not opts.o.dry_run:
             for svc in services:
                 service_resp = self.core_api.create_namespaced_service(namespace=self.k8s_namespace, body=svc)
-                if opts.o.debug:
-                    print("Service created:")
-                    print(f"{service_resp}")
+                log_debug("Service created:")
+                log_debug(f"{service_resp}")
 
     def _find_certificate_for_host_name(self, host_name):
         all_certificates = self.custom_obj_api.list_namespaced_custom_object(
@@ -247,7 +234,7 @@ class K8sDeployer(Deployer):
                 wait_for_ingress_in_kind()
 
         else:
-            print("Dry run mode enabled, skipping k8s API connect")
+            log_info("Dry run mode enabled, skipping k8s API connect")
 
         self._create_volume_data()
         self._create_deployments()
@@ -256,22 +243,18 @@ class K8sDeployer(Deployer):
         # Note: at present we don't support tls for kind (and enabling tls causes errors)
         use_tls = http_proxy_info and not self.is_kind()
         certificate = self._find_certificate_for_host_name(http_proxy_info[0]["host-name"]) if use_tls else None
-        if opts.o.debug:
-            if certificate:
-                print(f"Using existing certificate: {certificate}")
+        if certificate:
+            log_debug(f"Using existing certificate: {certificate}")
 
         ingress: client.V1Ingress = self.cluster_info.get_ingress(use_tls=use_tls, certificate=certificate)
         if ingress:
-            if opts.o.debug:
-                print(f"Sending this ingress: {ingress}")
+            log_debug(f"Sending this ingress: {ingress}")
             if not opts.o.dry_run:
                 ingress_resp = self.networking_api.create_namespaced_ingress(namespace=self.k8s_namespace, body=ingress)
-                if opts.o.debug:
-                    print("Ingress created:")
-                    print(f"{ingress_resp}")
+                log_debug("Ingress created:")
+                log_debug(f"{ingress_resp}")
         else:
-            if opts.o.debug:
-                print("No ingress configured")
+            log_debug("No ingress configured")
 
     def down(self, timeout, volumes, skip_cluster_management):  # noqa: C901
         self.skip_cluster_management = skip_cluster_management
@@ -282,48 +265,41 @@ class K8sDeployer(Deployer):
             # Create the host-path-mounted PVs for this deployment
             pvs = self.cluster_info.get_pvs()
             for pv in pvs:
-                if opts.o.debug:
-                    print(f"Deleting this pv: {pv}")
+                log_debug(f"Deleting this pv: {pv}")
                 try:
                     pv_resp = self.core_api.delete_persistent_volume(name=pv.metadata.name)
-                    if opts.o.debug:
-                        print("PV deleted:")
-                        print(f"{pv_resp}")
+                    log_debug("PV deleted:")
+                    log_debug(f"{pv_resp}")
                 except client.exceptions.ApiException as e:
                     _check_delete_exception(e)
 
             # Figure out the PVCs for this deployment
             pvcs = self.cluster_info.get_pvcs()
             for pvc in pvcs:
-                if opts.o.debug:
-                    print(f"Deleting this pvc: {pvc}")
+                log_debug(f"Deleting this pvc: {pvc}")
                 try:
                     pvc_resp = self.core_api.delete_namespaced_persistent_volume_claim(
                         name=pvc.metadata.name, namespace=self.k8s_namespace
                     )
-                    if opts.o.debug:
-                        print("PVCs deleted:")
-                        print(f"{pvc_resp}")
+                    log_debug("PVCs deleted:")
+                    log_debug(f"{pvc_resp}")
                 except client.exceptions.ApiException as e:
                     _check_delete_exception(e)
 
         # Figure out the ConfigMaps for this deployment
         cfg_maps = self.cluster_info.get_configmaps()
         for cfg_map in cfg_maps:
-            if opts.o.debug:
-                print(f"Deleting this ConfigMap: {cfg_map}")
+            log_debug(f"Deleting this ConfigMap: {cfg_map}")
             try:
                 cfg_map_resp = self.core_api.delete_namespaced_config_map(name=cfg_map.metadata.name, namespace=self.k8s_namespace)
-                if opts.o.debug:
-                    print("ConfigMap deleted:")
-                    print(f"{cfg_map_resp}")
+                log_debug("ConfigMap deleted:")
+                log_debug(f"{cfg_map_resp}")
             except client.exceptions.ApiException as e:
                 _check_delete_exception(e)
 
         deployments = self.cluster_info.get_deployments()
         for deployment in deployments:
-            if opts.o.debug:
-                print(f"Deleting this deployment: {deployment}")
+            log_debug(f"Deleting this deployment: {deployment}")
             try:
                 self.apps_api.delete_namespaced_deployment(name=deployment.metadata.name, namespace=self.k8s_namespace)
             except client.exceptions.ApiException as e:
@@ -331,8 +307,7 @@ class K8sDeployer(Deployer):
 
         services: client.V1Service = self.cluster_info.get_services()
         for svc in services:
-            if opts.o.debug:
-                print(f"Deleting service: {svc}")
+            log_debug(f"Deleting service: {svc}")
             try:
                 self.core_api.delete_namespaced_service(namespace=self.k8s_namespace, name=svc.metadata.name)
             except client.exceptions.ApiException as e:
@@ -340,15 +315,13 @@ class K8sDeployer(Deployer):
 
         ingress: client.V1Ingress = self.cluster_info.get_ingress(use_tls=not self.is_kind())
         if ingress:
-            if opts.o.debug:
-                print(f"Deleting this ingress: {ingress}")
+            log_debug(f"Deleting this ingress: {ingress}")
             try:
                 self.networking_api.delete_namespaced_ingress(name=ingress.metadata.name, namespace=self.k8s_namespace)
             except client.exceptions.ApiException as e:
                 _check_delete_exception(e)
         else:
-            if opts.o.debug:
-                print("No ingress to delete")
+            log_debug("No ingress to delete")
 
         if self.is_kind() and not self.skip_cluster_management:
             # Destroy the kind cluster
@@ -395,18 +368,18 @@ class K8sDeployer(Deployer):
         except:  # noqa: E722
             pass
 
-        print("Ingress:")
-        print("\tHostname:", hostname)
-        print("\tIP:", ip)
-        print("\tTLS:", tls)
-        print("")
-        print("Pods:")
+        output_main("Ingress:")
+        output_main(f"\tHostname: {hostname}")
+        output_main(f"\tIP: {ip}")
+        output_main(f"\tTLS: {tls}")
+        output_main("")
+        output_main("Pods:")
 
         for p in pods:
             if p.metadata.deletion_timestamp:
-                print(f"\t{p.metadata.namespace}/{p.metadata.name}: Terminating ({p.metadata.deletion_timestamp})")
+                output_main(f"\t{p.metadata.namespace}/{p.metadata.name}: Terminating ({p.metadata.deletion_timestamp})")
             else:
-                print(f"\t{p.metadata.namespace}/{p.metadata.name}: {p.status.phase} ({p.metadata.creation_timestamp})")
+                output_main(f"\t{p.metadata.namespace}/{p.metadata.name}: {p.status.phase} ({p.metadata.creation_timestamp})")
 
     def ps(self):
         self.connect_api()
@@ -451,7 +424,7 @@ class K8sDeployer(Deployer):
                 break
 
         if not k8s_pod_name:
-            print("Warning: pod not running")
+            log_warn("Warning: pod not running")
             return
 
         response = stream(
@@ -468,10 +441,10 @@ class K8sDeployer(Deployer):
         )
         response.run_forever()
         if response.returncode:
-            print(response.read_all())
+            output_main(response.read_all())
             sys.exit(response.returncode)
 
-        print(response.read_stdout())
+        output_main(response.read_stdout())
 
     def logs(self, services, tail, follow, stream):
         self.connect_api()
@@ -498,7 +471,7 @@ class K8sDeployer(Deployer):
                     tail_lines=tail,
                     namespace=self.k8s_namespace,
                 ):
-                    print(f"{container}: {line}")
+                    output_main(f"{container}: {line}")
 
             threads = []
             for k8s_pod_name in pods:
@@ -526,8 +499,7 @@ class K8sDeployer(Deployer):
                         for line in container_log_lines:
                             log_data += f"{container}: {line}\n"
                 except client.exceptions.ApiException as e:
-                    if opts.o.debug:
-                        print(f"Error from read_namespaced_pod_log: {e}")
+                    log_debug(f"Error from read_namespaced_pod_log: {e}")
                     log_data = "******* No logs available ********\n"
                 all_logs.append(log_data)
             return log_stream_from_string("\n".join(all_logs))
@@ -587,8 +559,7 @@ class K8sDeployerConfigGenerator(DeployerConfigGenerator):
             # Check the file isn't already there
             # Get the config file contents
             content = generate_kind_config(deployment_dir, self.deployment_context)
-            if opts.o.debug:
-                print(f"kind config is: {content}")
+            log_debug(f"kind config is: {content}")
             config_file = deployment_dir.joinpath(constants.kind_config_filename)
             # Write the file
             with open(config_file, "w") as output_file:

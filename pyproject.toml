@@ -23,6 +23,7 @@ dependencies = [
     "requests",
     "expandvars",
     "mergedeep",
+    "termcolor",
     "flake8",
     "black"
 ]

@@ -33,25 +33,38 @@ from stack import update
 from stack.webapp import webapp
 from stack.util import STACK_USE_BUILTIN_STACK
 
+from stack.log import LOG_LEVELS
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 
 @click.group(context_settings=CONTEXT_SETTINGS, cls=StackCLI)
-@click.option("--verbose", help="more detailed output", is_flag=True, default=get_config_setting("verbose", False))
-@click.option("--debug", help="enable debug logging", is_flag=True, default=get_config_setting("debug", False))
+@click.option("--log-file", help="Log to file (default stdout/stderr)")
+@click.option("--debug", help="enable debug options", is_flag=True, default=get_config_setting("debug", False))
 @click.option("--stack", help="path to the stack")
 @click.option(
     "--profile", help="name of the configuration profile to use", default=os.environ.get("STACK_CONFIG_PROFILE", "config")
 )
 # TEL: Hide these for now, until we make sure they are consistently implemented.
-@click.option("--quiet", is_flag=True, default=False, hidden=True)
+@click.option("--verbose", is_flag=True, default=False, help="Log extra details")
+@click.option("--quiet", is_flag=True, default=False, help="Suppress unnecessary log output")
 @click.option("--dry-run", is_flag=True, default=False, hidden=True)
-@click.option("--continue-on-error", is_flag=True, default=False, hidden=True)
 @click.pass_context
-def cli(ctx, profile, quiet, verbose, dry_run, debug, continue_on_error, stack):
+def cli(ctx, profile, quiet, verbose, log_file, dry_run, debug, stack):
     """BPI stack"""
-    command_options = CommandOptions(profile, stack, quiet, verbose, dry_run, debug, continue_on_error)
+
+    if log_file:
+        log_file = open(log_file, "w", encoding="utf-8")
+    else:
+        log_file = sys.stderr
+
+    log_level = LOG_LEVELS["info"]
+    if verbose:
+        log_level = LOG_LEVELS["debug"]
+    elif quiet:
+        log_level = LOG_LEVELS["warn"]
+
+    command_options = CommandOptions(profile, stack, log_level, log_file, dry_run, debug)
     opts.opts.o = command_options
     ctx.obj = command_options
 
@@ -59,8 +72,8 @@ def cli(ctx, profile, quiet, verbose, dry_run, debug, continue_on_error, stack):
         os.environ["STACK_CONFIG_PROFILE"] = command_options.profile
     if command_options.debug is not None:
         os.environ["STACK_DEBUG"] = str(command_options.debug)
-    if command_options.verbose is not None:
-        os.environ["STACK_VERBOSE"] = str(command_options.verbose)
+    if command_options.log_level is not None:
+        os.environ["STACK_LOG_LEVEL"] = str(command_options.log_level)
 
 
 cli.add_command(fetch.command, "fetch")
