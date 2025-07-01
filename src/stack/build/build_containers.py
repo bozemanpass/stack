@@ -202,6 +202,7 @@ def build_containers(parent_stack,
 
             container_needs_built = True
             container_was_built = False
+            container_was_pulled = False
             container_needs_pulled = False
             container_tag = None
             container_spec = ContainerSpec(stack_container.name, stack_container.ref, path=stack_container.path)
@@ -317,6 +318,7 @@ def build_containers(parent_stack,
                     docker.image.pull(container_tag)
                 # Tag the local copy to point at it.
                 docker.image.tag(container_tag, stack_local_tag)
+                container_was_pulled = True
             elif container_needs_built:
                 if build_policy in ["prebuilt", "prebuilt-local", "prebuilt-remote"]:
                     error_exit(f"No prebuilt image available for: {container_spec.name}")
@@ -359,14 +361,12 @@ def build_containers(parent_stack,
                 log_info(f"Publishing {container_tag} to {image_registry_to_push_this_container}")
                 publish_image(stack_local_tag, image_registry_to_push_this_container, container_version)
 
-            log_info(f"Finished {container_spec.name}")
-            if container_tag:
-                finished_containers[container_tag] = container_spec
-            else:
-                finished_containers[stack_local_tag] = container_spec
+            log_debug(f"Finished {container_spec.name}")
+            final_status = "built" if container_was_built else "pulled" if container_was_pulled else "local"
+            finished_containers[container_spec.name] = final_status
 
     log_info("Prepared containers:")
-    output_main(json.dumps(list(finished_containers.keys())))
+    output_main(json.dumps(finished_containers))
 
 
 
