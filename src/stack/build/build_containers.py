@@ -72,7 +72,7 @@ def make_container_build_env(dev_root_path: str, default_container_base_dir: str
         "STACK_HOST_UID": f"{os.getuid()}",
         "STACK_HOST_GID": f"{os.getgid()}",
         "STACK_IMAGE_LOCAL_TAG": "stack",
-        "DOCKER_BUILDKIT": os.environ.get("DOCKER_BUILDKIT", default="0"),
+        "DOCKER_BUILDKIT": os.environ.get("DOCKER_BUILDKIT", default="1"),
     }
     container_build_env.update({"STACK_SCRIPT_DEBUG": "true"} if debug_enabled() else {})
     container_build_env.update({"STACK_FORCE_REBUILD": "true"} if force_rebuild else {})
