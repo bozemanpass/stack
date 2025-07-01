@@ -89,43 +89,48 @@ def get_log_color(level: int):
     return ""
 
 
-def raw_log(message, level, color=None):
+def raw_log(message, level, color=None, bold=False):
     if is_level_enabled(level):
         output = get_log_file()
-        if color is None:
-            color = get_log_color(level)
-        if color:
-            message = colored(message, color)
-        _logger.log(f"{message}", file=output)
+        if not log_is_console():
+            _logger.log(f"{message}", file=output)
+        else:
+            if color is None:
+                color = get_log_color(level)
+            if color:
+                message = colored(message, color, attrs=["reverse", "bold"] if bold else None)
+            elif bold:
+                message = colored(message, attrs=["reverse", "bold"] if bold else None)
+            _logger.log(f"{message}", file=output)
 
 
-def log_debug(message):
+def log_debug(message, bold=False):
     level = LOG_LEVELS["debug"]
-    raw_log(message, level)
+    raw_log(message, level, bold=bold)
 
 
-def log_info(message):
+def log_info(message, bold=False):
     level = LOG_LEVELS["info"]
-    raw_log(message, level)
+    raw_log(message, level, bold=bold)
 
 
-def log_warn(message):
+def log_warn(message, bold=True):
     level = LOG_LEVELS["warn"]
-    raw_log(message, level)
+    raw_log(message, level, bold=bold)
 
 
-def log_error(message):
+def log_error(message, bold=True):
     level = LOG_LEVELS["error"]
-    raw_log(message, level)
+    raw_log(message, level, bold=bold)
 
 
 def output_main(message, console=sys.stdout, end=None, bold=False):
     if not log_is_console():
         _logger.log(message, file=get_log_file(), end=end)
-    print(colored(message, attrs=["bold"] if bold else None), end=end, file=console)
+    print(colored(message, attrs=["reverse", "bold"] if bold else None), end=end, file=console)
 
 
-def output_subcmd(message, console=sys.stderr, end=None):
+def output_subcmd(message, console=sys.stderr, end=None, bold=False):
     if not log_is_console():
         _logger.log(message, file=get_log_file(), end=end)
-    _logger.log(colored(message, "magenta"), end=end, file=console)
+    _logger.log(colored(message, "magenta", attrs=["reverse", "bold"] if bold else None), end=end, file=console)

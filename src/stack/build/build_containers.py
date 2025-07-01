@@ -210,6 +210,8 @@ def build_containers(parent_stack,
             image_registry_to_pull_this_container = image_registry
             image_registry_to_push_this_container = image_registry
 
+            log_info(f"Preparing {container_spec.name}", bold=True)
+
             if stack_container.ref:
                 fs_path_for_container_specs = fs_path_for_repo(stack_container.ref, dev_root_path)
                 if not os.path.exists(fs_path_for_container_specs):
@@ -357,6 +359,7 @@ def build_containers(parent_stack,
                 log_info(f"Publishing {container_tag} to {image_registry_to_push_this_container}")
                 publish_image(stack_local_tag, image_registry_to_push_this_container, container_version)
 
+            log_info(f"Finished {container_spec.name}")
             finished_containers.append(container_spec)
 
     log_info("Prepared containers:")
