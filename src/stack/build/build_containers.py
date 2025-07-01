@@ -375,7 +375,7 @@ def build_containers(parent_stack,
             final_status = "built" if container_was_built else "pulled" if container_was_pulled else "existing-image"
             finished_containers[container_spec.name] = final_status
 
-    log_info("Prepared containers:")
+    log_info(f"Prepared {len(finished_containers)} containers:")
     max_name_len = 0
     for name in finished_containers.keys():
         max_name_len = max(max_name_len, len(name))
