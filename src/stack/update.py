@@ -26,8 +26,9 @@ import shutil
 import validators
 
 from stack.config.util import get_config_setting
-from stack.log import log_debug, output_main
+from stack.log import log_debug, log_info
 from stack.util import error_exit
+
 
 DEFAULT_URL = "https://github.com/bozemanpass/stack/releases/latest/download/stack"
 
@@ -70,20 +71,15 @@ def command(ctx, check_only, distribution_url):
     # Check if the downloaded file is identical to the existing one
     same = filecmp.cmp(temp_download_path, shiv_binary_path)
     if same:
-        if not ctx.obj.quiet or check_only:
-            output_main("No update available, latest version already installed")
+        log_info("No update available, latest version already installed")
     else:
-        if not ctx.obj.quiet:
-            output_main("Update available")
+        log_debug("Update available")
         if check_only:
-            if not ctx.obj.quiet:
-                output_main("Check-only node, update not installed")
+            log_info("Check-only node, update not installed")
         else:
-            if not ctx.obj.quiet:
-                output_main("Installing...")
+            log_debug("Installing...")
             log_debug(f"Replacing: {shiv_binary_path} with {temp_download_path}")
             current_permissions = stat.S_IMODE(os.lstat(shiv_binary_path).st_mode)
             os.replace(temp_download_path, shiv_binary_path)
             os.chmod(shiv_binary_path, current_permissions)
-            if not ctx.obj.quiet:
-                output_main('Run "stack version" to see the newly installed version')
+            log_info('Run "stack version" to see the newly installed version')
