@@ -67,11 +67,8 @@ class ContainerSpec:
         return str(self)
 
     def __str__(self):
-        ret = self.toJSON()
+        ret = { "name": self.name, "ref": self.ref, "build": self.build, "path": self.path, "file_path": self.file_path }
         return json.dumps(ret)
-
-    def toJSON(self):
-        return { "name": self.name, "ref": self.ref, "build": self.build, "path": self.path, "file_path": self.file_path }
 
     def init_from_file(self, file_path: Path):
         self.file_path = Path(file_path).as_posix()
