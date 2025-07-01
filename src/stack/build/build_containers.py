@@ -311,11 +311,11 @@ def build_containers(parent_stack,
                     error_exit(f"Cannot pull container: tag missing.")
                 # Pull the remote image
                 if image_registry_to_pull_this_container:
-                    docker.image.pull(f"{image_registry_to_pull_this_container}/{container_tag}")
+                    run_shell_command(f"docker pull {image_registry_to_pull_this_container}/{container_tag}")
                     # Tag the local copy to point at it.
                     docker.image.tag(f"{image_registry_to_pull_this_container}/{container_tag}", container_tag)
                 else:
-                    docker.image.pull(container_tag)
+                    run_shell_command(f"docker pull {container_tag}")
                 # Tag the local copy to point at it.
                 docker.image.tag(container_tag, stack_local_tag)
                 container_was_pulled = True
