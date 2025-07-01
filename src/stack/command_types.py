@@ -24,3 +24,4 @@ class CommandOptions:
     log_file: str = None
     dry_run: bool = False
     debug: bool = False
+    quiet: bool = False

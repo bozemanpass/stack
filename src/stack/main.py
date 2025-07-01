@@ -64,7 +64,7 @@ def cli(ctx, profile, quiet, verbose, log_file, dry_run, debug, stack):
     elif quiet:
         log_level = LOG_LEVELS["warn"]
 
-    command_options = CommandOptions(profile, stack, log_level, log_file, dry_run, debug)
+    command_options = CommandOptions(profile, stack, log_level, log_file, dry_run, debug, quiet)
     opts.opts.o = command_options
     ctx.obj = command_options
 

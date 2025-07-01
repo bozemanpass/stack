@@ -142,7 +142,7 @@ def process_container(build_context: BuildContext) -> bool:
             build_context.container_build_env["PATH"] = os.environ["PATH"]
         log_debug(f"Executing: {build_command} with environment: {build_context.container_build_env}")
 
-        build_result = run_shell_command(build_command, env=build_context.container_build_env, quiet=not is_info_enabled())
+        build_result = run_shell_command(build_command, env=build_context.container_build_env, quiet=opts.o.quiet)
 
         log_debug(f"Return code is: {build_result}")
         if build_result != 0:
@@ -311,11 +311,11 @@ def build_containers(parent_stack,
                     error_exit(f"Cannot pull container: tag missing.")
                 # Pull the remote image
                 if image_registry_to_pull_this_container:
-                    run_shell_command(f"docker pull {image_registry_to_pull_this_container}/{container_tag}")
+                    run_shell_command(f"docker pull {image_registry_to_pull_this_container}/{container_tag}", quiet=opts.o.quiet)
                     # Tag the local copy to point at it.
                     docker.image.tag(f"{image_registry_to_pull_this_container}/{container_tag}", container_tag)
                 else:
-                    run_shell_command(f"docker pull {container_tag}")
+                    run_shell_command(f"docker pull {container_tag}", quiet=opts.o.quiet)
                 # Tag the local copy to point at it.
                 docker.image.tag(container_tag, stack_local_tag)
                 container_was_pulled = True
