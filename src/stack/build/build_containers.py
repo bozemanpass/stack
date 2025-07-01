@@ -1,5 +1,6 @@
 # Copyright © 2022, 2023 Vulcanize
 # Copyright © 2025 Bozeman Pass, Inc.
+import sys
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -167,7 +168,16 @@ def build_containers(parent_stack,
                      dont_pull_images=False):
     dev_root_path = get_dev_root_path()
     required_stacks = parent_stack.get_required_stacks_paths()
+
+    all_containers_in_scope = []
     finished_containers = {}
+    for stack in required_stacks:
+        stack = get_parsed_stack_config(stack)
+        containers_in_scope = [c for c in get_containers_in_scope(stack) if include_exclude_check(c.name, include, exclude)]
+        all_containers_in_scope.extend(containers_in_scope)
+
+    log_info(f"Found {len(all_containers_in_scope)} containers in {len(required_stacks)} stacks: {", ".join([c.name for c in all_containers_in_scope])}", bold=True)
+
     for stack in required_stacks:
         stack = get_parsed_stack_config(stack)
 
@@ -211,7 +221,7 @@ def build_containers(parent_stack,
             image_registry_to_pull_this_container = image_registry
             image_registry_to_push_this_container = image_registry
 
-            log_info(f"Preparing {container_spec.name}", bold=True)
+            log_info(f"Preparing {container_spec.name} ({len(finished_containers)+1} of {len(all_containers_in_scope)})", bold=True)
 
             if stack_container.ref:
                 fs_path_for_container_specs = fs_path_for_repo(stack_container.ref, dev_root_path)
@@ -361,13 +371,18 @@ def build_containers(parent_stack,
                 log_info(f"Publishing {container_tag} to {image_registry_to_push_this_container}")
                 publish_image(stack_local_tag, image_registry_to_push_this_container, container_version)
 
-            log_debug(f"Finished {container_spec.name}")
-            final_status = "built" if container_was_built else "pulled" if container_was_pulled else "local"
+            log_debug(f"Finished {container_spec.name} ({len(finished_containers)+1} of {len(all_containers_in_scope)})", bold=True)
+            final_status = "built" if container_was_built else "pulled" if container_was_pulled else "existing-image"
             finished_containers[container_spec.name] = final_status
 
     log_info("Prepared containers:")
-    output_main(json.dumps(finished_containers))
+    max_name_len = 0
+    for name in finished_containers.keys():
+        max_name_len = max(max_name_len, len(name))
 
+    padding = 8
+    for name, status in finished_containers.items():
+        output_main(f"{name.ljust(max_name_len + padding)} {status}")
 
 
 @click.command()
