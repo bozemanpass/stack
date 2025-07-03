@@ -8,12 +8,12 @@ Stack allows building and deployment of a suite of related applications as a sin
 
 ```
 # clone / build
-stack fetch stack bozemanpass/example-todo-list
-stack build containers --stack ~/bpi/example-todo-list/stacks/todo
+stack fetch repo bozemanpass/example-todo-list
+stack prepare --stack todo
 
 # init
 stack init \
-  --stack ~/bpi/example-todo-list/stacks/todo \
+  --stack todo \
   --output todo.yml \
   --map-ports-to-host localhost-same
 
@@ -35,10 +35,8 @@ stack config set image-registry registry.myexample.com/myimages
 stack config set kube-config /path/to/.kube/config
 
 # clone / build
-stack fetch stack bozemanpass/example-todo-list
-stack build containers \
-    --stack ~/bpi/example-todo-list/stacks/todo \
-    --publish-images
+stack fetch repo bozemanpass/example-todo-list
+stack prepare --stack todo --publish-images
 
 # init
 stack init \
