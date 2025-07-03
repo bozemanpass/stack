@@ -22,7 +22,7 @@ $ stack list fixturenet
 fixturenet-eth
 siwe-on-fixturenet
 ```
-```
+
 Show paths and filter:
 ```
 $ stack list --show-path todo
