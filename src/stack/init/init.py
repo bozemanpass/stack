@@ -71,7 +71,7 @@ def _output_checks(specs, deploy_to):
 
 
 @click.command()
-@click.option("--stack", help="path to the stack", required=False)
+@click.option("--stack", help="name or path of the stack", required=False)
 @click.option(
     "--git-ssh/--no-git-ssh", is_flag=True, default=get_config_setting("git-ssh", False), help="use SSH for git rather than HTTPS"
 )

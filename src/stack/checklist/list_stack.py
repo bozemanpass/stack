@@ -13,16 +13,11 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http:#www.gnu.org/licenses/>.
 
-# env vars:
-# STACK_REPO_BASE_DIR defaults to ~/bpi
-
 
 import click
 
 from stack.config.util import get_dev_root_path
-
 from stack.deploy.stack import locate_stacks_beneath
-
 from stack.log import log_debug, output_main
 
 
