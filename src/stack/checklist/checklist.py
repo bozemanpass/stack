@@ -118,13 +118,13 @@ def command(ctx, stack, image_registry):
         if status == "local":
             status_msg = "ready"
         elif status.startswith("remote:"):
-            status_msg = "needs pulled from " + status[7:]
+            status_msg = "available from " + status[7:]
             all_ready = False
         elif status == "missing":
             status_msg = "repo needs fetched"
             all_ready = False
         else:
-            status_msg = "needs to be built"
+            status_msg = "needs built"
             all_ready = False
         output_main(f"{name.ljust(max_name_len + padding)} {status_msg}")
 
