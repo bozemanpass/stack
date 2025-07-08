@@ -29,7 +29,7 @@ from stack.config.util import get_dev_root_path
 from stack.deploy.stack import resolve_stack, get_parsed_stack_config
 from stack.log import log_debug, output_main, log_info
 from stack.opts import opts
-from stack.repos.repo_util import fs_path_for_repo, image_registry_for_repo
+from stack.repos.repo_util import fs_path_for_repo, image_registry_for_repo, get_repo_current_hash
 from stack.util import get_yaml
 
 
@@ -70,7 +70,12 @@ def constainer_dispostion(parent_stack, image_registry):
                 tag = get_yaml().load(open(container_lock_file_path, "r")).get("hash")
                 log_debug(f"{stack_container.name}: Read locked hash {tag} from {container_lock_file_path}")
             else:
-                log_debug(f"{stack_container.name}: No lock file, using 'stack' as image tag.")
+                git_hash = get_repo_current_hash(container_repo_fs_path)
+                if git_hash:
+                    tag = git_hash
+                    log_debug(f"{stack_container.name}: No lock file, using git HEAD hash {git_hash}.")
+                else:
+                    log_debug(f"{stack_container.name}: No lock file, using 'stack' as image tag.")
 
             container_tag = f"{stack_container.name}:{tag}"
             exists_locally = container_exists_locally(container_tag)

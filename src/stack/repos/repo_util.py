@@ -80,6 +80,13 @@ def is_git_repo(path):
     return False
 
 
+def get_repo_current_hash(path):
+    if not is_git_repo(path):
+        return None
+
+    return git.Repo(path).head.object.hexsha
+
+
 # See: https://stackoverflow.com/questions/18659425/get-git-current-branch-tag-name
 def _get_repo_current_branch_or_tag(full_filesystem_repo_path):
     current_repo_branch_or_tag = "***UNDETERMINED***"
