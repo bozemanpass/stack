@@ -66,7 +66,7 @@ def make_deploy_context(ctx) -> DeployCommandContext:
         deployment_type = context.spec.obj[constants.deploy_to_key]
     else:
         deployment_type = constants.compose_deploy_type
-    stack = context.deployment_dir
+    stack = context.deployment_dir.absolute()
     return create_deploy_context(
         ctx.parent.parent.obj,
         context,
