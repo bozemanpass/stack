@@ -27,7 +27,7 @@ from stack.build.build_util import (
 from stack.config.util import get_config_setting
 from stack.config.util import get_dev_root_path
 from stack.deploy.stack import resolve_stack, get_parsed_stack_config
-from stack.log import log_debug, output_main, log_info
+from stack.log import log_debug, output_main
 from stack.opts import opts
 from stack.repos.repo_util import fs_path_for_repo, image_registry_for_repo, get_repo_current_hash
 from stack.util import get_yaml
@@ -40,6 +40,7 @@ def constainer_dispostion(parent_stack, image_registry):
     for stack_path in required_stacks:
         if not stack_path.exists():
             shorter_path = stack_path.relative_to(get_dev_root_path())
+            log_debug(f"Missing stack {shorter_path} required by {parent_stack.name}.")
             ret[str(shorter_path)] = "missing"
             continue
 
@@ -52,11 +53,8 @@ def constainer_dispostion(parent_stack, image_registry):
 
             container_repo_fs_path = fs_path_for_repo(stack_container.ref, get_dev_root_path())
             if not os.path.exists(container_repo_fs_path):
-                log_info(
-                    f"Missing repo {stack_container.ref} needed by {stack_container.name}. "
-                    f"Run 'stack prepare --stack {parent_stack.name}'"
-                )
-                ret[stack_container.name] = False
+                log_debug(f"Missing ref {stack_container.ref} needed by {stack_container.name}.")
+                ret[stack_container.ref] = "missing"
                 continue
 
             container_lock_file_path = os.path.join(container_repo_fs_path, constants.container_lock_file_name)
