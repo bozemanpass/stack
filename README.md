@@ -61,13 +61,13 @@ stack manage --dir ~/deployments/todo stop
 
 ## Install
 
-**To get started quickly** on a fresh Ubuntu instance (e.g, Digital Ocean); [try this script](./scripts/quick-install-linux.sh). **WARNING:** always review scripts prior to running them so that you know what is happening on your machine.
+**To get started quickly** on a fresh Ubuntu 24.04 instance (e.g, Digital Ocean); [try this script](./scripts/quick-install-linux.sh). **WARNING:** always review scripts prior to running them so that you know what is happening on your machine.
 
 For any other installation, follow along below and **adapt these instructions based on the specifics of your system.**
 
 Ensure that the following are already installed:
 
-- [Python3](https://wiki.python.org/moin/BeginnersGuide/Download): `python3 --version` >= `3.8.10` (the Python3 shipped in Ubuntu 20+ is good to go)
+- [Python3](https://wiki.python.org/moin/BeginnersGuide/Download): `python3 --version` >= `3.12` (the Python3 shipped in Ubuntu 24.04 is good to go)
 - [Docker](https://docs.docker.com/get-docker/): `docker --version` >= `20.10.21` or [podman](https://podman.io/) `podman --version` >= `3.4.4`
 - [jq](https://stedolan.github.io/jq/download/): `jq --version` >= `1.5`
 - [git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git): `git --version` >= `2.10.3`

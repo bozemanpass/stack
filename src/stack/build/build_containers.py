@@ -173,7 +173,8 @@ def build_containers(parent_stack,
         containers_in_scope = [c for c in get_containers_in_scope(stack) if include_exclude_check(c.name, include, exclude)]
         all_containers_in_scope.extend(containers_in_scope)
 
-    log_info(f"Found {len(all_containers_in_scope)} containers in {len(required_stacks)} stacks: {", ".join([c.name for c in all_containers_in_scope])}", bold=True)
+    log_info(f"Found {len(all_containers_in_scope)} containers in {len(required_stacks)} stacks: "
+             f"{', '.join([c.name for c in all_containers_in_scope])}", bold=True)
 
     for stack in required_stacks:
         stack = get_parsed_stack_config(stack)

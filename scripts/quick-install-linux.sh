@@ -5,10 +5,14 @@ fi
 
 LSB_REL=`lsb_release -r | awk '{ print $2 }'`
 
-if [[ "$LSB_REL" != "24.04" ]] && [[ "$LSB_REL" != "22.04" ]]; then
-  echo "This script is only meant for Ubuntu 22.04 or 24.04"
-  echo "See https://github.com/bozemanpass/stack/blob/main/docs/CONTRIBUTING.md for manual installation on other versions."
-  exit 1
+if [[ "$LSB_REL" != "24.04" ]]; then
+  if [[ "$LSB_REL" == "22.04" ]]; then
+    echo "This script is only supported on Ubuntu 24.04.  It MAY work on 22.04, but it has not been tested."
+  else
+    echo "This script is only supported on Ubuntu 24.04.  It is not supported on your version of Ubuntu."
+    echo "See https://github.com/bozemanpass/stack/blob/main/docs/CONTRIBUTING.md for manual installation on other versions."
+    exit 1
+  fi
 fi
 
 install_dir=~/bin
