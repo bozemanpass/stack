@@ -27,7 +27,7 @@ from stack import constants
 from stack.config.util import get_dev_root_path
 from stack.opts import opts
 
-from stack.build.build_util import get_containers_in_scope
+from stack.build import build_util
 from stack.util import include_exclude_check, error_exit
 
 from stack.log import log_debug, log_info, get_log_file, is_info_enabled, log_is_console
@@ -78,6 +78,13 @@ def is_git_repo(path):
         pass
 
     return False
+
+
+def get_repo_current_hash(path):
+    if not is_git_repo(path):
+        return None
+
+    return git.Repo(path).head.object.hexsha
 
 
 # See: https://stackoverflow.com/questions/18659425/get-git-current-branch-tag-name
@@ -217,7 +224,7 @@ def clone_all_repos_for_stack(stack, include=None, exclude=None, pull=False, git
         repos_in_scope = req_stack.get("repos", [])
 
         # containers can reference an external repo
-        containers_in_scope = get_containers_in_scope(req_stack)
+        containers_in_scope = build_util.get_containers_in_scope(req_stack)
         for c in containers_in_scope:
             if c.ref and c.ref not in repos_in_scope:
                 repos_in_scope.append(c.ref)

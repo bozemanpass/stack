@@ -24,7 +24,7 @@ from stack.util import error_exit
 PREPARE_POLICIES = BUILD_POLICIES[:] + ["fetch-repos"]
 
 @click.command()
-@click.option("--stack", help="path to the stack", required=False)
+@click.option("--stack", help="name or path of the stack", required=False)
 @click.option("--include-containers", help="only build/download these containers")
 @click.option("--exclude-containers", help="don't build/download these containers")
 @click.option("--include-repos", help="only clone these repositories")

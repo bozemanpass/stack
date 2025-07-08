@@ -21,7 +21,6 @@ import sys
 # STACK_REPO_BASE_DIR defaults to ~/bpi
 
 import click
-import json
 import git
 import os
 
@@ -29,7 +28,6 @@ from pathlib import Path
 
 from python_on_whales import DockerClient
 
-from stack import constants
 from stack.config.util import get_config_setting, get_dev_root_path, debug_enabled
 from stack.base import get_npm_registry_url
 from stack.build.build_types import BuildContext
@@ -40,7 +38,6 @@ from stack.deploy.stack import Stack, get_parsed_stack_config, resolve_stack
 from stack.opts import opts
 from stack.repos.repo_util import host_and_path_for_repo, image_registry_for_repo, fs_path_for_repo, process_repo
 from stack.util import include_exclude_check, stack_is_external, error_exit, get_yaml, check_if_stack_exists
-from stack.repos.repo_util import clone_all_repos_for_stack
 
 from stack.log import log_error, log_info, log_debug, log_warn, output_main, is_info_enabled
 
@@ -386,7 +383,7 @@ def build_containers(parent_stack,
 
 
 @click.command()
-@click.option("--stack", help="path to the stack", required=False)
+@click.option("--stack", help="name or path of the stack", required=False)
 @click.option("--include", help="only build these containers")
 @click.option("--exclude", help="don't build these containers")
 @click.option("--git-ssh/--no-git-ssh", is_flag=True, default=get_config_setting("git-ssh", False), help="use SSH for git rather than HTTPS")

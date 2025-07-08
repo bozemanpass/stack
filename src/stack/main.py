@@ -18,20 +18,22 @@ import os
 import click
 import sys
 
-from stack.cli_util import StackCLI, load_subcommands_from_stack
-from stack.command_types import CommandOptions
-from stack.repos import fetch, list_stack
-from stack.build import build, prepare
-from stack.config import config
-from stack.config.util import get_config_setting
-from stack.init import init
-from stack.deploy import deployment_create
-from stack import version
-from stack.deploy import deployment
 from stack import opts
 from stack import update
-from stack.webapp import webapp
+from stack import version
+
+from stack.build import build, prepare
+from stack.checklist import list_stack, checklist
+from stack.cli_util import StackCLI, load_subcommands_from_stack
+from stack.command_types import CommandOptions
+from stack.config import config
+from stack.config.util import get_config_setting
+from stack.deploy import deployment
+from stack.deploy import deployment_create
+from stack.init import init
+from stack.repos import fetch
 from stack.util import STACK_USE_BUILTIN_STACK
+from stack.webapp import webapp
 
 from stack.log import LOG_LEVELS
 
@@ -41,7 +43,7 @@ CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 @click.group(context_settings=CONTEXT_SETTINGS, cls=StackCLI)
 @click.option("--log-file", help="Log to file (default stdout/stderr)")
 @click.option("--debug", help="enable debug options", is_flag=True, default=get_config_setting("debug", False))
-@click.option("--stack", help="path to the stack")
+@click.option("--stack", help="name or path of the stack")
 @click.option(
     "--profile", help="name of the configuration profile to use", default=os.environ.get("STACK_CONFIG_PROFILE", "config")
 )
@@ -76,10 +78,11 @@ def cli(ctx, profile, quiet, verbose, log_file, dry_run, debug, stack):
         os.environ["STACK_LOG_LEVEL"] = str(command_options.log_level)
 
 
-cli.add_command(fetch.command, "fetch")
 cli.add_command(build.command, "build")
+cli.add_command(checklist.command, "checklist")
 cli.add_command(config.command, "config")
 cli.add_command(deployment_create.create, "deploy")
+cli.add_command(fetch.command, "fetch")
 cli.add_command(init.command, "init")
 cli.add_command(list_stack.command, "list")
 cli.add_command(deployment.command, "manage")
