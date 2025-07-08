@@ -37,8 +37,13 @@ def constainer_dispostion(parent_stack, image_registry):
     ret = {}
     required_stacks = parent_stack.get_required_stacks_paths()
 
-    for stack in required_stacks:
-        stack = get_parsed_stack_config(stack)
+    for stack_path in required_stacks:
+        if not stack_path.exists():
+            shorter_path = stack_path.relative_to(get_dev_root_path())
+            ret[str(shorter_path)] = "missing"
+            continue
+
+        stack = get_parsed_stack_config(stack_path)
         containers_in_scope = get_containers_in_scope(stack)
 
         for stack_container in containers_in_scope:
@@ -95,7 +100,7 @@ def constainer_dispostion(parent_stack, image_registry):
 )
 @click.pass_context
 def command(ctx, stack, image_registry):
-    """what is left to do"""
+    """check if stack containers are ready"""
 
     stack = resolve_stack(stack)
     what_needs_done = constainer_dispostion(stack, image_registry)
@@ -111,6 +116,9 @@ def command(ctx, stack, image_registry):
             status_msg = "ready"
         elif status.startswith("remote:"):
             status_msg = "needs pulled from " + status[7:]
+            all_ready = False
+        elif status == "missing":
+            status_msg = "repo needs fetched"
             all_ready = False
         else:
             status_msg = "needs to be built"

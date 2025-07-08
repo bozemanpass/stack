@@ -31,6 +31,16 @@ todo         /home/example/.stack/repos/github.com/bozemanpass/example-todo-list
 
 ## prepare the stack containers
 
+Check if the containers are ready:
+
+```
+$ stack checklist --stack todo
+bpi/todo-frontend:stack         needs to be built
+bpi/todo-backend:stack          needs to be built
+
+Run 'stack prepare --stack todo' to prepare missing containers.
+```
+
 Download repos and build containers:
 ```
 $ stack prepare --stack todo
@@ -39,13 +49,21 @@ Build a specific container:
 ```
 $ stack prepare --stack todo --include-containers "bpi/todo-frontend"
 ```
-Force full rebuild of container images:
+Force a full rebuild of container images:
 ```
 $ stack prepare --stack todo --build-policy build-force
 ```
 
-See [fetching-containers](fetching-containers.md) for more information on fetching, building,
-and checking for container images.
+Now check again:
+```
+$ stack checklist --stack todo
+bpi/todo-frontend:d87d76671ad7dde247a328716c15827de9c1a89a         ready
+bpi/todo-backend:d87d76671ad7dde247a328716c15827de9c1a89a          ready
+
+All containers are ready to use.
+```
+
+See [fetching-containers](fetching-containers.md) for more information on fetching and building container images.
 
 ## init
 
