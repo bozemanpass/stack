@@ -56,6 +56,10 @@ def command(ctx, check_only, distribution_url):
         error_exit(f"ERROR: distribution url: {distribution_url} is not valid")
     # Figure out the filename for ourselves
     shiv_binary_path = Path(sys.argv[0])
+
+    if not os.access(shiv_binary_path, os.W_OK):
+        error_exit(f"Cannot write to {shiv_binary_path}.  Try 'sudo {shiv_binary_path} update'")
+
     timestamp_filename = f"stack-download-{datetime.datetime.now().strftime('%y%m%d-%H%M%S')}"
     temp_download_path = shiv_binary_path.parent.joinpath(timestamp_filename)
     # Download the file to a temp filename
