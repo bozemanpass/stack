@@ -32,14 +32,14 @@ from stack.base import get_npm_registry_url
 from stack.build.build_types import BuildContext
 from stack.build.build_util import ContainerSpec, get_containers_in_scope, container_exists_locally, container_exists_remotely, local_container_arch
 from stack.build.publish import publish_image
-from stack.constants import container_file_name, container_lock_file_name, stack_file_name
-from stack.deploy.stack import Stack, get_parsed_stack_config, resolve_stack
+from stack.constants import container_file_name, container_lock_file_name
+from stack.deploy.stack import get_parsed_stack_config, resolve_stack
 from stack.opts import opts
 from stack.repos.repo_util import host_and_path_for_repo, image_registry_for_repo, fs_path_for_repo, process_repo, \
-    get_repo_current_hash, is_repo_dirty, hash_dirty_files, get_container_tag_for_repo
-from stack.util import include_exclude_check, stack_is_external, error_exit, get_yaml, check_if_stack_exists
+    get_repo_current_hash, is_repo_dirty, get_container_tag_for_repo
+from stack.util import include_exclude_check, stack_is_external, error_exit, get_yaml
 
-from stack.log import log_error, log_info, log_debug, log_warn, output_main, is_info_enabled
+from stack.log import log_info, log_debug, log_warn, output_main
 
 from stack.util import run_shell_command
 
