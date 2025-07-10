@@ -507,6 +507,10 @@ def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec,
             services = parsed_pod_file["services"]
             for service_name in services:
                 service_info = services[service_name]
+                image_name = service_info["image"]
+                if image_name.endswith(":stack"):
+                    service_info["image"] = image_name[:-5] + deployment_command_context.cluster_context.cluster
+
                 shared_cfg_file = os.path.join(
                     "../" * len(destination_compose_dir.relative_to(deployment_dir_path).parts), constants.config_file_name
                 )
