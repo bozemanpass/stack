@@ -213,6 +213,7 @@ def build_containers(parent_stack,
 
             container_spec_yml_path = None
             container_lock_file_path = None
+            target_hash = None
             container_needs_built = True
             container_was_built = False
             container_was_pulled = False
@@ -283,7 +284,7 @@ def build_containers(parent_stack,
                                 if locked_hash:
                                     if git_hash != locked_hash:
                                         log_warn(
-                                            f"WARN: Locked hash {locked_hash} from {container_lock_file_path} does not match remote hash {git_hash} for {container_spec.ref}."
+                                            f"WARN: Locked hash {locked_hash} from {container_lock_file_path} behind remote hash {git_hash} for {container_spec.ref}.  You may want to update."
                                         )
                                 else:
                                     target_hash = git_hash
@@ -368,9 +369,20 @@ def build_containers(parent_stack,
                     if container_exists_locally(stack_legacy_tag) and not container_exists_locally(stack_local_tag):
                         docker.image.tag(stack_legacy_tag, stack_local_tag)
 
+                    # Only write the lock file if:
+                    #   (1) the build succeeded
+                    #   (2) there is a container.yml
+                    #   (3) it references a git repo other than its own
                     if container_lock_file_path and container_spec_yml_path and os.path.exists(container_spec_yml_path):
-                        with open(container_lock_file_path, "w") as output_file:
-                            get_yaml().dump({"hash": target_hash}, output_file)
+                        # never lock a local dev version
+                        if target_hash and not target_hash.startswith("stackdev-"):
+                            repo_host, repo_path, _ = host_and_path_for_repo(container_spec.ref)
+                            if container_spec.ref and container_spec.ref != ".":
+                                repo_host, repo_path, _ = host_and_path_for_repo(container_spec.ref)
+                                if f"{repo_host}/{repo_path}" != container_spec.get_repo_ref():
+                                    with open(container_lock_file_path, "w") as output_file:
+                                        log_info(f"Writing lock file {container_lock_file_path} with hash: {target_hash}")
+                                        get_yaml().dump({"hash": target_hash}, output_file)
                 else:
                     error_exit(f"container build failed for: {build_context.container}")
 

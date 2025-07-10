@@ -16,6 +16,7 @@
 
 import base64
 import importlib.resources
+import git
 import json
 import os
 import platform
@@ -25,11 +26,10 @@ from pathlib import Path
 from python_on_whales import DockerClient
 
 import stack.deploy.stack as stack_util
-from stack.opts import opts
-from stack.util import warn_exit, get_yaml, error_exit
 
 from stack.log import log_debug
-
+from stack.repos.repo_util import find_repo_root
+from stack.util import warn_exit, get_yaml
 
 class StackContainer:
     name: str
@@ -62,6 +62,7 @@ class ContainerSpec:
         self.build = build
         self.path = path
         self.file_path = None
+        self.repo_path = None
 
     def __repr__(self):
         return str(self)
@@ -78,7 +79,38 @@ class ContainerSpec:
         self.name = y["container"]["name"]
         self.ref = y["container"].get("ref")
         self.build = y["container"].get("build")
+        self.repo_path = find_repo_root(self.path)
         return self
+
+    def get_repo_ref(self):
+        repo_url = self.get_repo_url()
+        if not repo_url:
+            return None
+
+        if repo_url.startswith("https://") or repo_url.startswith("http://"):
+            repo_url = repo_url.split("://", 2)[1]
+            repo_host, repo_name = repo_url.split("/", 1)
+        elif repo_url.startswith("git@"):
+            repo_host, repo_name = repo_url.split(":", 1)
+            repo_host = repo_host[4:]
+
+        if repo_name.endswith(".git"):
+            repo_name = repo_name[:-4]
+
+        print(f"{repo_host}/{repo_name}")
+        return f"{repo_host}/{repo_name}"
+
+    def get_repo_name(self):
+        ref = self.get_repo_ref()
+        if ref:
+            return ref.split("/", 1)[-1]
+        return None
+
+    def get_repo_url(self):
+        if self.repo_path:
+            repo = git.Repo(self.repo_path)
+            return repo.remotes[0].url
+        return None
 
 
 def get_containers_in_scope(stack):

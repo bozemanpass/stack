@@ -105,6 +105,21 @@ def hash_dirty_files(path):
     return m.hexdigest()
 
 
+def find_repo_root(path):
+    if isinstance(path, str):
+        path = Path(path)
+
+    ret = None
+    path = path.absolute()
+    while not ret and path and str(path.absolute().as_posix()) not in ["/"]:
+        if is_git_repo(path):
+            ret = path
+        else:
+            path = path.parent
+
+    return ret
+
+
 def get_container_tag_for_repo(path):
     tag = None
     git_hash = get_repo_current_hash(path)
@@ -112,7 +127,7 @@ def get_container_tag_for_repo(path):
         tag = git_hash
         if is_repo_dirty(path):
             dirty_hash = hash_dirty_files(path)
-            tag = "dirty-" + hashlib.sha1(f"{git_hash}:{dirty_hash}".encode()).hexdigest()
+            tag = "stackdev-" + hashlib.sha1(f"{git_hash}:{dirty_hash}".encode()).hexdigest()
     return tag
 
 
