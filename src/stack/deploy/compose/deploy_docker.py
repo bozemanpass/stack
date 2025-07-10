@@ -142,7 +142,6 @@ class DockerDeployerConfigGenerator(DeployerConfigGenerator):
         super().__init__()
         self.deployment_context = deployment_context
 
-    # Nothing needed at present for the docker deployer
     def generate(self, deployment_dir: Path):
         yaml = get_yaml()
         compose_files = self.deployment_context.get_compose_files()
