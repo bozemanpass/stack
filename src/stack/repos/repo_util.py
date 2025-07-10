@@ -15,22 +15,21 @@
 # along with this program.  If not, see <http:#www.gnu.org/licenses/>.
 
 import git
+import hashlib
 import os
+
+from git.exc import GitCommandError
+from pathlib import Path
+from tqdm import tqdm
 
 import stack.deploy.stack as stack_util
 
-from git.exc import GitCommandError
-from tqdm import tqdm
-from pathlib import Path
-
 from stack import constants
-from stack.config.util import get_dev_root_path
-from stack.opts import opts
-
 from stack.build import build_util
-from stack.util import include_exclude_check, error_exit
-
+from stack.config.util import get_dev_root_path
 from stack.log import log_debug, log_info, get_log_file, is_info_enabled, log_is_console
+from stack.opts import opts
+from stack.util import include_exclude_check, error_exit
 
 
 class GitProgress(git.RemoteProgress):
@@ -85,6 +84,51 @@ def get_repo_current_hash(path):
         return None
 
     return git.Repo(path).head.object.hexsha
+
+
+def is_repo_dirty(path):
+    if not is_git_repo(path):
+        return None
+
+    return git.Repo(path).is_dirty()
+
+
+def hash_dirty_files(path):
+    if not is_git_repo(path):
+        return None
+
+    if not is_repo_dirty(path):
+        return ""
+
+    m = hashlib.sha1()
+    m.update(git.Repo(path).git.diff().encode())
+    return m.hexdigest()
+
+
+def find_repo_root(path):
+    if isinstance(path, str):
+        path = Path(path)
+
+    ret = None
+    path = path.absolute()
+    while not ret and path and str(path.absolute().as_posix()) not in ["/"]:
+        if is_git_repo(path):
+            ret = path
+        else:
+            path = path.parent
+
+    return ret
+
+
+def get_container_tag_for_repo(path):
+    tag = None
+    git_hash = get_repo_current_hash(path)
+    if git_hash:
+        tag = git_hash
+        if is_repo_dirty(path):
+            dirty_hash = hash_dirty_files(path)
+            tag = "stackdev-" + hashlib.sha1(f"{git_hash}:{dirty_hash}".encode()).hexdigest()
+    return tag
 
 
 # See: https://stackoverflow.com/questions/18659425/get-git-current-branch-tag-name
