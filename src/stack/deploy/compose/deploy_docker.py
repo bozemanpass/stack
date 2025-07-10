@@ -16,11 +16,13 @@
 
 from pathlib import Path
 from python_on_whales import DockerClient, DockerException
+
+from stack.build.build_util import container_exists_locally
 from stack.deploy.deployer import Deployer, DeployerException, DeployerConfigGenerator
 from stack.deploy.deployment_context import DeploymentContext
-from stack.log import output_main
+from stack.log import output_main, log_info
 from stack.opts import opts
-from stack.util import get_yaml
+from stack.util import get_yaml, error_exit
 
 
 class DockerDeployer(Deployer):
@@ -41,9 +43,24 @@ class DockerDeployer(Deployer):
             compose_env_file=compose_env_file,
         )
         self.type = type
+        self.compose_files = compose_files
+        self.deployment_context = deployment_context
 
     def up(self, detach, skip_cluster_management, services):
         if not opts.o.dry_run:
+            for compose_file in self.compose_files:
+                parsed_file = get_yaml().load(open(compose_file, "r"))
+                if "services" in parsed_file:
+                    for svc_name in parsed_file["services"]:
+                        image = parsed_file["services"][svc_name].get("image")
+                        if image and image.endswith(self.deployment_context.id):
+                            if not container_exists_locally(image):
+                                stack_image = image.replace(f":{self.deployment_context.id}", ":stack")
+                                if container_exists_locally(stack_image):
+                                    log_info(f"Tagging {stack_image} to {image}...")
+                                    self.docker.tag(stack_image, image)
+                                else:
+                                    error_exit(f"Cannot find {image} or {stack_image} locally. Did you run 'stack prepare'?")
             try:
                 return self.docker.compose.up(detach=detach, services=services)
             except DockerException as e:
