@@ -1,6 +1,8 @@
 # Copyright © 2022, 2023 Vulcanize
 # Copyright © 2025 Bozeman Pass, Inc.
+import hashlib
 import sys
+import time
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -36,7 +38,8 @@ from stack.build.publish import publish_image
 from stack.constants import container_file_name, container_lock_file_name, stack_file_name
 from stack.deploy.stack import Stack, get_parsed_stack_config, resolve_stack
 from stack.opts import opts
-from stack.repos.repo_util import host_and_path_for_repo, image_registry_for_repo, fs_path_for_repo, process_repo
+from stack.repos.repo_util import host_and_path_for_repo, image_registry_for_repo, fs_path_for_repo, process_repo, \
+    get_repo_current_hash, is_repo_dirty, hash_dirty_files, get_container_tag_for_repo
 from stack.util import include_exclude_check, stack_is_external, error_exit, get_yaml, check_if_stack_exists
 
 from stack.log import log_error, log_info, log_debug, log_warn, output_main, is_info_enabled
@@ -208,6 +211,8 @@ def build_containers(parent_stack,
             if (not stack_container.ref or stack_container.ref == ".") and stack.get_repo_ref():
                 stack_container.ref = stack.get_repo_ref()
 
+            container_spec_yml_path = None
+            container_lock_file_path = None
             container_needs_built = True
             container_was_built = False
             container_was_pulled = False
@@ -241,9 +246,11 @@ def build_containers(parent_stack,
                     locked_hash = None
                     if os.path.exists(container_lock_file_path):
                         locked_hash = get_yaml().load(open(container_lock_file_path, "r")).get("hash")
+                    log_debug("Locked hash is: " + str(locked_hash))
 
                     target_hash = locked_hash
                     repo_host, repo_path, branch_or_hash_from_spec = host_and_path_for_repo(container_spec.ref)
+                    log_debug("Branch or hash from spec is: " + str(branch_or_hash_from_spec))
                     repo = f"https://{repo_host}/{repo_path}"
                     if git_ssh:
                         repo = f"git@{repo_host}:{repo_path}"
@@ -256,26 +263,43 @@ def build_containers(parent_stack,
                     ):
                         if not locked_hash:
                             target_hash = branch_or_hash_from_spec
+                            log_debug(f"Using specified hash {target_hash} from {container_spec.ref}")
+
+                            git_hash = get_repo_current_hash(target_fs_repo_path)
+                            if git_hash != target_hash:
+                                error_exit(
+                                    f"Specified hash {branch_or_hash_from_spec} does not match current hash {git_hash}."
+                                )
                         elif locked_hash != branch_or_hash_from_spec:
                             error_exit(
-                                f"Specified hash {target_hash} does not match locked hash {locked_hash}.  Remove {container_lock_file_path}?"
+                                f"Specified hash {target_hash} does not match {container_lock_file_name} hash {locked_hash}.  Remove {container_lock_file_path}?"
                             )
                     else:
-                        git_client = git.cmd.Git()
-                        result = git_client.ls_remote(repo, branch_or_hash_from_spec)
-                        if result:
-                            git_hash = result.split()[0]
+                        if not os.path.exists(target_fs_repo_path):
+                            git_client = git.cmd.Git()
+                            result = git_client.ls_remote(repo, branch_or_hash_from_spec)
+                            if result:
+                                git_hash = result.split()[0]
+                                if locked_hash:
+                                    if git_hash != locked_hash:
+                                        log_warn(
+                                            f"WARN: Locked hash {locked_hash} from {container_lock_file_path} does not match remote hash {git_hash} for {container_spec.ref}."
+                                        )
+                                else:
+                                    target_hash = git_hash
+                        else:
+                            git_hash = get_repo_current_hash(target_fs_repo_path)
                             if locked_hash:
-                                if git_hash != locked_hash:
+                                if locked_hash != git_hash:
                                     log_warn(
-                                        f"WARN: Locked hash {locked_hash} from {container_lock_file_path} does not match remote hash {git_hash} for {container_spec.ref}."
+                                        f"WARN: Locked hash {locked_hash} from {container_lock_file_path} does not match loacl hash {git_hash}."
                                     )
                             else:
                                 target_hash = git_hash
 
-                    if not os.path.exists(container_lock_file_path):
-                        with open(container_lock_file_path, "w") as output_file:
-                            get_yaml().dump({"hash": target_hash}, output_file)
+                    if is_repo_dirty(target_fs_repo_path):
+                        target_hash = get_container_tag_for_repo(target_fs_repo_path)
+                        log_warn(f"WARN: {target_fs_repo_path} has local modifications.  Using generated hash: {target_hash}", bold=True)
 
                     container_tag = f"{container_spec.name}:{target_hash}"[:128]
                     exists_remotely = None
@@ -309,10 +333,7 @@ def build_containers(parent_stack,
                                 reconstructed_ref = f"{container_spec.ref.split('@')[0]}@{target_hash}"
                                 process_repo(False, False, git_ssh, dev_root_path, [], reconstructed_ref)
                             else:
-                                log_info(
-                                    f"Building {container_tag} from {target_fs_repo_path}\n\t"
-                                    "IMPORTANT: source files may include changes or be on a different branch than specified in container.yml."
-                                )
+                                log_info(f"Building {container_tag} from {target_fs_repo_path}")
 
             if container_needs_pulled:
                 if not container_tag:
@@ -346,6 +367,10 @@ def build_containers(parent_stack,
                     # Handle legacy build scripts
                     if container_exists_locally(stack_legacy_tag) and not container_exists_locally(stack_local_tag):
                         docker.image.tag(stack_legacy_tag, stack_local_tag)
+
+                    if container_lock_file_path and container_spec_yml_path and os.path.exists(container_spec_yml_path):
+                        with open(container_lock_file_path, "w") as output_file:
+                            get_yaml().dump({"hash": target_hash}, output_file)
                 else:
                     error_exit(f"container build failed for: {build_context.container}")
 
