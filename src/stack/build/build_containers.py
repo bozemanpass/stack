@@ -24,23 +24,19 @@ import git
 import os
 
 from pathlib import Path
-
 from python_on_whales import DockerClient
 
-from stack.config.util import get_config_setting, get_dev_root_path, debug_enabled
 from stack.base import get_npm_registry_url
 from stack.build.build_types import BuildContext
 from stack.build.build_util import ContainerSpec, get_containers_in_scope, container_exists_locally, container_exists_remotely, local_container_arch
 from stack.build.publish import publish_image
+from stack.config.util import get_config_setting, get_dev_root_path, debug_enabled
 from stack.constants import container_file_name, container_lock_file_name
 from stack.deploy.stack import get_parsed_stack_config, resolve_stack
-from stack.opts import opts
-from stack.repos.repo_util import host_and_path_for_repo, image_registry_for_repo, fs_path_for_repo, process_repo, \
-    get_repo_current_hash, is_repo_dirty, get_container_tag_for_repo
-from stack.util import include_exclude_check, stack_is_external, error_exit, get_yaml
-
 from stack.log import log_info, log_debug, log_warn, output_main
-
+from stack.opts import opts
+from stack.repos.repo_util import host_and_path_for_repo, image_registry_for_repo, fs_path_for_repo, process_repo, get_repo_current_hash, is_repo_dirty, get_container_tag_for_repo
+from stack.util import include_exclude_check, stack_is_external, error_exit, get_yaml
 from stack.util import run_shell_command
 
 docker = DockerClient()
