@@ -270,7 +270,7 @@ def clone_all_repos_for_stack(stack, include=None, exclude=None, pull=False, git
         # containers can reference an external repo
         containers_in_scope = build_util.get_containers_in_scope(req_stack)
         for c in containers_in_scope:
-            if c.ref and c.ref not in repos_in_scope:
+            if c.ref and c.ref != "." and c.ref not in repos_in_scope:
                 repos_in_scope.append(c.ref)
 
         log_debug(f"Repos: {repos_in_scope}")
