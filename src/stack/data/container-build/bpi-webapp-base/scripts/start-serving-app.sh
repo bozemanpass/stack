@@ -33,8 +33,8 @@ fi
 
 STACK_HOSTED_CONFIG_FILE=${STACK_HOSTED_CONFIG_FILE}
 if [ -z "${STACK_HOSTED_CONFIG_FILE}" ]; then
-  if [ -f "/config/bpi-hosted-config.yml" ]; then
-    STACK_HOSTED_CONFIG_FILE="/config/bpi-hosted-config.yml"
+  if [ -f "/config/stack-hosted-config.yml" ]; then
+    STACK_HOSTED_CONFIG_FILE="/config/stack-hosted-config.yml"
   elif [ -f "/config/config.yml" ]; then
     STACK_HOSTED_CONFIG_FILE="/config/config.yml"
   fi
