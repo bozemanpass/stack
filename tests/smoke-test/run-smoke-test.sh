@@ -21,9 +21,9 @@ echo "Cloning repositories into: $STACK_REPO_BASE_DIR"
 rm -rf $STACK_REPO_BASE_DIR
 mkdir -p $STACK_REPO_BASE_DIR
 # Test building the a stack container
-$TEST_TARGET_SO prepare --stack test
+$TEST_TARGET_SO --verbose --debug prepare --stack test
 # Build one example containers
-$TEST_TARGET_SO prepare --stack test --include-containers bozemanpass/builder-js
+$TEST_TARGET_SO --verbose --debug prepare --stack test --include-containers bozemanpass/test-container
 echo "Images in the local registry:"
 docker image ls -a
 test_deployment_dir=$STACK_REPO_BASE_DIR/test-deployment-dir
