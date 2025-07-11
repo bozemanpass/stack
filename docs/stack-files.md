@@ -13,8 +13,8 @@ description: "Gitea SCM and Actions"
 # A list of containers to be used in the stack.
 containers:
     # The name of the container in the form `<organization>/<name>`.  The pod's composefile.yml will need to use the
-    # same name for the image with the tag `stack`.  For example: `image: bpi/act-runner:stack`
-  - name: bpi/act-runner
+    # same name for the image with the tag `stack`.  For example: `image: bozemanpass/act-runner:stack`
+  - name: bozemanpass/act-runner
     # An (optional) reference to the container's repository.  The format is: [hostname/]organization/repo[@tag_or_branch]
     # The hostname is optional.  When omitted, github.com is assumed.  The tag is also optional.  If omitted,
     # the main repo branch is used.  If `ref` is omitted entirely, the current repo is assumed.
@@ -28,7 +28,7 @@ containers:
     #        The container will be built using the Dockerfile in this directory similar to:
     #             docker build -t ${STACK_DEFAULT_CONTAINER_IMAGE_TAG} .
     path: ./act-runner
-  - name: bpi/gitea
+  - name: bozemanpass/gitea
     ref: bozemanpass/gitea-containers
     path: ./gitea
 # Pods are groups of containers that are deployed together.  Each pod corresponds to one composefile.yml.
@@ -59,15 +59,15 @@ The build script path is relative to the `container.yml` file, not the target re
 scripts to be located in a separate repo from the container's source code, which is very useful for building customized
 container images from repositories that are not under your control.
 
-The following example from the `bozemanpass/gitea-containers` repo builds the `bpi/act-runner` container directly from
+The following example from the `bozemanpass/gitea-containers` repo builds the `bozemanpass/act-runner` container directly from
 the `gitea.com/gitea/act_runner` repo, for example.
 
 ### Example
 ```yaml
 container:
   # The name of the container in the form `<organization>/<name>`.  The pod's composefile.yml will need to use the
-  # same name for the image with the tag `stack`.  For example: `image: bpi/act-runner:stack`
-  name: bpi/act-runner
+  # same name for the image with the tag `stack`.  For example: `image: bozemanpass/act-runner:stack`
+  name: bozemanpass/act-runner
   # An optional reference to the container's repository.  The format is: [hostname/]organization/repo[@tag_or_branch]
   # The hostname is optional.  When omitted, github.com is assumed.  The tag is also optional.  If omitted,
   # the main repo branch is used.  If `ref` is omitted entirely, the current repo is assumed.
@@ -97,7 +97,7 @@ It is compatible in syntax with `docker-compose.yml`.
 ```yaml
 services:
   runner:
-    image: bpi/act-runner:stack
+    image: bozemanpass/act-runner:stack
     restart: always
     privileged: true
     environment:

@@ -392,7 +392,7 @@ class ClusterInfo:
                     liveness_probe=liveness_probe,
                 )
                 volumes = volumes_for_service(self.parsed_pod_yaml_map, service_name, self.spec, self.app_name)
-                image_pull_secrets = [client.V1LocalObjectReference(name="bpi-image-registry")]
+                image_pull_secrets = [client.V1LocalObjectReference(name="stack-image-registry")]
 
                 annotations = None
                 # TODO: For balancing, we should use some sort of shared tag among pods of the same type

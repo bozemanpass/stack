@@ -35,8 +35,8 @@ Check if the containers are ready:
 
 ```
 $ stack checklist --stack todo
-bpi/todo-frontend:stack         needs to be built
-bpi/todo-backend:stack          needs to be built
+bozemanpass/todo-frontend:stack         needs to be built
+bozemanpass/todo-backend:stack          needs to be built
 
 Run 'stack prepare --stack todo' to prepare missing containers.
 ```
@@ -47,7 +47,7 @@ $ stack prepare --stack todo
 ```
 Build a specific container:
 ```
-$ stack prepare --stack todo --include-containers "bpi/todo-frontend"
+$ stack prepare --stack todo --include-containers "bozemanpass/todo-frontend"
 ```
 Force a full rebuild of container images:
 ```
@@ -57,8 +57,8 @@ $ stack prepare --stack todo --build-policy build-force
 Now check again:
 ```
 $ stack checklist --stack todo
-bpi/todo-frontend:d87d76671ad7dde247a328716c15827de9c1a89a         ready
-bpi/todo-backend:d87d76671ad7dde247a328716c15827de9c1a89a          ready
+bozemanpass/todo-frontend:d87d76671ad7dde247a328716c15827de9c1a89a         ready
+bozemanpass/todo-backend:d87d76671ad7dde247a328716c15827de9c1a89a          ready
 
 All containers are ready to use.
 ```

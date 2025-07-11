@@ -2,6 +2,6 @@ version: "1.0"
 name: internal-stack-webapp-template
 description: "webapp template stack"
 containers:
-  - bpi/webapp-template-container
+  - bozemanpass/webapp-template-container
 pods:
   - webapp-template

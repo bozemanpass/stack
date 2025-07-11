@@ -18,7 +18,7 @@ import os
 
 annotations_key = "annotations"
 cluster_id_key = "cluster-id"
-cluster_name_prefix = "bpi-"
+cluster_name_prefix = "stack-"
 compose_deploy_type = "compose"
 compose_dir_name = "compose"
 compose_file_prefix = os.environ.get("STACK_COMPOSE_FILE_PREFIX", "composefile")

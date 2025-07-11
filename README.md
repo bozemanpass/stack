@@ -40,7 +40,7 @@ stack prepare --stack todo --publish-images
 
 # init
 stack init \
-    --stack ~/bpi/example-todo-list/stacks/todo \
+    --stack todo \
     --output todo.yml \
     --deploy-to k8s \
     --http-proxy-fqdn example-todo.myexample.com \

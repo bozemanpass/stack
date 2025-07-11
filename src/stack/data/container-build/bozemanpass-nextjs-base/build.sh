@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build bpi/nextjs-base
+# Build bozemanpass/nextjs-base
 
 source ${STACK_CONTAINER_BASE_DIR}/build-base.sh
 
@@ -8,7 +8,7 @@ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 STACK_CONTAINER_BUILD_WORK_DIR=${STACK_CONTAINER_BUILD_WORK_DIR:-$SCRIPT_DIR}
 STACK_CONTAINER_BUILD_CONTAINERFILE=${STACK_CONTAINER_BUILD_CONTAINERFILE:-$SCRIPT_DIR/Containerfile}
-STACK_CONTAINER_BUILD_TAG=${STACK_CONTAINER_BUILD_TAG:-bpi/nextjs-base:stack}
+STACK_CONTAINER_BUILD_TAG=${STACK_CONTAINER_BUILD_TAG:-bozemanpass/nextjs-base:stack}
 
 docker build -t $STACK_CONTAINER_BUILD_TAG ${build_command_args} -f $STACK_CONTAINER_BUILD_CONTAINERFILE $STACK_CONTAINER_BUILD_WORK_DIR
 rc=$?
@@ -18,7 +18,7 @@ if [ $rc -ne 0 ]; then
   exit $rc
 fi
 
-if [ "$STACK_CONTAINER_BUILD_TAG" != "bpi/nextjs-base:stack" ]; then
+if [ "$STACK_CONTAINER_BUILD_TAG" != "bozemanpass/nextjs-base:stack" ]; then
   cat <<EOF
 
 #################################################################

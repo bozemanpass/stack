@@ -17,7 +17,7 @@ Other build policies include:
 * `fetch-repos`   -   Don't build anything, just clone repos.
 
 When building, the resulting containers can be published to the image registry with `--publish-images`.  They will be
-published remotely with the form `<image-name>:<git_hash_of_container_repo>` such as `bpi/gitea:ae0af8ea5b2de99a49add2b7f7b76dde62a8a617`.
+published remotely with the form `<image-name>:<git_hash_of_container_repo>` such as `bozemanpass/gitea:ae0af8ea5b2de99a49add2b7f7b76dde62a8a617`.
 
 It is sometimes useful to check if remote images are available without pulling them.  This is especially useful if you
 need to check if images are available a deployment which does not match the current machine architecture (eg, running 

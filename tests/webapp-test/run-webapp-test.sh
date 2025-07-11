@@ -33,7 +33,7 @@ CHECK="SPECIAL_01234567890_TEST_STRING"
 
 set +e
 
-app_image_name="bpi/test-progressive-web-app:stack"
+app_image_name="bozemanpass/test-progressive-web-app:stack"
 
 CONTAINER_ID=$(docker run -p 3000:80 -d -e STACK_SCRIPT_DEBUG=$STACK_SCRIPT_DEBUG ${app_image_name})
 sleep 3

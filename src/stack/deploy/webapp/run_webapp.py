@@ -46,7 +46,7 @@ def command(ctx, image, config_file, port):
 
     unique_cluster_descriptor = f"{image},{env}"
     hash = hashlib.md5(unique_cluster_descriptor.encode()).hexdigest()
-    cluster = f"bpi-webapp-{hash}"
+    cluster = f"stack-webapp-{hash}"
 
     deployer = getDeployer(
         type=constants.compose_deploy_type,

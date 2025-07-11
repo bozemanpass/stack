@@ -19,16 +19,16 @@ can be overidden with the build arguments `STACK_NEXTJS_VERSION` and `STACK_BUIL
 ```
 $ cd ~/bpi
 $ git clone https://github.com/bozemanpass/test-progressive-web-app
-$ stack webapp build --source-repo ~/bpi/test-progressive-web-app
+$ stack webapp build --source-repo ~/bozemanpass/test-progressive-web-app
 ...
 
-Built host container for ~/bpi/test-progressive-web-app with tag:
+Built host container for ~/bozemanpass/test-progressive-web-app with tag:
 
-    bpi/test-progressive-web-app:stack
+    bozemanpass/test-progressive-web-app:stack
 
 To test locally run:
 
-    stack webapp run --image bpi/test-progressive-web-app:stack --config-file /path/to/environment.env
+    stack webapp run --image bozemanpass/test-progressive-web-app:stack --config-file /path/to/environment.env
 
 ```
 
@@ -39,16 +39,16 @@ With `webapp run` a new container will be launched on the local machine, with ru
 **Example**:
 ```
 # Production env
-$ stack webapp run --image bpi/test-progressive-web-app:stack --config-file /path/to/environment/production.env
+$ stack webapp run --image bozemanpass/test-progressive-web-app:stack --config-file /path/to/environment/production.env
 
-Image: bpi/test-progressive-web-app:stack
+Image: bozemanpass/test-progressive-web-app:stack
 ID: 4c6e893bf436b3e91a2b92ce37e30e499685131705700bd92a90d2eb14eefd05
 URL: http://localhost:32768
 
 # Dev env
-$ stack webapp run --image bpi/test-progressive-web-app:stack --config-file /path/to/environment/dev.env
+$ stack webapp run --image bozemanpass/test-progressive-web-app:stack --config-file /path/to/environment/dev.env
 
-Image: bpi/test-progressive-web-app:stack
+Image: bozemanpass/test-progressive-web-app:stack
 ID: 9ab96494f563aafb6c057d88df58f9eca81b90f8721a4e068493a289a976051c
 URL: http://localhost:32769
 ```
@@ -56,9 +56,9 @@ URL: http://localhost:32769
 ## Deploy and Run
 
 Use the subcommand `webapp deploy` to make a deployment directory that can be subsequently deployed to a Kubernetes cluster.
-Example commands are shown below, assuming that the webapp container image `bpi/test-progressive-web-app:stack` has already been built:
+Example commands are shown below, assuming that the webapp container image `bozemanpass/test-progressive-web-app:stack` has already been built:
 ```
-$ stack webapp deploy --kube-config ~/kubectl/k8s-kubeconfig.yaml --image-registry registry.digitalocean.com/laconic-registry --deployment-dir ~/bpi/webapp-k8s-deployment --image bpi/test-progressive-web-app:stack --url https://test-pwa-app.bpi.servesthe.world --config-file test-webapp.env
-$ stack manage --dir ~/bpi/webapp-k8s-deployment push-images
-$ stack manage --dir ~/bpi/webapp-k8s-deployment start
+$ stack webapp deploy --kube-config ~/kubectl/k8s-kubeconfig.yaml --image-registry registry.digitalocean.com/laconic-registry --deployment-dir ~/bozemanpass/webapp-k8s-deployment --image bozemanpass/test-progressive-web-app:stack --url https://test-pwa-app.bpi.servesthe.world --config-file test-webapp.env
+$ stack manage --dir ~/bozemanpass/webapp-k8s-deployment push-images
+$ stack manage --dir ~/bozemanpass/webapp-k8s-deployment start
 ```

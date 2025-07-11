@@ -121,7 +121,7 @@ def process_container(build_context: BuildContext) -> bool:
 
         if build_context.container.path:
             repo_full_path = repo_full_path.joinpath(build_context.container.path)
-        repo_dir_or_build_dir = repo_full_path if repo_full_path.exists() else build_dir
+        repo_dir_or_build_dir = repo_full_path if repo_full_path and repo_full_path.exists() else build_dir
         build_command = (
             os.path.join(build_context.default_container_base_dir, "default-build.sh")
             + f" {default_container_tag} {repo_dir_or_build_dir}"

@@ -1,6 +1,6 @@
 services:
   webapp:
-    image: bpi/webapp-container:stack
+    image: bozemanpass/webapp-container:stack
     restart: always
     environment:
       STACK_SCRIPT_DEBUG: ${STACK_SCRIPT_DEBUG}
