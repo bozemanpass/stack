@@ -26,7 +26,7 @@ as indicated below in the dynamically added `Example Commands` section
 of the help output.
 
 ```
-❯ stack --stack ~/bpi/example-app/stacks/example -h
+❯ stack --stack ~/bozemanpass/example-app/stacks/example -h
 Usage: stack [OPTIONS] COMMAND [ARGS]...
 
   BPI stack

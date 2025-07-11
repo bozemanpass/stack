@@ -4,6 +4,6 @@ description: "A test stack"
 repos:
   - bozemanpass/stack-test-project
 containers:
-  - bpi/test-container
+  - bozemanpass/test-container
 pods:
   - test

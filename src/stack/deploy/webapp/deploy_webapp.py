@@ -32,10 +32,10 @@ from stack.log import log_warn
 def _fixup_container_tag(deployment_dir: str, image: str):
     deployment_dir_path = Path(deployment_dir)
     compose_file = deployment_dir_path.joinpath("compose", f"{constants.compose_file_prefix}-webapp-template.yml")
-    # replace "bpi/webapp-container:stack" in the file with our image tag
+    # replace "bozemanpass/webapp-container:stack" in the file with our image tag
     with open(compose_file) as rfile:
         contents = rfile.read()
-        contents = contents.replace("bpi/webapp-container:stack", image)
+        contents = contents.replace("bozemanpass/webapp-container:stack", image)
     with open(compose_file, "w") as wfile:
         wfile.write(contents)
 

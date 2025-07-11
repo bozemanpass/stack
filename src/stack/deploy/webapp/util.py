@@ -47,15 +47,15 @@ def determine_base_container(clone_dir, app_type="webapp"):
     if not app_type or not app_type.startswith("webapp"):
         raise Exception(f"Unsupported app_type {app_type}")
 
-    base_container = "bpi/webapp-base"
+    base_container = "bozemanpass/webapp-base"
     if app_type == "webapp/next":
-        base_container = "bpi/nextjs-base"
+        base_container = "bozemanpass/nextjs-base"
     elif app_type == "webapp":
         pkg_json_path = os.path.join(clone_dir, "package.json")
         if os.path.exists(pkg_json_path):
             pkg_json = json.load(open(pkg_json_path))
             if "next" in pkg_json.get("dependencies", {}):
-                base_container = "bpi/nextjs-base"
+                base_container = "bozemanpass/nextjs-base"
 
     return base_container
 

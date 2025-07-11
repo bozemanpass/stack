@@ -1,6 +1,6 @@
 services:
   test:
-    image: bpi/test-container:stack
+    image: bozemanpass/test-container:stack
     restart: always
     environment:
       STACK_SCRIPT_DEBUG: ${STACK_SCRIPT_DEBUG}
