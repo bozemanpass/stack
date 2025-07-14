@@ -79,15 +79,13 @@ def constainer_dispostion(parent_stack, image_registry, git_ssh):
                 tag = get_yaml().load(open(container_lock_file_path, "r")).get("hash")
                 log_debug(f"{stack_container.name}: Read locked hash {tag} from {container_lock_file_path}")
             else:
-                local_repo_path_to_check = None
+                local_repo_path_to_check = container_repo_fs_path
                 if os.path.exists(container_spec_yml_path):
                     container_spec = ContainerSpec().init_from_file(container_spec_yml_path)
                     if container_spec.ref and container_spec.ref != ".":
                         ref_fs_path = fs_path_for_repo(container_spec.ref, get_dev_root_path())
-                        if os.path.exists(ref_fs_path):
-                            local_repo_path_to_check = ref_fs_path
-                            log_debug(f"{stack_container.name}: No lock file, using git HEAD hash {tag} from {ref_fs_path}.")
-                        else:
+                        if not os.path.exists(ref_fs_path):
+                            local_repo_path_to_check = None
                             repo_host, repo_path, branch_or_hash_from_spec = host_and_path_for_repo(container_spec.ref)
                             log_debug("Branch or hash from spec is: " + str(branch_or_hash_from_spec))
                             repo = f"https://{repo_host}/{repo_path}"
@@ -98,8 +96,8 @@ def constainer_dispostion(parent_stack, image_registry, git_ssh):
                             if result:
                                 tag = result.split()[0]
                                 log_debug(f"{stack_container.name}: Using remote hash {tag} from {repo}.")
-                else:
-                    local_repo_path_to_check = container_repo_fs_path
+                        else:
+                            local_repo_path_to_check = ref_fs_path
 
                 if local_repo_path_to_check:
                     if is_repo_dirty(local_repo_path_to_check):
