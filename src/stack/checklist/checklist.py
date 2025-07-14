@@ -1,5 +1,4 @@
 # Copyright © 2025 Bozeman Pass, Inc.
-import sys
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -15,7 +14,9 @@ import sys
 # along with this program.  If not, see <http:#www.gnu.org/licenses/>.
 
 import click
+import git
 import os
+import sys
 
 from stack import constants
 from stack.build.build_util import (
@@ -23,6 +24,7 @@ from stack.build.build_util import (
     container_exists_locally,
     container_exists_remotely,
     local_container_arch,
+    ContainerSpec,
 )
 from stack.config.util import get_config_setting
 from stack.config.util import get_dev_root_path
@@ -35,11 +37,12 @@ from stack.repos.repo_util import (
     get_repo_current_hash,
     is_repo_dirty,
     get_container_tag_for_repo,
+    host_and_path_for_repo,
 )
 from stack.util import get_yaml
 
 
-def constainer_dispostion(parent_stack, image_registry):
+def constainer_dispostion(parent_stack, image_registry, git_ssh):
     ret = {}
     required_stacks = parent_stack.get_required_stacks_paths()
 
@@ -63,8 +66,10 @@ def constainer_dispostion(parent_stack, image_registry):
                 ret[stack_container.ref] = "missing"
                 continue
 
+            container_spec_yml_path = os.path.join(container_repo_fs_path, constants.container_file_name)
             container_lock_file_path = os.path.join(container_repo_fs_path, constants.container_lock_file_name)
             if stack_container.path:
+                container_spec_yml_path = os.path.join(container_repo_fs_path, stack_container.path, constants.container_file_name)
                 container_lock_file_path = os.path.join(
                     container_repo_fs_path, stack_container.path, constants.container_lock_file_name
                 )
@@ -74,16 +79,43 @@ def constainer_dispostion(parent_stack, image_registry):
                 tag = get_yaml().load(open(container_lock_file_path, "r")).get("hash")
                 log_debug(f"{stack_container.name}: Read locked hash {tag} from {container_lock_file_path}")
             else:
-                if is_repo_dirty(container_repo_fs_path):
-                    tag = get_container_tag_for_repo(container_repo_fs_path)
-                    log_debug(f"{stack_container.name}: No lock file, repo has local modifications {tag}.")
+                local_repo_path_to_check = None
+                if os.path.exists(container_spec_yml_path):
+                    container_spec = ContainerSpec().init_from_file(container_spec_yml_path)
+                    if container_spec.ref and container_spec.ref != ".":
+                        ref_fs_path = fs_path_for_repo(container_spec.ref, get_dev_root_path())
+                        if os.path.exists(ref_fs_path):
+                            local_repo_path_to_check = ref_fs_path
+                            log_debug(f"{stack_container.name}: No lock file, using git HEAD hash {tag} from {ref_fs_path}.")
+                        else:
+                            repo_host, repo_path, branch_or_hash_from_spec = host_and_path_for_repo(container_spec.ref)
+                            log_debug("Branch or hash from spec is: " + str(branch_or_hash_from_spec))
+                            repo = f"https://{repo_host}/{repo_path}"
+                            if git_ssh:
+                                repo = f"git@{repo_host}:{repo_path}"
+                            git_client = git.cmd.Git()
+                            result = git_client.ls_remote(repo, branch_or_hash_from_spec)
+                            if result:
+                                tag = result.split()[0]
+                                log_debug(f"{stack_container.name}: Using remote hash {tag} from {repo}.")
                 else:
-                    git_hash = get_repo_current_hash(container_repo_fs_path)
-                    if git_hash:
-                        tag = git_hash
-                        log_debug(f"{stack_container.name}: No lock file, using git HEAD hash {tag}.")
+                    local_repo_path_to_check = container_repo_fs_path
+
+                if local_repo_path_to_check:
+                    if is_repo_dirty(local_repo_path_to_check):
+                        tag = get_container_tag_for_repo(local_repo_path_to_check)
+                        log_debug(
+                            f"{stack_container.name}: No lock file, repo {local_repo_path_to_check} has local modifications {tag}."
+                        )
                     else:
-                        log_debug(f"{stack_container.name}: No lock file, using 'stack' as image tag.")
+                        git_hash = get_repo_current_hash(local_repo_path_to_check)
+                        if git_hash:
+                            tag = git_hash
+                            log_debug(
+                                f"{stack_container.name}: No lock file, using git HEAD hash {tag} from {local_repo_path_to_check}."
+                            )
+                        else:
+                            log_debug(f"{stack_container.name}: No lock file, using 'stack' as image tag.")
 
             container_tag = f"{stack_container.name}:{tag}"
             exists_locally = container_exists_locally(container_tag)
@@ -111,12 +143,15 @@ def constainer_dispostion(parent_stack, image_registry):
     help="Provide a container image registry url for this k8s cluster",
     default=get_config_setting("image-registry"),
 )
+@click.option(
+    "--git-ssh/--no-git-ssh", is_flag=True, default=get_config_setting("git-ssh", False), help="use SSH for git rather than HTTPS"
+)
 @click.pass_context
-def command(ctx, stack, image_registry):
+def command(ctx, stack, image_registry, git_ssh):
     """check if stack containers are ready"""
 
     stack = resolve_stack(stack)
-    what_needs_done = constainer_dispostion(stack, image_registry)
+    what_needs_done = constainer_dispostion(stack, image_registry, git_ssh)
 
     padding = 8
     max_name_len = 0
