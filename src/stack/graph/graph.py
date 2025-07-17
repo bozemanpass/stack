@@ -24,7 +24,7 @@ from stack.log import output_main
 
 
 _theme = {
-    "super_stack": "stroke:#6C63FF,fill:#F3F6FD,color:#292088,stroke-width:2px;",
+    "super_stack": "stroke:#FFF176,fill:#FFFEEF,color:#6B5E13,stroke-width:2px;",
     "stack": "stroke:#00C9A7,fill:#EDFDFB,color:#1A3A38,stroke-width:2px;",
     "service": "stroke:#43E97B,fill:#F5FFF7,color:#236247,stroke-width:2px;",
     "http_service": "stroke:#FFB236,fill:#FFFAF4,color:#7A5800,stroke-width:2px;",
