@@ -180,7 +180,6 @@ class Stack:
                         ports[svc_name] = [str(x) for x in svc[constants.ports_key]]
         return ports
 
-
     def get_volumes(self):
         volumes = {}
         pods = self.get_pod_list()
@@ -191,7 +190,6 @@ class Stack:
                     if constants.volumes_key in svc:
                         volumes[svc_name] = svc[constants.volumes_key]
         return volumes
-
 
     def get_http_proxy_targets(self, prefix=None):
         if prefix == "/":

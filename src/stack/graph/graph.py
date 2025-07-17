@@ -24,13 +24,13 @@ from stack.log import output_main
 
 
 _theme = {
-    "super_stack": "stroke:#FFF176,fill:#FFFEEF,color:#6B5E13,stroke-width:2px;",
-    "stack": "stroke:#00C9A7,fill:#EDFDFB,color:#1A3A38,stroke-width:2px;",
+    "super_stack": "stroke:#FFF176,fill:#FFFEEF,color:#6B5E13,stroke-width:2px,font-size:small;",
+    "stack": "stroke:#00C9A7,fill:#EDFDFB,color:#1A3A38,stroke-width:2px,font-size:small;",
     "service": "stroke:#43E97B,fill:#F5FFF7,color:#236247,stroke-width:2px;",
     "http_service": "stroke:#FFB236,fill:#FFFAF4,color:#7A5800,stroke-width:2px;",
-    "http_port": "stroke:#FF6363,fill:#FFF5F5,color:#7C2323,stroke-width:2px;",
-    "port": "stroke:#26C6DA,fill:#E6FAFB,color:#074953,stroke-width:2px;font-size:x-small;",
-    "volume": "stroke:#A259DF,fill:#F4EEFB,color:#320963,stroke-width:2px;font-size:x-small;"
+    "http_target": "stroke:#FF6363,fill:#FFF5F5,color:#7C2323,stroke-width:2px;",
+    "port": "stroke:#26C6DA,fill:#E6FAFB,color:#074953,stroke-width:2px,font-size:x-small;",
+    "volume": "stroke:#A259DF,fill:#F4EEFB,color:#320963,stroke-width:2px,font-size:x-small;",
 }
 
 
@@ -42,10 +42,10 @@ _theme = {
     default=get_config_setting("deploy-to", "compose"),
 )
 @click.option("--show-ports/--no-show-ports", default=False)
-@click.option("--show-http-ports/--no-show-http-ports", default=True)
+@click.option("--show-http-targets/--no-show-http-targets", default=True)
 @click.option("--show-volumes/--no-show-volumes", default=True)
 @click.pass_context
-def command(ctx, stack, deploy_to, show_ports, show_http_ports, show_volumes):
+def command(ctx, stack, deploy_to, show_ports, show_http_targets, show_volumes):
     """generate a mermaid graph of the stack"""
 
     parent_stack = resolve_stack(stack)
@@ -54,7 +54,7 @@ def command(ctx, stack, deploy_to, show_ports, show_http_ports, show_volumes):
     for cls, style in _theme.items():
         chart.add_class_def(ClassDef(cls, f"{style}"))
 
-    def add_stack(stack, show_http_ports=True, show_ports=False, show_volumes=False, parent_graph=None, parent_stack=None):
+    def add_stack(stack, show_http_targets=True, show_ports=False, show_volumes=False, parent_graph=None, parent_stack=None):
         subgraph = Subgraph(stack.name)
         subgraph.get_id()  # we need this to be set
 
@@ -62,7 +62,7 @@ def command(ctx, stack, deploy_to, show_ports, show_http_ports, show_volumes):
             chart.attach_class(subgraph.title, "super_stack")
             for child in stack.get_required_stacks_paths():
                 child = resolve_stack(child)
-                add_stack(child, show_http_ports, show_ports, show_volumes, parent_graph=subgraph, parent_stack=stack)
+                add_stack(child, show_http_targets, show_ports, show_volumes, parent_graph=subgraph, parent_stack=stack)
         else:
             chart.attach_class(subgraph.title, "stack")
 
@@ -70,21 +70,24 @@ def command(ctx, stack, deploy_to, show_ports, show_http_ports, show_volumes):
             svc_node = Node(id=f"{stack.name}-{svc}", title=svc, shape=NodeShape.SUBROUTINE, class_name="service")
             subgraph.add_node(svc_node)
 
-            http_targets = []
-
-            if show_http_ports:
+            shown_http_ports = {}
+            if show_http_targets:
                 http_targets = stack.get_http_proxy_targets()
                 for ht in http_targets:
                     if ht["service"] == svc:
-                        title = ":" + str(ht["port"])
+                        title = f":{ht["port"]}"
                         if "k8s" in deploy_to:
                             title = ht.get("path", "/")
                             if parent_stack:
                                 http_prefix = parent_stack.http_prefix_for(stack.file_path.parent)
                                 if http_prefix and http_prefix != "/":
                                     title = f"{http_prefix}{title}"
+                        else:
+                            shown_http_ports[svc] = ht["port"]
 
-                        http_node = Node(id=f"{stack.name}-{svc}-http", title=title, shape=NodeShape.ASSYMETRIC, class_name="http_port")
+                        http_node = Node(
+                            id=f"{stack.name}-{svc}-http", title=title, shape=NodeShape.ASSYMETRIC, class_name="http_target"
+                        )
                         chart.add_node(http_node)
                         chart.add_link_between(http_node, svc_node)
                         svc_node.class_name = "http_service"
@@ -92,14 +95,20 @@ def command(ctx, stack, deploy_to, show_ports, show_http_ports, show_volumes):
             if show_ports:
                 ports = stack.get_ports().get(svc, [])
                 for port in ports:
-                    port_node = Node(id=f"{stack.name}-{svc}-port-{port}", title=f":{port}", shape=NodeShape.ASSYMETRIC, class_name="port")
+                    if svc in shown_http_ports and port == shown_http_ports[svc]:
+                        continue
+                    port_node = Node(
+                        id=f"{stack.name}-{svc}-port-{port}", title=f":{port}", shape=NodeShape.ASSYMETRIC, class_name="port"
+                    )
                     chart.add_node(port_node)
                     chart.add_link_between(port_node, svc_node)
 
             if show_volumes:
                 volumes = stack.get_volumes().get(svc, [])
                 for volume in volumes:
-                    volume_node = Node(id=f"{stack.name}-{svc}-volume-{volume}", title=f"{volume}", shape=NodeShape.RECT_ROUND, class_name="volume")
+                    volume_node = Node(
+                        id=f"{stack.name}-{svc}-volume-{volume}", title=f"{volume}", shape=NodeShape.RECT_ROUND, class_name="volume"
+                    )
                     subgraph.add_node(volume_node)
                     subgraph.add_link_between(svc_node, volume_node)
 
@@ -112,7 +121,7 @@ def command(ctx, stack, deploy_to, show_ports, show_http_ports, show_volumes):
         else:
             chart.add_subgraph(subgraph)
 
-    add_stack(parent_stack, show_http_ports, show_ports, show_volumes)
+    add_stack(parent_stack, show_http_targets, show_ports, show_volumes)
 
     out = str(chart)
     for line in out.splitlines():
