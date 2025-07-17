@@ -24,11 +24,11 @@ from stack.log import output_main
 
 
 _theme = {
-    "super_stack": "stroke-width:1px, stroke-dasharray:none, stroke:#254336, fill:#27654A, color:#FFFFFF",
-    "stack": "stroke-width:1px, stroke-dasharray:none, stroke:#46EDC8, fill:#DEFFF8, color:#378E7A",
-    "service": "stroke-width:1px, stroke-dasharray:none, stroke:#374D7C, fill:#E2EBFF, color:#374D7C",
-    "http_service": "stroke-width:1px, stroke-dasharray:none, stroke:#FBB35A, fill:#FFF9C4, color:#AE4466",
-    "http_port": "stroke-width:1px, stroke-dasharray:none, stroke:#FFEFDB, fill:#FBB35A, color:#AE4466",
+    "super_stack": "stroke:#6C63FF,fill:#F3F6FD,color:#292088,stroke-width:2px;",
+    "stack": "stroke:#00C9A7,fill:#EDFDFB,color:#1A3A38,stroke-width:2px;",
+    "service": "stroke:#43E97B,fill:#F5FFF7,color:#236247,stroke-width:2px;",
+    "http_service": "stroke:#FFB236,fill:#FFFAF4,color:#7A5800,stroke-width:2px;",
+    "http_port": "stroke:#FF6363,fill:#FFF5F5,color:#7C2323,stroke-width:2px;",
 }
 
 
@@ -47,7 +47,7 @@ def command(ctx, stack, deploy_to):
     chart = Chart(direction=ChartDir.RL)
 
     for cls, style in _theme.items():
-        chart.add_class_def(ClassDef(cls, f"{cls} {style}"))
+        chart.add_class_def(ClassDef(cls, f"{style}"))
 
     def add_stack(stack, parent_graph=None, parent_stack=None):
         subgraph = Subgraph(stack.name)
@@ -67,7 +67,7 @@ def command(ctx, stack, deploy_to):
             http_targets = stack.get_http_proxy_targets()
             for ht in http_targets:
                 if ht["service"] == svc:
-                    title = ":" + str(ht['port'])
+                    title = ":" + str(ht["port"])
                     if "k8s" in deploy_to:
                         title = ht.get("path", "/")
                         if parent_stack:
