@@ -67,12 +67,13 @@ def command(ctx, stack, deploy_to):
             http_targets = stack.get_http_proxy_targets()
             for ht in http_targets:
                 if ht["service"] == svc:
-                    title = f":{ht['port']}{ht.get('path', '')}"
-                    if "k8s" in deploy_to and parent_stack:
+                    title = ":" + str(ht['port'])
+                    if "k8s" in deploy_to:
                         title = ht.get("path", "/")
-                        http_prefix = parent_stack.http_prefix_for(stack.file_path.parent)
-                        if http_prefix and http_prefix != "/":
-                            title = f"{http_prefix}{title}"
+                        if parent_stack:
+                            http_prefix = parent_stack.http_prefix_for(stack.file_path.parent)
+                            if http_prefix and http_prefix != "/":
+                                title = f"{http_prefix}{title}"
 
                     http_node = Node(id=f"{stack.name}-{svc}-http", title=title, shape=NodeShape.ASSYMETRIC, class_name="http_port")
                     chart.add_node(http_node)
