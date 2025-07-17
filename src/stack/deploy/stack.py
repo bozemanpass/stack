@@ -180,6 +180,17 @@ class Stack:
                         ports[svc_name] = [str(x) for x in svc[constants.ports_key]]
         return ports
 
+    def get_volumes(self):
+        volumes = {}
+        pods = self.get_pod_list()
+        for pod in pods:
+            parsed_pod_file = self.load_pod_file(pod)
+            if constants.services_key in parsed_pod_file:
+                for svc_name, svc in parsed_pod_file[constants.services_key].items():
+                    if constants.volumes_key in svc:
+                        volumes[svc_name] = svc[constants.volumes_key]
+        return volumes
+
     def get_http_proxy_targets(self, prefix=None):
         if prefix == "/":
             prefix = None
@@ -279,6 +290,20 @@ class Stack:
                 result.add(Path(os.path.join(pod_root_dir, "stack")))
 
         return list(result)
+
+    def http_prefix_for(self, stack_path_or_name):
+        if not self.is_super_stack():
+            return None
+
+        if not os.path.exists(str(stack_path_or_name)):
+            stack_path_or_name = resolve_stack(stack_path_or_name).file_path.parent
+
+        stacks = self.get_required_stacks()
+        for s in stacks:
+            stack_path = determine_fs_path_for_stack(s[constants.ref_key], s[constants.path_key])
+            if stack_path == stack_path_or_name:
+                return s.get(constants.http_proxy_prefix_key, None)
+        return None
 
     def __str__(self):
         return str(self.__dict__)
@@ -386,6 +411,13 @@ def locate_single_stack(stack_name, search_path=get_dev_root_path(), fail_on_mul
 def resolve_stack(stack_name):
     if not stack_name:
         error_exit("stack name cannot be empty")
+
+    if isinstance(stack_name, Stack):
+        return stack_name
+
+    if isinstance(stack_name, Path):
+        stack_name = str(stack_name)
+
     stack = None
     if stack_name.startswith("/") or (os.path.exists(stack_name) and os.path.isdir(stack_name)):
         stack = get_parsed_stack_config(stack_name)

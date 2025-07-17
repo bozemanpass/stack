@@ -23,6 +23,7 @@ dependencies = [
     "requests",
     "expandvars",
     "mergedeep",
+    "mermaid-builder",
     "termcolor",
     "flake8",
     "black"
