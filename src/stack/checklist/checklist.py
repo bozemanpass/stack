@@ -42,7 +42,7 @@ from stack.repos.repo_util import (
 from stack.util import get_yaml
 
 
-def constainer_dispostion(parent_stack, image_registry, git_ssh):
+def container_disposition(parent_stack, image_registry, git_ssh):
     ret = {}
     required_stacks = parent_stack.get_required_stacks_paths()
 
@@ -149,7 +149,7 @@ def command(ctx, stack, image_registry, git_ssh):
     """check if stack containers are ready"""
 
     stack = resolve_stack(stack)
-    what_needs_done = constainer_dispostion(stack, image_registry, git_ssh)
+    what_needs_done = container_disposition(stack, image_registry, git_ssh)
 
     padding = 8
     max_name_len = 0

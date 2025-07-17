@@ -1,6 +1,5 @@
 # Copyright © 2022, 2023 Vulcanize
 # Copyright © 2025 Bozeman Pass, Inc.
-import os
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -16,6 +15,7 @@ import os
 # along with this program.  If not, see <http:#www.gnu.org/licenses/>.
 
 import click
+import os
 import sys
 
 from stack import opts
@@ -30,6 +30,7 @@ from stack.config import config
 from stack.config.util import get_config_setting
 from stack.deploy import deployment
 from stack.deploy import deployment_create
+from stack.graph import graph
 from stack.init import init
 from stack.repos import fetch
 from stack.util import STACK_USE_BUILTIN_STACK
@@ -83,6 +84,7 @@ cli.add_command(checklist.command, "checklist")
 cli.add_command(config.command, "config")
 cli.add_command(deployment_create.create, "deploy")
 cli.add_command(fetch.command, "fetch")
+cli.add_command(graph.command, "graph")
 cli.add_command(init.command, "init")
 cli.add_command(list_stack.command, "list")
 cli.add_command(deployment.command, "manage")
