@@ -66,6 +66,7 @@ def up_operation(ctx, services_list, stay_attached=False, skip_cluster_managemen
     for attr, value in container_exec_env.items():
         os.environ[attr] = value
     log_debug(f"Running compose up with container_exec_env: {container_exec_env}, extra_args: {services_list}")
+    log_debug(f"Pre-start commands: {cluster_context.pre_start_commands}")
     for pre_start_command in cluster_context.pre_start_commands:
         _run_command(global_context, deployment_cmd_context, cluster_context, pre_start_command)
     deployment_cmd_context.deployer.up(

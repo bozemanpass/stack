@@ -1,6 +1,5 @@
 # Copyright © 2022, 2023 Vulcanize
 # Copyright © 2025 Bozeman Pass, Inc.
-
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
@@ -13,6 +12,8 @@
 
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http:#www.gnu.org/licenses/>.
+
+import os
 
 from pathlib import Path
 from python_on_whales import DockerClient, DockerException
@@ -174,3 +175,5 @@ class DockerDeployerConfigGenerator(DeployerConfigGenerator):
         with open(self.deployment_context.get_env_file(), "ta") as env_file:
             for svc_name in all_service_names:
                 print(f'{env_var_name_for_service(svc_name)}="{svc_name}"', file=env_file)
+            print(f'STACK_HOST_UID="{os.getuid()}"', file=env_file)
+            print(f'STACK_HOST_GID="{os.getgid()}"', file=env_file)
