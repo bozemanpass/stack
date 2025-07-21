@@ -75,7 +75,7 @@ def command(ctx, stack, deploy_to, show_ports, show_http_targets, show_volumes):
                 http_targets = stack.get_http_proxy_targets()
                 for ht in http_targets:
                     if ht["service"] == svc:
-                        title = f":{ht["port"]}"
+                        title = ":" + str(ht["port"])
                         if "k8s" in deploy_to:
                             title = ht.get("path", "/")
                             if parent_stack:
