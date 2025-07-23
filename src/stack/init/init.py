@@ -92,7 +92,7 @@ def _output_checks(specs, deploy_to):
 @click.option(
     "--http-proxy-target",
     required=False,
-    help="k8s http proxy settings in the form: target_svc:target_port[path]]",
+    help="k8s http proxy settings in the form: target_svc:target_port[path]",
     multiple=True,
 )
 @click.option(
@@ -169,8 +169,6 @@ def command(
         return None
 
     if http_proxy_target:
-        if deploy_to not in [constants.k8s_kind_deploy_type, constants.k8s_deploy_type]:
-            error_exit(f"--http-proxy-target is not allowed with a {deploy_to} deployment")
         http_proxy_target = [_parse_http_proxy(t) for t in http_proxy_target]
 
     for rs in required_stacks:
@@ -191,6 +189,7 @@ def command(
 
         inner_stack_config = get_parsed_stack_config(stack)
         http_proxy_targets = inner_stack_config.get_http_proxy_targets(http_prefix)
+        print(http_proxy_targets)
 
         if i == len(required_stacks) - 1:
             http_proxy_targets.extend(http_proxy_target)

@@ -320,7 +320,7 @@ class MergedSpec(Spec):
                 their_proxy = other.get_http_proxy()[0]
                 if our_proxy["host-name"] != their_proxy["host-name"]:
                     error_exit(f"Unable to merge HTTP proxy settings: {our_proxy['host-name']} != {their_proxy['host-name']}")
-                if our_proxy["cluster-issuer"] != their_proxy["cluster-issuer"]:
+                if our_proxy.get("cluster-issuer") != their_proxy.get("cluster-issuer"):
                     error_exit(
                         f"Unable to merge HTTP proxy settings: {our_proxy['cluster-issuer']} != {their_proxy['cluster-issuer']}"
                     )
