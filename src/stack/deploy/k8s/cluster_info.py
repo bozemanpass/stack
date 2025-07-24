@@ -137,7 +137,7 @@ class ClusterInfo:
                 if path == "/" or path == "":
                     path = "/()(.*)"
                 elif "(" not in path:
-                    path = f"/{path.strip('/')}(/?)(.*)"
+                    path = f"/()({path.lstrip('/')}.*)"
                 proxy_to = route[constants.proxy_to_key]
                 log_debug(f"proxy config: {path} -> {proxy_to}")
                 # proxy_to has the form <container>:<port>
