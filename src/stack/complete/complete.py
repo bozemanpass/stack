@@ -15,7 +15,6 @@
 
 
 import click
-from pygments.lexers import shell
 
 from stack.log import output_main
 from stack.util import error_exit
