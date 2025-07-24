@@ -134,10 +134,10 @@ class ClusterInfo:
             paths = []
             for route in http_proxy_info[constants.routes_key]:
                 path = route.get(constants.path_key, "/")
-                if path == "/":
+                if path == "/" or path == "":
                     path = "/()(.*)"
                 elif "(" not in path:
-                    path = f"/()({path.lstrip('/')}.*)"
+                    path = f"/{path.strip('/')}(/?)(.*)"
                 proxy_to = route[constants.proxy_to_key]
                 log_debug(f"proxy config: {path} -> {proxy_to}")
                 # proxy_to has the form <container>:<port>

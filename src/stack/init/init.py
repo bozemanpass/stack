@@ -96,10 +96,7 @@ def _output_checks(specs, deploy_to):
     multiple=True,
 )
 @click.option(
-    "--http-proxy-fqdn",
-    required=False,
-    help="k8s http proxy hostname to use",
-    default=get_config_setting("http-proxy-fqdn", socket.getfqdn()),
+    "--http-proxy-fqdn", required=False, help="k8s http proxy hostname to use", default=get_config_setting("http-proxy-fqdn")
 )
 @click.option(
     "--http-proxy-clusterissuer",
@@ -160,6 +157,12 @@ def command(
         else:
             error_exit(f"Invalid config variable: {c}")
 
+    if not http_proxy_fqdn:
+        if deploy_to == "compose":
+            http_proxy_fqdn = "localhost"
+        else:
+            http_proxy_fqdn = socket.getfqdn()
+
     def http_prefix_for(stack):
         stacks = top_stack_config.get_required_stacks()
         for s in stacks:
@@ -189,7 +192,6 @@ def command(
 
         inner_stack_config = get_parsed_stack_config(stack)
         http_proxy_targets = inner_stack_config.get_http_proxy_targets(http_prefix)
-        print(http_proxy_targets)
 
         if i == len(required_stacks) - 1:
             http_proxy_targets.extend(http_proxy_target)

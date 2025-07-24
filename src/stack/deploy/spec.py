@@ -237,7 +237,10 @@ class MergedSpec(Spec):
     def stack_for_pod(self, pod_name):
         for spec in self._specs:
             if pod_name in spec.get_pod_list():
-                return spec.load_stack()
+                if spec.type == "merged":
+                    return spec.stack_for_pod(pod_name)
+                else:
+                    return spec.load_stack()
         return None
 
     def get_pod_list(self):
@@ -335,7 +338,15 @@ class MergedSpec(Spec):
 
         self._specs.append(other)
 
-        self.obj["stack"] = [x["stack"] for x in self._specs]
+        all_stacks = []
+        for x in self._specs:
+            stack = x["stack"]
+            if isinstance(stack, list):
+                all_stacks.extend(stack)
+            else:
+                all_stacks.append(stack)
+
+        self.obj["stack"] = all_stacks
 
         return self
 

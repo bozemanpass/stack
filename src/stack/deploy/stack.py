@@ -214,7 +214,7 @@ class Stack:
                                         if len(parts) >= 1:
                                             path = parts[0]
                                         if prefix:
-                                            path = f"{prefix}(/?)({path.lstrip('/')}.*)"
+                                            path = f"{prefix}/{path.lstrip('/')}".rstrip("/")
                                         http_proxy_targets.append({"service": svc_name, "port": port, "path": path})
         return http_proxy_targets
 

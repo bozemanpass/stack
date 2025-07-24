@@ -23,6 +23,9 @@ from pathlib import Path
 from typing import List
 from shutil import copy, copyfile, copytree
 from secrets import token_hex
+
+from ruamel.yaml import CommentedSeq
+
 from stack import constants
 from stack.log import log_debug, log_warn
 from stack.util import (
@@ -470,7 +473,7 @@ def create(ctx, cluster, spec_file, deployment_dir):
 
 # The init command's implementation is in a separate function so that we can
 # call it from other commands, bypassing the click decoration stuff
-def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec, deployment_dir):
+def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec, deployment_dir):  # noqa: C901
     log_debug(f"parsed spec: {parsed_spec}")
     _check_volume_definitions(parsed_spec)
 
@@ -543,6 +546,31 @@ def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec,
                         service_info["env_file"] = [shared_cfg_file, env_files]
                 else:
                     service_info["env_file"] = [shared_cfg_file]
+
+                http_proxy_config = parsed_spec.get_http_proxy()
+                for pxy in http_proxy_config:
+                    set_ingress = False
+                    for r in pxy[constants.routes_key]:
+                        pxy_svc, pxy_port = r[constants.proxy_to_key].split(":", 1)
+                        if pxy_svc == service_name:
+                            if set_ingress:
+                                # TODO: Support VIRTUAL_HOST_MULTIPORTS
+                                log_warn(f"WARN: Already set VIRTUAL_HOST and VIRTUAL_PATH for this service, skipping {r}...")
+                                continue
+                            path = r[constants.path_key]
+                            svc_env = service_info.get("environment", {})
+                            if isinstance(svc_env, CommentedSeq):
+                                svc_env.append(f'VIRTUAL_HOST="{pxy[constants.host_name_key]}"')
+                                svc_env.append(f'VIRTUAL_PATH="{path}"')
+                                svc_env.append(f'VIRTUAL_PORT="{pxy_port}"')
+                                svc_env.append('VIRTUAL_DEST="/"')
+                            else:
+                                svc_env["VIRTUAL_HOST"] = pxy[constants.host_name_key]
+                                svc_env["VIRTUAL_PATH"] = path
+                                svc_env["VIRTUAL_PORT"] = str(pxy_port)
+                                svc_env["VIRTUAL_DEST"] = "/"
+                            service_info["environment"] = svc_env
+                            set_ingress = True
 
         with open(destination_compose_dir.joinpath(f"{constants.compose_file_prefix}-%s.yml" % pod), "w") as output_file:
             yaml.dump(parsed_pod_file, output_file)
