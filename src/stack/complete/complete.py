@@ -69,7 +69,7 @@ complete -o bashdefault -o default -F _stack_completions stack
 @click.command(hidden=True)
 @click.option("--shell", help="name of shell", default="bash")
 @click.pass_context
-def command(ctx):
+def command(ctx, shell):
     """output shell completion script"""
 
     script = SHELL_COMPLETIONS.get(shell)
