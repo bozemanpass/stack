@@ -27,6 +27,7 @@ from stack.chart import chart
 from stack.checklist import list_stack, checklist
 from stack.cli_util import StackCLI, load_subcommands_from_stack
 from stack.command_types import CommandOptions
+from stack.complete import complete
 from stack.config import config
 from stack.config.util import get_config_setting
 from stack.deploy import deployment
@@ -82,6 +83,7 @@ def cli(ctx, profile, quiet, verbose, log_file, dry_run, debug, stack):
 cli.add_command(build.command, "build")
 cli.add_command(chart.command, "chart")
 cli.add_command(checklist.command, "checklist")
+cli.add_command(complete.command, "complete")
 cli.add_command(config.command, "config")
 cli.add_command(deployment_create.create, "deploy")
 cli.add_command(fetch.command, "fetch")
