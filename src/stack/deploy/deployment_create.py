@@ -263,9 +263,9 @@ def init_operation(  # noqa: C901
     config_file,
     kube_config,
     image_registry,
-    k8s_http_proxy_fqdn,
-    k8s_http_proxy_clusterissuer,
-    k8s_http_proxy_targets,
+    http_proxy_fqdn,
+    http_proxy_clusterissuer,
+    http_proxy_targets,
     output,
     map_ports_to_host,
 ):
@@ -279,19 +279,18 @@ def init_operation(  # noqa: C901
             spec_file_content.update({constants.image_registry_key: image_registry})
         elif deployer_type == "k8s":
             log_warn("WARN: --image-registry not specified, only default container registries (eg, Docker Hub) will be available")
-        if k8s_http_proxy_targets:
+        if http_proxy_targets:
             routes = []
-            for target in k8s_http_proxy_targets:
+            for target in http_proxy_targets:
                 routes.append(
                     {
                         constants.path_key: target["path"],
                         constants.proxy_to_key: f"{target['service']}:{target['port']}",
                     }
                 )
-
             http_proxy = {
-                constants.host_name_key: k8s_http_proxy_fqdn,
-                constants.cluster_issuer_key: k8s_http_proxy_clusterissuer,
+                constants.host_name_key: http_proxy_fqdn,
+                constants.cluster_issuer_key: http_proxy_clusterissuer,
                 constants.routes_key: routes,
             }
             if constants.network_key not in spec_file_content:
@@ -301,6 +300,28 @@ def init_operation(  # noqa: C901
         # Check for --kube-config supplied for non-relevant deployer types
         if kube_config is not None:
             error_exit(f"--kube-config is not allowed with a {deployer_type} deployment")
+
+    if http_proxy_targets:
+        routes = []
+        for target in http_proxy_targets:
+            routes.append(
+                {
+                    constants.path_key: target["path"],
+                    constants.proxy_to_key: f"{target['service']}:{target['port']}",
+                }
+            )
+        http_proxy = {
+            constants.host_name_key: http_proxy_fqdn,
+            constants.routes_key: routes,
+        }
+        if http_proxy_clusterissuer and deployer_type in ["k8s", "k8s-kind"]:
+            http_proxy[constants.cluster_issuer_key] = http_proxy_clusterissuer
+        else:
+            log_warn("WARN: http-cluster-issuer is only used when deploying to Kubernetes")
+        if constants.network_key not in spec_file_content:
+            spec_file_content[constants.network_key] = {}
+        spec_file_content[constants.network_key].update({constants.http_proxy_key: [http_proxy]})
+
     # Implement merge, since update() overwrites
     if config_variables:
         orig_config = spec_file_content.get("config", {})
