@@ -59,11 +59,16 @@ stack manage --dir ~/deployments/todo logs
 stack manage --dir ~/deployments/todo stop
 ```
 
+## Example Stacks
+
+ - [Gitea](https://about.gitea.com/) stack: https://github.com/bozemanpass/gitea-stack
+ - A [sign in with Ethereum](https://docs.login.xyz/) web app with fixturenet blockchain: https://github.com/bozemanpass/siwe-express-example
+
 ## Install
 
 Stack runs on Linux, macos and Windows under WSL2. Both x86-64 and ARM64 are supported.
 
-### Quick Start
+### Tire Kicking
 To get started quickly on a fresh Ubuntu 24.04 instance (e.g, a Digital Ocean droplet); [try this script](./scripts/quick-install-linux.sh).
 
 **WARNING:** Always review downloaded scripts prior to running them so that you know what going to happen to your machine.
