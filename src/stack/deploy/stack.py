@@ -346,11 +346,15 @@ def get_pod_file_path(stack, pod_name: str):
     else:
         for pod in pods:
             if pod["name"] == pod_name:
-                pod_root_dir = os.path.join(
-                    get_dev_root_path(),
-                    pod.get("repository", stack.get_repo_ref()).split("@")[0],
-                    pod.get("path", "."),
-                )
+                # First check relative to this stack repo
+                if stack.repo_path and stack.repo_path.exists():
+                    pod_root_dir = str(stack.repo_path.joinpath(pod.get("path", ".")))
+                else:
+                    pod_root_dir = os.path.join(
+                        get_dev_root_path(),
+                        pod.get("repository", stack.get_repo_ref()).split("@")[0],
+                        pod.get("path", "."),
+                    )
                 result = os.path.join(pod_root_dir, f"{constants.compose_file_prefix}.yml")
     return result
 
