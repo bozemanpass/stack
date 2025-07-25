@@ -1,6 +1,7 @@
 # Ingress
 
-HTTP ingress / reverse proxy support is configured using comment-based annotations in your `composefile.yml`.
+Automatic configuration of HTTP routes for an ingress controller / reverse-proxy can be performed using comment-based
+annotations in your `composefile.yml`.
 
 ## Example
 
@@ -22,7 +23,7 @@ and that `backend:5000` should be published at `/api/todos`.
 
 The hostname to be used is set by the `--http-proxy-fqdn` (the default is the result of `socket.getfqdn()`).
 
-The result will be network settings in the `init` output similar to:
+The result will be `http-proxy` settings in the `init` output similar to:
 
 ```
 network:
@@ -37,19 +38,20 @@ network:
 
 ## Kubernetes
 
-When using Kubernetes, support for an NGINX ingress controller is built in.  SSL support is handled automatically
-by [cert-manager](https://github.com/cert-manager/cert-manager) if available.  The `cluster-issuer` to use for
-requesting a certificate can be specified using the `--http-proxy-clusterissuer` flag.
+When using Kubernetes, support for [kubernetes/ingress-nginx](https://github.com/kubernetes/ingress-nginx) is built in.
+SSL support is also handled automatically by [cert-manager](https://github.com/cert-manager/cert-manager) if installed.
+The `cluster-issuer` to use for requesting a certificate can be specified using the `--http-proxy-clusterissuer` flag.
+No additional configuration is required.
 
 ## Docker
 
 By using [bozemanpass/docker-ingress-stack](https://github.com/bozemanpass/docker-ingress-stack), similar functionality
-can be achieved on Docker.  This stack uses [nginxproxy/nginx-proxy](https://github.com/nginx-proxy/nginx-proxy) to provide
-a reverse proxy with automatically configured routes, similar to the Kubernetes example. 
+can be achieved with Docker.  This stack uses [nginxproxy/nginx-proxy](https://github.com/nginx-proxy/nginx-proxy) to
+provide reverse proxy servies with automatically configured routes, similar to [kubernetes/ingress-nginx](https://github.com/kubernetes/ingress-nginx).
 
 > NOTE: The `docker-ingress` stack does not currently offer automatic configuration of SSL, unlike `cert-manager` on Kubernetes.
 
-The `docker-ingress` stack can simply be "mixed-in" to your existing stack at deployment time similar to the example below:
+The `docker-ingress` stack can simply be "mixed-in" to your existing stack at deployment time like this example below:
 
 ```
 # Fetch and init the docker-ingress stack
