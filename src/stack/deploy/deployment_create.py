@@ -20,11 +20,10 @@ import random
 
 from importlib import util
 from pathlib import Path
-from typing import List
-from shutil import copy, copyfile, copytree
-from secrets import token_hex
-
 from ruamel.yaml import CommentedSeq
+from secrets import token_hex
+from shutil import copy, copyfile, copytree
+from typing import List
 
 from stack import constants
 from stack.log import log_debug, log_warn

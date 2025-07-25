@@ -192,12 +192,13 @@ class Stack:
         return volumes
 
     def get_http_proxy_targets(self, prefix=None):
-        if prefix == "/":
-            prefix = None
-        else:
-            if not prefix.startswith("/"):
-                prefix = "/" + prefix
-            prefix = prefix.rstrip("/")
+        if prefix:
+            if prefix == "/":
+                prefix = None
+            else:
+                if not prefix.startswith("/"):
+                    prefix = "/" + prefix
+                prefix = prefix.rstrip("/")
 
         http_proxy_targets = []
         pods = self.get_pod_list()
