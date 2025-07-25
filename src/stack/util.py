@@ -131,14 +131,16 @@ def get_pod_list(parsed_stack):
 # # Find a config directory, looking first in any external stack
 # and if not found there, internally
 def resolve_config_dir(stack, config_dir_name: str):
+    config_base = None
     if stack_is_external(stack):
         if stack.repo_path:
             config_base = stack.repo_path.joinpath("config")
-        else:
+        elif stack.file_path:
             config_base = stack.file_path.parent.parent.parent.joinpath("config")
-        proposed_dir = config_base.joinpath(config_dir_name)
-        if proposed_dir.exists():
-            return proposed_dir
+        if config_base:
+            proposed_dir = config_base.joinpath(config_dir_name)
+            if proposed_dir.exists():
+                return proposed_dir
         # If we don't find it fall through to the internal case
     config_base = get_internal_config_dir()
     return config_base.joinpath(config_dir_name)

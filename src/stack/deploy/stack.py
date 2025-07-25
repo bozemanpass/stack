@@ -192,8 +192,14 @@ class Stack:
         return volumes
 
     def get_http_proxy_targets(self, prefix=None):
-        if prefix == "/":
-            prefix = None
+        if prefix:
+            if prefix == "/":
+                prefix = None
+            else:
+                if not prefix.startswith("/"):
+                    prefix = "/" + prefix
+                prefix = prefix.rstrip("/")
+
         http_proxy_targets = []
         pods = self.get_pod_list()
         for pod in pods:
@@ -210,11 +216,12 @@ class Stack:
                                     if constants.stack_annotation_marker in comment and constants.http_proxy_key in comment:
                                         parts = comment.split()
                                         parts = parts[parts.index(constants.http_proxy_key) + 1 :]
-                                        path = "/"
+                                        path = ""
                                         if len(parts) >= 1:
                                             path = parts[0]
                                         if prefix:
-                                            path = f"{prefix}(/?)({path.lstrip('/')}.*)"
+                                            path = f"{prefix}/{path.strip('/')}"
+                                        path = "/" + path.strip("/")
                                         http_proxy_targets.append({"service": svc_name, "port": port, "path": path})
         return http_proxy_targets
 

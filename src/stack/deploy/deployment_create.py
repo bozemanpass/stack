@@ -20,9 +20,11 @@ import random
 
 from importlib import util
 from pathlib import Path
-from typing import List
-from shutil import copy, copyfile, copytree
+from ruamel.yaml import CommentedSeq
 from secrets import token_hex
+from shutil import copy, copyfile, copytree
+from typing import List
+
 from stack import constants
 from stack.log import log_debug, log_warn
 from stack.util import (
@@ -263,9 +265,9 @@ def init_operation(  # noqa: C901
     config_file,
     kube_config,
     image_registry,
-    k8s_http_proxy_fqdn,
-    k8s_http_proxy_clusterissuer,
-    k8s_http_proxy_targets,
+    http_proxy_fqdn,
+    http_proxy_clusterissuer,
+    http_proxy_targets,
     output,
     map_ports_to_host,
 ):
@@ -279,19 +281,18 @@ def init_operation(  # noqa: C901
             spec_file_content.update({constants.image_registry_key: image_registry})
         elif deployer_type == "k8s":
             log_warn("WARN: --image-registry not specified, only default container registries (eg, Docker Hub) will be available")
-        if k8s_http_proxy_targets:
+        if http_proxy_targets:
             routes = []
-            for target in k8s_http_proxy_targets:
+            for target in http_proxy_targets:
                 routes.append(
                     {
                         constants.path_key: target["path"],
                         constants.proxy_to_key: f"{target['service']}:{target['port']}",
                     }
                 )
-
             http_proxy = {
-                constants.host_name_key: k8s_http_proxy_fqdn,
-                constants.cluster_issuer_key: k8s_http_proxy_clusterissuer,
+                constants.host_name_key: http_proxy_fqdn,
+                constants.cluster_issuer_key: http_proxy_clusterissuer,
                 constants.routes_key: routes,
             }
             if constants.network_key not in spec_file_content:
@@ -301,6 +302,28 @@ def init_operation(  # noqa: C901
         # Check for --kube-config supplied for non-relevant deployer types
         if kube_config is not None:
             error_exit(f"--kube-config is not allowed with a {deployer_type} deployment")
+
+    if http_proxy_targets:
+        routes = []
+        for target in http_proxy_targets:
+            routes.append(
+                {
+                    constants.path_key: target["path"],
+                    constants.proxy_to_key: f"{target['service']}:{target['port']}",
+                }
+            )
+        http_proxy = {
+            constants.host_name_key: http_proxy_fqdn,
+            constants.routes_key: routes,
+        }
+        if http_proxy_clusterissuer and deployer_type in ["k8s", "k8s-kind"]:
+            http_proxy[constants.cluster_issuer_key] = http_proxy_clusterissuer
+        else:
+            log_warn("WARN: http-cluster-issuer is only used when deploying to Kubernetes")
+        if constants.network_key not in spec_file_content:
+            spec_file_content[constants.network_key] = {}
+        spec_file_content[constants.network_key].update({constants.http_proxy_key: [http_proxy]})
+
     # Implement merge, since update() overwrites
     if config_variables:
         orig_config = spec_file_content.get("config", {})
@@ -449,7 +472,7 @@ def create(ctx, cluster, spec_file, deployment_dir):
 
 # The init command's implementation is in a separate function so that we can
 # call it from other commands, bypassing the click decoration stuff
-def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec, deployment_dir):
+def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec, deployment_dir):  # noqa: C901
     log_debug(f"parsed spec: {parsed_spec}")
     _check_volume_definitions(parsed_spec)
 
@@ -522,6 +545,36 @@ def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec,
                         service_info["env_file"] = [shared_cfg_file, env_files]
                 else:
                     service_info["env_file"] = [shared_cfg_file]
+
+                http_proxy_config = parsed_spec.get_http_proxy()
+                for pxy in http_proxy_config:
+                    set_ingress = False
+                    for r in pxy[constants.routes_key]:
+                        pxy_svc, pxy_port = r[constants.proxy_to_key].split(":", 1)
+                        if pxy_svc == service_name:
+                            if set_ingress:
+                                # TODO: Support VIRTUAL_HOST_MULTIPORTS
+                                log_warn(f"WARN: Already set VIRTUAL_HOST and VIRTUAL_PATH for this service, skipping {r}...")
+                                continue
+                            path = "/" + r[constants.path_key].strip("/")
+                            path_rule = path
+                            dest = "/"
+                            if path_rule != "/":
+                                path_rule = f"~ ^{path_rule}(?:/(.*))?$"
+                                dest = "/$1"
+                            svc_env = service_info.get("environment", {})
+                            if isinstance(svc_env, CommentedSeq):
+                                svc_env.append(f'VIRTUAL_HOST="{pxy[constants.host_name_key]}"')
+                                svc_env.append(f'VIRTUAL_PATH="{path_rule}"')
+                                svc_env.append(f'VIRTUAL_PORT="{pxy_port}"')
+                                svc_env.append(f'VIRTUAL_DEST="{dest}"')
+                            else:
+                                svc_env["VIRTUAL_HOST"] = pxy[constants.host_name_key]
+                                svc_env["VIRTUAL_PATH"] = f"{path_rule}"
+                                svc_env["VIRTUAL_PORT"] = str(pxy_port)
+                                svc_env["VIRTUAL_DEST"] = dest
+                            service_info["environment"] = svc_env
+                            set_ingress = True
 
         with open(destination_compose_dir.joinpath(f"{constants.compose_file_prefix}-%s.yml" % pod), "w") as output_file:
             yaml.dump(parsed_pod_file, output_file)

@@ -97,7 +97,6 @@ class ContainerSpec:
         if repo_name.endswith(".git"):
             repo_name = repo_name[:-4]
 
-        print(f"{repo_host}/{repo_name}")
         return f"{repo_host}/{repo_name}"
 
     def get_repo_name(self):

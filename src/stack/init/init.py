@@ -92,14 +92,11 @@ def _output_checks(specs, deploy_to):
 @click.option(
     "--http-proxy-target",
     required=False,
-    help="k8s http proxy settings in the form: target_svc:target_port[path]]",
+    help="k8s http proxy settings in the form: target_svc:target_port[path]",
     multiple=True,
 )
 @click.option(
-    "--http-proxy-fqdn",
-    required=False,
-    help="k8s http proxy hostname to use",
-    default=get_config_setting("http-proxy-fqdn", socket.getfqdn()),
+    "--http-proxy-fqdn", required=False, help="k8s http proxy hostname to use", default=get_config_setting("http-proxy-fqdn")
 )
 @click.option(
     "--http-proxy-clusterissuer",
@@ -160,6 +157,12 @@ def command(
         else:
             error_exit(f"Invalid config variable: {c}")
 
+    if not http_proxy_fqdn:
+        if deploy_to == "compose":
+            http_proxy_fqdn = "localhost"
+        else:
+            http_proxy_fqdn = socket.getfqdn()
+
     def http_prefix_for(stack):
         stacks = top_stack_config.get_required_stacks()
         for s in stacks:
@@ -169,8 +172,6 @@ def command(
         return None
 
     if http_proxy_target:
-        if deploy_to not in [constants.k8s_kind_deploy_type, constants.k8s_deploy_type]:
-            error_exit(f"--http-proxy-target is not allowed with a {deploy_to} deployment")
         http_proxy_target = [_parse_http_proxy(t) for t in http_proxy_target]
 
     for rs in required_stacks:

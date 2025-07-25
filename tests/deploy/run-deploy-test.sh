@@ -128,10 +128,10 @@ wait_for_running 3
 
 # Add a todo
 todo_title="79b06705-b402-431a-83a3-a634392d2754"
-add_todo http://localhost:5000/api/todos "$todo_title"
+add_todo http://localhost:5000 "$todo_title"
 
 # Check that it exists
-if [ "$todo_title" != "$(curl -s http://localhost:5000/api/todos | jq -r '.[] | select(.id == 1) | .title')" ]; then
+if [ "$todo_title" != "$(curl -s http://localhost:5000 | jq -r '.[] | select(.id == 1) | .title')" ]; then
     echo "deploy storage: failed - todo $todo_title not found"
     exit 1
 fi
@@ -146,7 +146,7 @@ $TEST_TARGET_SO manage --dir $test_deployment_dir start
 wait_for_running 3
 
 # Check that it is still viewable
-if [ "$todo_title" != "$(curl -s http://localhost:5000/api/todos | jq -r '.[] | select(.id == 1) | .title')" ]; then
+if [ "$todo_title" != "$(curl -s http://localhost:5000 | jq -r '.[] | select(.id == 1) | .title')" ]; then
     echo "deploy storage: failed - todo $todo_title not found after restart"
     exit 1
 fi
