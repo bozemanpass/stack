@@ -26,7 +26,7 @@ from shutil import copy, copyfile, copytree
 from typing import List
 
 from stack import constants
-from stack.log import log_debug, log_warn
+from stack.log import log_debug, log_warn, log_info
 from stack.util import (
     get_stack_path,
     get_yaml,
@@ -319,7 +319,7 @@ def init_operation(  # noqa: C901
         if http_proxy_clusterissuer and deployer_type in ["k8s", "k8s-kind"]:
             http_proxy[constants.cluster_issuer_key] = http_proxy_clusterissuer
         else:
-            log_warn("WARN: http-cluster-issuer is only used when deploying to Kubernetes")
+            log_info("NOTE: http-cluster-issuer is only used when deploying to Kubernetes")
         if constants.network_key not in spec_file_content:
             spec_file_content[constants.network_key] = {}
         spec_file_content[constants.network_key].update({constants.http_proxy_key: [http_proxy]})
