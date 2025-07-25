@@ -1,8 +1,13 @@
 # Stack
 
-Stack allows building and deployment of a suite of related applications as a single "stack".
+Stack allows building and deployment of a system of related containerized applications as a single "stack". Transparently deploy to local Docker, Podman or to remote Kubernetes.
 
 ## Quick Start
+
+Let's build and deploy an [example stack](https://github.com/bozemanpass/example-todo-list) for the canonical "Todo" web app (LLM-generated of course).
+This stack comprises the web app front-end, an api back-end and its PostgreSQL database.
+
+First we'll deploy to local Docker. Then deploy the same stack to Kubernetes.
 
 ### Docker
 
@@ -15,16 +20,17 @@ stack prepare --stack todo
 stack init \
   --stack todo \
   --output todo.yml \
+  --deploy-to compose \
   --map-ports-to-host localhost-same
 
 # create the deployment from the config
-stack deploy --spec-file todo.yml --deployment-dir ~/deployments/todo
+stack deploy --spec-file todo.yml --deployment-dir ~/deployments/todo-docker
 
 # start / status / logs / stop
-stack manage --dir ~/deployments/todo start
-stack manage --dir ~/deployments/todo status
-stack manage --dir ~/deployments/todo logs
-stack manage --dir ~/deployments/todo stop
+stack manage --dir ~/deployments/todo-docker start
+stack manage --dir ~/deployments/todo-docker status
+stack manage --dir ~/deployments/todo-docker logs
+stack manage --dir ~/deployments/todo-docker stop
 ```
 
 ### Kubernetes
@@ -47,22 +53,23 @@ stack init \
     --config REACT_APP_API_URL=https://example-todo.myexample.com/api/todos
 
 # create the deployment from the config
-stack deploy --spec-file todo.yml --deployment-dir ~/deployments/todo
+stack deploy --spec-file todo.yml --deployment-dir ~/deployments/todo-k8s
 
 # push image tags for this deployment to the image registry used by Kubernetes
 stack manage --dir ~/deployments/todo push-images
 
 # start / status / logs / stop
-stack manage --dir ~/deployments/todo start
-stack manage --dir ~/deployments/todo status
-stack manage --dir ~/deployments/todo logs
-stack manage --dir ~/deployments/todo stop
+stack manage --dir ~/deployments/todo-k8s start
+stack manage --dir ~/deployments/todo-k8s status
+stack manage --dir ~/deployments/todo-k8s logs
+stack manage --dir ~/deployments/todo-k8s stop
 ```
 
 ## Example Stacks
 
  - [Gitea](https://about.gitea.com/) stack: https://github.com/bozemanpass/gitea-stack
  - A [sign in with Ethereum](https://docs.login.xyz/) web app with fixturenet blockchain: https://github.com/bozemanpass/siwe-express-example
+ - Todo List Web App with back-end: https://github.com/bozemanpass/example-todo-list
 
 ## Install
 
