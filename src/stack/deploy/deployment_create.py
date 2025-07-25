@@ -560,12 +560,12 @@ def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec,
                             svc_env = service_info.get("environment", {})
                             if isinstance(svc_env, CommentedSeq):
                                 svc_env.append(f'VIRTUAL_HOST="{pxy[constants.host_name_key]}"')
-                                svc_env.append(f'VIRTUAL_PATH="{path}"')
+                                svc_env.append(f'VIRTUAL_PATH="~ {path}/?"')
                                 svc_env.append(f'VIRTUAL_PORT="{pxy_port}"')
                                 svc_env.append('VIRTUAL_DEST="/"')
                             else:
                                 svc_env["VIRTUAL_HOST"] = pxy[constants.host_name_key]
-                                svc_env["VIRTUAL_PATH"] = path
+                                svc_env["VIRTUAL_PATH"] = f"~ {path}/?"
                                 svc_env["VIRTUAL_PORT"] = str(pxy_port)
                                 svc_env["VIRTUAL_DEST"] = "/"
                             service_info["environment"] = svc_env
