@@ -557,17 +557,22 @@ def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec,
                                 log_warn(f"WARN: Already set VIRTUAL_HOST and VIRTUAL_PATH for this service, skipping {r}...")
                                 continue
                             path = "/" + r[constants.path_key].strip("/")
+                            path_rule = path
+                            dest = "/"
+                            if path_rule != "/":
+                                path_rule = f"~ ^{path_rule}(?:/(.*))?$"
+                                dest = "/$1"
                             svc_env = service_info.get("environment", {})
                             if isinstance(svc_env, CommentedSeq):
                                 svc_env.append(f'VIRTUAL_HOST="{pxy[constants.host_name_key]}"')
-                                svc_env.append(f'VIRTUAL_PATH="~ {path}/?"')
+                                svc_env.append(f'VIRTUAL_PATH="{path_rule}"')
                                 svc_env.append(f'VIRTUAL_PORT="{pxy_port}"')
-                                svc_env.append('VIRTUAL_DEST="/"')
+                                svc_env.append(f'VIRTUAL_DEST="{dest}"')
                             else:
                                 svc_env["VIRTUAL_HOST"] = pxy[constants.host_name_key]
-                                svc_env["VIRTUAL_PATH"] = f"~ {path}/?"
+                                svc_env["VIRTUAL_PATH"] = f"{path_rule}"
                                 svc_env["VIRTUAL_PORT"] = str(pxy_port)
-                                svc_env["VIRTUAL_DEST"] = "/"
+                                svc_env["VIRTUAL_DEST"] = dest
                             service_info["environment"] = svc_env
                             set_ingress = True
 
