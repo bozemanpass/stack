@@ -556,7 +556,7 @@ def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec,
                                 # TODO: Support VIRTUAL_HOST_MULTIPORTS
                                 log_warn(f"WARN: Already set VIRTUAL_HOST and VIRTUAL_PATH for this service, skipping {r}...")
                                 continue
-                            path = r[constants.path_key]
+                            path = "/" + r[constants.path_key].strip("/")
                             svc_env = service_info.get("environment", {})
                             if isinstance(svc_env, CommentedSeq):
                                 svc_env.append(f'VIRTUAL_HOST="{pxy[constants.host_name_key]}"')

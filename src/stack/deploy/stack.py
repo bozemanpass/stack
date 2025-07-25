@@ -216,11 +216,12 @@ class Stack:
                                     if constants.stack_annotation_marker in comment and constants.http_proxy_key in comment:
                                         parts = comment.split()
                                         parts = parts[parts.index(constants.http_proxy_key) + 1 :]
-                                        path = "/"
+                                        path = ""
                                         if len(parts) >= 1:
                                             path = parts[0]
                                         if prefix:
                                             path = f"{prefix}/{path.strip('/')}"
+                                        path = "/" + path.strip("/")
                                         http_proxy_targets.append({"service": svc_name, "port": port, "path": path})
         return http_proxy_targets
 
