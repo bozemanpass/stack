@@ -120,7 +120,9 @@ Save the alternate distribution URL in `~/.stack/config.yml`:
 ```bash
 stack config set distribution-url https://github.com/example-org/my-stack-fork/releases/latest/download/stack
 ```
-
+## Learn More
+ - [Stack commands](./docs/cli.md)
+ - [Recent New Features](./docs/recent-features.md)
 ## Contributing
 
 See the [CONTRIBUTING.md](/docs/CONTRIBUTING.md) for developer mode install.
