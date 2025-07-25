@@ -80,3 +80,27 @@ id: f8f39dc35c9e4, name: stack-3285f74574bd152c-db-1, ports: 0.0.0.0:56455->5432
 id: 6c4d42c1c0f03, name: stack-3285f74574bd152c-docker-ingress-1, ports: 0.0.0.0:80->80/tcp
 id: 700202db6e6ab, name: stack-3285f74574bd152c-frontend-1, ports: 0.0.0.0:56454->3000/tcp
 ```
+
+## Combining Stacks
+
+It is often useful to create "super stacks" by combining and deploying multiple stacks together as a single unit.
+In that case, conflicts can arise among the HTTP paths which are published by the individual stacks.  A configuration
+option, `http-proxy-prefix`, is available to "shift" all the published paths of a given stack to avoid conflicts.
+
+Example:
+```
+name: siwe-on-fixturenet
+requires:
+  stacks:
+    - ref: bozemanpass/fixturenet-eth-stack
+      path: stacks/fixturenet-eth
+      http-proxy-prefix: /eth
+    - ref: bozemanpass/siwe-express-example
+      path: stacks/siwe-express-example
+      http-proxy-prefix: /
+```
+
+In this case, the `fixturenet-eth` stack is shifted, so that all its published routes are prefixed with `/eth`.  This
+prefix will be stripped automatically by the proxy, so that the individual services will not see a different path than
+if they had been deployed directly.  The other stack in this example, `siwe-express-example`, is not shifted, and it
+will be published at the root path (`/`).
