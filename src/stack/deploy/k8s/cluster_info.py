@@ -136,7 +136,7 @@ class ClusterInfo:
                 path = route.get(constants.path_key, "/")
                 if path == "/" or path == "":
                     path = "/()(.*)"
-                elif "(" not in path:
+                elif "(.*)" not in path:
                     path = f"/{path.strip('/')}(/?)(.*)"
                 proxy_to = route[constants.proxy_to_key]
                 log_debug(f"proxy config: {path} -> {proxy_to}")
