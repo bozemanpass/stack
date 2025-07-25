@@ -18,7 +18,6 @@ import click
 
 from mermaid_builder.flowchart import Chart, Node, NodeShape, Subgraph, ChartDir, ClassDef
 
-from stack.config.util import get_config_setting
 from stack.deploy.stack import resolve_stack
 from stack.log import output_main
 
@@ -36,16 +35,11 @@ _theme = {
 
 @click.command()
 @click.option("--stack", help="name or path of the stack", required=False)
-@click.option(
-    "--deploy-to",
-    help="cluster system to deploy to (compose or k8s or k8s-kind)",
-    default=get_config_setting("deploy-to", "compose"),
-)
 @click.option("--show-ports/--no-show-ports", default=False)
 @click.option("--show-http-targets/--no-show-http-targets", default=True)
 @click.option("--show-volumes/--no-show-volumes", default=True)
 @click.pass_context
-def command(ctx, stack, deploy_to, show_ports, show_http_targets, show_volumes):
+def command(ctx, stack, show_ports, show_http_targets, show_volumes):
     """generate a mermaid graph of the stack"""
 
     parent_stack = resolve_stack(stack)
@@ -75,18 +69,18 @@ def command(ctx, stack, deploy_to, show_ports, show_http_targets, show_volumes):
                 http_targets = stack.get_http_proxy_targets()
                 for ht in http_targets:
                     if ht["service"] == svc:
-                        title = ":" + str(ht["port"])
-                        if "k8s" in deploy_to:
-                            title = ht.get("path", "/")
-                            if parent_stack:
-                                http_prefix = parent_stack.http_prefix_for(stack.file_path.parent)
-                                if http_prefix and http_prefix != "/":
-                                    title = f"{http_prefix}{title}"
-                        else:
-                            shown_http_ports[svc] = ht["port"]
+                        path = ht.get("path", "/")
+                        if parent_stack:
+                            http_prefix = parent_stack.http_prefix_for(stack.file_path.parent)
+                            if http_prefix and http_prefix != "/":
+                                path = f"{http_prefix}{path}"
+                        shown_http_ports[svc] = ht["port"]
 
                         http_node = Node(
-                            id=f"{stack.name}-{svc}-http", title=title, shape=NodeShape.ASSYMETRIC, class_name="http_target"
+                            id=f"{stack.name}-{svc}-http",
+                            title=f'":{ht['port']} ({path})"',
+                            shape=NodeShape.ASSYMETRIC,
+                            class_name="http_target",
                         )
                         chart.add_node(http_node)
                         chart.add_link_between(http_node, svc_node)
