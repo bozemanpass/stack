@@ -15,9 +15,10 @@
 
 from ruamel.yaml import CommentedSeq
 
+
 def add_env_var(key, value, target):
     if isinstance(target, CommentedSeq):
         target.append(f'{key}="{value}"')
     else:
-        target[key] = str(value )
+        target[key] = str(value)
     return target
