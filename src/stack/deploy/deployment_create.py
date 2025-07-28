@@ -26,6 +26,7 @@ from shutil import copy, copyfile, copytree
 from typing import List
 
 from stack import constants
+from stack.deploy.compose.helpers import add_env_var
 from stack.log import log_debug, log_warn, log_info
 from stack.util import (
     get_stack_path,
@@ -563,16 +564,14 @@ def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec,
                                 path_rule = f"~ ^{path_rule}(?:/(.*))?$"
                                 dest = "/$1"
                             svc_env = service_info.get("environment", {})
-                            if isinstance(svc_env, CommentedSeq):
-                                svc_env.append(f'VIRTUAL_HOST="{pxy[constants.host_name_key]}"')
-                                svc_env.append(f'VIRTUAL_PATH="{path_rule}"')
-                                svc_env.append(f'VIRTUAL_PORT="{pxy_port}"')
-                                svc_env.append(f'VIRTUAL_DEST="{dest}"')
-                            else:
-                                svc_env["VIRTUAL_HOST"] = pxy[constants.host_name_key]
-                                svc_env["VIRTUAL_PATH"] = f"{path_rule}"
-                                svc_env["VIRTUAL_PORT"] = str(pxy_port)
-                                svc_env["VIRTUAL_DEST"] = dest
+
+                            host = pxy[constants.host_name_key]
+                            add_env_var("VIRTUAL_HOST", host, svc_env)
+                            add_env_var("VIRTUAL_PATH", path_rule, svc_env)
+                            add_env_var("VIRTUAL_PORT", pxy_port, svc_env)
+                            add_env_var("VIRTUAL_DEST", dest, svc_env)
+                            if "localhost" != host and "." in host:
+                                add_env_var("LETSENCRYPT_HOST", host, svc_env)
                             service_info["environment"] = svc_env
                             set_ingress = True
 
