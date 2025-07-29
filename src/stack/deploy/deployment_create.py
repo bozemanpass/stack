@@ -551,7 +551,7 @@ def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec,
                 for pxy in http_proxy_config:
                     svc_env = service_info.get("environment", {})
                     host = pxy[constants.host_name_key]
-                    vhost = { host: {} }
+                    vhost = {host: {}}
                     for r in pxy[constants.routes_key]:
                         pxy_svc, pxy_port = r[constants.proxy_to_key].split(":", 1)
                         if pxy_svc == service_name:
