@@ -567,10 +567,11 @@ def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec,
                                 "port": pxy_port,
                             }
 
-                    add_env_var("VIRTUAL_HOST_MULTIPORTS", json.dumps(vhost), svc_env)
-                    if "localhost" != host and "." in host:
-                        add_env_var("LETSENCRYPT_HOST", host, svc_env)
-                    service_info["environment"] = svc_env
+                    if vhost[host]:
+                        add_env_var("VIRTUAL_HOST_MULTIPORTS", json.dumps(vhost), svc_env)
+                        if "localhost" != host and "." in host:
+                            add_env_var("LETSENCRYPT_HOST", host, svc_env)
+                        service_info["environment"] = svc_env
 
         with open(destination_compose_dir.joinpath(f"{constants.compose_file_prefix}-%s.yml" % pod), "w") as output_file:
             yaml.dump(parsed_pod_file, output_file)
