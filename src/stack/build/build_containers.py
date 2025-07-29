@@ -17,7 +17,7 @@
 # Builds or pulls containers for the system components
 
 # env vars:
-# STACK_REPO_BASE_DIR defaults to ~/bpi
+# STACK_REPO_BASE_DIR defaults to ~/.stack/repos
 
 import click
 import git
