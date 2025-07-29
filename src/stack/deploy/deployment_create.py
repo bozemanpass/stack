@@ -562,12 +562,10 @@ def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec,
                                 path_rule = f"~ ^{path_rule}(?:/(.*))?$"
                                 dest = "/$1"
 
-                            vhost[path_rule] = {
+                            vhost[host][path_rule] = {
                                 "dest": dest,
                                 "port": pxy_port,
                             }
-                            vhost[host]["port"] = pxy_port
-                            vhost[host]["dest"] = dest
 
                     add_env_var("VIRTUAL_HOST_MULTIPORTS", json.dumps(vhost), svc_env)
                     if "localhost" != host and "." in host:
