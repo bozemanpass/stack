@@ -49,25 +49,21 @@ By using [bozemanpass/docker-ingress-stack](https://github.com/bozemanpass/docke
 can be achieved with Docker.  This stack uses [nginxproxy/nginx-proxy](https://github.com/nginx-proxy/nginx-proxy) to
 provide reverse proxy servies with automatically configured routes, similar to [kubernetes/ingress-nginx](https://github.com/kubernetes/ingress-nginx).
 
-> NOTE: If you do not need SSL, you can use the `docker-ingress-no-ssl` stack instead, which does not require any `--config` options.
+> NOTE: If you do not need SSL, you can use the `docker-ingress-no-ssl` stack instead, which requires no additional configuration.
 
 The `docker-ingress` stack can simply be "mixed-in" to your existing stack at deployment time like this example below:
 
 ```
 # Fetch and init the docker-ingress stack
 $ stack fetch repo bozemanpass/docker-ingress-stack
-
-$ FQDN=todo.mydomain.com
-
-# '--map-ports-to-host any-same' uses ports 80 and 443 on the host
-# NOTE: The default ACME CA is https://acme-v02.api.letsencrypt.org/directory, but we override that for this example to use the staging CA.
-
+# Use '--map-ports-to-host any-same' to use ports 80 and 443 on the host
+# NOTE: The default ACME CA is https://acme-v02.api.letsencrypt.org/directory
 $ stack init --stack docker-ingress \
   --output ~/specs/docker-ingress.yml \
   --map-ports-to-host any-same \
   --config ACME_CA_URI=https://acme-staging-v02.api.letsencrypt.org/directory \
   --config LETSENCRYPT_EMAIL=example@mydomain.com \
-  --config LETSENCRYPT_HOST=$FQDN
+  --config LETSENCRYPT_HOST=todo.mydomain.com
 
 # Fetch and prepare your stack (here, 'todo').
 $ stack fetch repo bozemanpass/example-todo-list
@@ -76,8 +72,8 @@ $ stack prepare --stack todo
 # We are using config to tell the app what the final URL will be.
 $ stack init --stack todo \
   --output ~/specs/todo.yml \
-  --http-proxy-fqdn $FQDN \
-  --config REACT_APP_API_URL=https://${FQDN}/api/todos
+  --http-proxy-fqdn todo.mydomain.com \
+  --config REACT_APP_API_URL=https://todo.mydomain.com/api/todos
 
 # "Mix-in" the docker-ingress stack at deployment time.
 $ stack deploy \
@@ -89,7 +85,7 @@ $ stack manage --dir ~/deployments/todo start
 $ stack manage --dir ~/deployments/todo ps
 id: 882964b2300de, name: stack-3285f74574bd152c-backend-1, ports: 0.0.0.0:56462->5000/tcp
 id: f8f39dc35c9e4, name: stack-3285f74574bd152c-db-1, ports: 0.0.0.0:56455->5432/tcp
-id: 6c4d42c1c0f03, name: stack-3285f74574bd152c-nginx-proxy-1, ports: 0.0.0.0:80->80/tcp, 0.0.0.0:443->443/tcp
+id: 6c4d42c1c0f03, name: stack-3285f74574bd152c-docker-ingress-1, ports: 0.0.0.0:80->80/tcp
 id: 700202db6e6ab, name: stack-3285f74574bd152c-frontend-1, ports: 0.0.0.0:56454->3000/tcp
 ```
 
