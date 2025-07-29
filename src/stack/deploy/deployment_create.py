@@ -15,17 +15,18 @@
 # along with this program.  If not, see <http:#www.gnu.org/licenses/>.
 
 import click
+import json
 import os
 import random
 
 from importlib import util
 from pathlib import Path
-from ruamel.yaml import CommentedSeq
 from secrets import token_hex
 from shutil import copy, copyfile, copytree
 from typing import List
 
 from stack import constants
+from stack.deploy.compose.helpers import add_env_var
 from stack.log import log_debug, log_warn, log_info
 from stack.util import (
     get_stack_path,
@@ -548,33 +549,29 @@ def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec,
 
                 http_proxy_config = parsed_spec.get_http_proxy()
                 for pxy in http_proxy_config:
-                    set_ingress = False
+                    svc_env = service_info.get("environment", {})
+                    host = pxy[constants.host_name_key]
+                    vhost = {host: {}}
                     for r in pxy[constants.routes_key]:
                         pxy_svc, pxy_port = r[constants.proxy_to_key].split(":", 1)
                         if pxy_svc == service_name:
-                            if set_ingress:
-                                # TODO: Support VIRTUAL_HOST_MULTIPORTS
-                                log_warn(f"WARN: Already set VIRTUAL_HOST and VIRTUAL_PATH for this service, skipping {r}...")
-                                continue
                             path = "/" + r[constants.path_key].strip("/")
                             path_rule = path
                             dest = "/"
                             if path_rule != "/":
                                 path_rule = f"~ ^{path_rule}(?:/(.*))?$"
                                 dest = "/$1"
-                            svc_env = service_info.get("environment", {})
-                            if isinstance(svc_env, CommentedSeq):
-                                svc_env.append(f'VIRTUAL_HOST="{pxy[constants.host_name_key]}"')
-                                svc_env.append(f'VIRTUAL_PATH="{path_rule}"')
-                                svc_env.append(f'VIRTUAL_PORT="{pxy_port}"')
-                                svc_env.append(f'VIRTUAL_DEST="{dest}"')
-                            else:
-                                svc_env["VIRTUAL_HOST"] = pxy[constants.host_name_key]
-                                svc_env["VIRTUAL_PATH"] = f"{path_rule}"
-                                svc_env["VIRTUAL_PORT"] = str(pxy_port)
-                                svc_env["VIRTUAL_DEST"] = dest
-                            service_info["environment"] = svc_env
-                            set_ingress = True
+
+                            vhost[host][path_rule] = {
+                                "dest": dest,
+                                "port": pxy_port,
+                            }
+
+                    if vhost[host]:
+                        add_env_var("VIRTUAL_HOST_MULTIPORTS", json.dumps(vhost), svc_env)
+                        if "localhost" != host and "." in host:
+                            add_env_var("LETSENCRYPT_HOST", host, svc_env)
+                        service_info["environment"] = svc_env
 
         with open(destination_compose_dir.joinpath(f"{constants.compose_file_prefix}-%s.yml" % pod), "w") as output_file:
             yaml.dump(parsed_pod_file, output_file)
