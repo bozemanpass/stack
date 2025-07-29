@@ -49,15 +49,21 @@ By using [bozemanpass/docker-ingress-stack](https://github.com/bozemanpass/docke
 can be achieved with Docker.  This stack uses [nginxproxy/nginx-proxy](https://github.com/nginx-proxy/nginx-proxy) to
 provide reverse proxy servies with automatically configured routes, similar to [kubernetes/ingress-nginx](https://github.com/kubernetes/ingress-nginx).
 
-> NOTE: The `docker-ingress` stack does not currently offer automatic configuration of SSL, unlike `cert-manager` on Kubernetes.
+> NOTE: If you do not need SSL, you can use the `docker-ingress-no-ssl` stack instead, which requires no additional configuration.
 
 The `docker-ingress` stack can simply be "mixed-in" to your existing stack at deployment time like this example below:
 
 ```
 # Fetch and init the docker-ingress stack
 $ stack fetch repo bozemanpass/docker-ingress-stack
-# Use '--map-ports-to-host any-same' to use port 80 on the host
-$ stack init --stack docker-ingress --output ~/specs/docker-ingress.yml --map-ports-to-host any-same
+# Use '--map-ports-to-host any-same' to use ports 80 and 443 on the host
+# NOTE: The default ACME CA is https://acme-v02.api.letsencrypt.org/directory
+$ stack init --stack docker-ingress \
+  --output ~/specs/docker-ingress.yml \
+  --map-ports-to-host any-same \
+  --config ACME_CA_URI=https://acme-staging-v02.api.letsencrypt.org/directory \
+  --config LETSENCRYPT_EMAIL=example@mydomain.com \
+  --config LETSENCRYPT_HOST=todo.mydomain.com
 
 # Fetch and prepare your stack (here, 'todo').
 $ stack fetch repo bozemanpass/example-todo-list
@@ -67,7 +73,7 @@ $ stack prepare --stack todo
 $ stack init --stack todo \
   --output ~/specs/todo.yml \
   --http-proxy-fqdn todo.mydomain.com \
-  --config REACT_APP_API_URL=http://todo.mydomain.com/api/todos
+  --config REACT_APP_API_URL=https://todo.mydomain.com/api/todos
 
 # "Mix-in" the docker-ingress stack at deployment time.
 $ stack deploy \

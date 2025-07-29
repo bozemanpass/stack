@@ -15,6 +15,7 @@
 # along with this program.  If not, see <http:#www.gnu.org/licenses/>.
 
 import click
+import json
 import os
 import random
 
@@ -548,31 +549,30 @@ def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec,
 
                 http_proxy_config = parsed_spec.get_http_proxy()
                 for pxy in http_proxy_config:
-                    set_ingress = False
+                    svc_env = service_info.get("environment", {})
+                    host = pxy[constants.host_name_key]
+                    vhost = { host: {} }
                     for r in pxy[constants.routes_key]:
                         pxy_svc, pxy_port = r[constants.proxy_to_key].split(":", 1)
                         if pxy_svc == service_name:
-                            if set_ingress:
-                                # TODO: Support VIRTUAL_HOST_MULTIPORTS
-                                log_warn(f"WARN: Already set VIRTUAL_HOST and VIRTUAL_PATH for this service, skipping {r}...")
-                                continue
                             path = "/" + r[constants.path_key].strip("/")
                             path_rule = path
                             dest = "/"
                             if path_rule != "/":
                                 path_rule = f"~ ^{path_rule}(?:/(.*))?$"
                                 dest = "/$1"
-                            svc_env = service_info.get("environment", {})
 
-                            host = pxy[constants.host_name_key]
-                            add_env_var("VIRTUAL_HOST", host, svc_env)
-                            add_env_var("VIRTUAL_PATH", path_rule, svc_env)
-                            add_env_var("VIRTUAL_PORT", pxy_port, svc_env)
-                            add_env_var("VIRTUAL_DEST", dest, svc_env)
-                            if "localhost" != host and "." in host:
-                                add_env_var("LETSENCRYPT_HOST", host, svc_env)
-                            service_info["environment"] = svc_env
-                            set_ingress = True
+                            vhost[path_rule] = {
+                                "dest": dest,
+                                "port": pxy_port,
+                            }
+                            vhost[host]["port"] = pxy_port
+                            vhost[host]["dest"] = dest
+
+                    add_env_var("VIRTUAL_HOST_MULTIPORTS", json.dumps(vhost), svc_env)
+                    if "localhost" != host and "." in host:
+                        add_env_var("LETSENCRYPT_HOST", host, svc_env)
+                    service_info["environment"] = svc_env
 
         with open(destination_compose_dir.joinpath(f"{constants.compose_file_prefix}-%s.yml" % pod), "w") as output_file:
             yaml.dump(parsed_pod_file, output_file)
