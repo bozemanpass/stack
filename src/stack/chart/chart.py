@@ -78,7 +78,7 @@ def command(ctx, stack, show_ports, show_http_targets, show_volumes):
 
                         http_node = Node(
                             id=f"{stack.name}-{svc}-http",
-                            title=f'":{ht['port']} ({path})"',
+                            title=f'''":{ht['port']} ({path})"''',
                             shape=NodeShape.ASSYMETRIC,
                             class_name="http_target",
                         )

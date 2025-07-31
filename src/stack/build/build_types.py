@@ -28,5 +28,5 @@ class BuildContext:
     container: ContainerSpec
     default_container_base_dir: Path
     container_build_env: Mapping[str,str]
-    dev_root_path: str
+    dev_root_path: Path
 
