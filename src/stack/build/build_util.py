@@ -55,6 +55,7 @@ class ContainerSpec:
     build: str
     path: str
     file_path: str
+    repo_path: Path
 
     def __init__(self, name: str=None, ref=None, build=None, path=None):
         self.name = name

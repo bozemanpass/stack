@@ -81,6 +81,7 @@ def process_container(build_context: BuildContext) -> bool:
     log_info(f"Building: {build_context.container.name}:stack")
 
     default_container_tag = f"{build_context.container.name}:stack"
+    build_context.container_build_env.update({"STACK_FULL_CONTAINER_IMAGE_TAG": default_container_tag})
     build_context.container_build_env.update({"STACK_DEFAULT_CONTAINER_IMAGE_TAG": default_container_tag})
 
     build_dir = None
@@ -130,6 +131,11 @@ def process_container(build_context: BuildContext) -> bool:
 
 
     build_context.container_build_env["STACK_IMAGE_NAME"] = build_context.container.name
+
+    build_context.container_build_env["STACK_REPO_STACK_DIR"] = str(build_context.stack.repo_path) if build_context.stack.repo_path else ""
+    build_context.container_build_env["STACK_REPO_CONTAINER_DIR"] = str(build_context.container.repo_path) if build_context.container.repo_path else build_context.container_build_env["STACK_REPO_STACK_DIR"]
+    build_context.container_build_env["STACK_REPO_SOURCE_DIR"] = str(fs_path_for_repo(build_context.container.ref)) if build_context.container.ref else build_context.container_build_env["STACK_REPO_CONTAINER_DIR"]
+
     if not opts.o.dry_run:
         # No PATH at all causes failures with podman.
         if "PATH" not in build_context.container_build_env:
@@ -193,13 +199,10 @@ def build_containers(parent_stack,
                 error_exit("--target-arch requires --build-policy prebuilt-remote")
 
 
-        container_build_env = make_container_build_env(
-            dev_root_path, default_container_base_dir, "build-force" == build_policy, extra_build_args
-        )
-
         # check if we have any repos that specify the container targets / build info
         containers_in_scope = [c for c in get_containers_in_scope(stack) if include_exclude_check(c.name, include, exclude)]
         for stack_container in containers_in_scope:
+
             # No container ref means use the stack repo.
             if (not stack_container.ref or stack_container.ref == ".") and stack.get_repo_ref():
                 stack_container.ref = stack.get_repo_ref()
@@ -345,6 +348,10 @@ def build_containers(parent_stack,
             elif container_needs_built:
                 if build_policy in ["prebuilt", "prebuilt-local", "prebuilt-remote"]:
                     error_exit(f"No prebuilt image available for: {container_spec.name}")
+
+                container_build_env = make_container_build_env(
+                    dev_root_path, default_container_base_dir, "build-force" == build_policy, extra_build_args
+                )
 
                 build_context = BuildContext(stack, container_spec, default_container_base_dir, container_build_env, dev_root_path)
 
