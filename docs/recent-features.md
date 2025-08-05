@@ -1,5 +1,6 @@
 # Recent New Features
 
+  - [#100](https://github.com/bozemanpass/stack/pull/100) TLS support for Docker http ingress
   - [#88](https://github.com/bozemanpass/stack/pull/88) Automatic HTTP ingress/reverse proxying for Docker (for small demo/production deployments without the need to host on k8s)
   - [#87](https://github.com/bozemanpass/stack/pull/87) Shell command line completion
   - [#86](https://github.com/bozemanpass/stack/pull/86) Output [Mermaid](https://www.mermaidchart.com/) charts for a stack
