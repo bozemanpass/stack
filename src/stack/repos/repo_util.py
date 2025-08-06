@@ -154,7 +154,9 @@ def _get_repo_current_branch_or_tag(full_filesystem_repo_path):
 
 def fs_path_for_repo(fully_qualified_repo, dev_root_path=get_dev_root_path()):
     repo_host, repo_path, repo_branch = host_and_path_for_repo(fully_qualified_repo)
-    return Path(os.path.join(dev_root_path, repo_host, repo_path))
+    if repo_host and repo_path:
+        return Path(os.path.join(dev_root_path, repo_host, repo_path))
+    return None
 
 
 # TODO: fix the messy arg list here
