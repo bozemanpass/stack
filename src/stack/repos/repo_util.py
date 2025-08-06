@@ -58,6 +58,7 @@ def host_and_path_for_repo(fully_qualified_repo):
         if len(repo_host_split) == 3:
             # First part is the host
             return repo_host_split[0], "/".join(repo_host_split[1:]), repo_branch
+    return None, None, None
 
 
 def image_registry_for_repo(repository):
