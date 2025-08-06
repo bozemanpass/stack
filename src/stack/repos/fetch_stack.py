@@ -15,7 +15,7 @@
 # along with this program.  If not, see <http:#www.gnu.org/licenses/>.
 
 # env vars:
-# STACK_REPO_BASE_DIR defaults to ~/.stack/repos
+# STACK_REPO_BASE_DIR defaults to ~/.config/stack/repos
 
 
 import click

@@ -19,11 +19,11 @@ import stack.util
 from pathlib import Path
 
 
-_DEFAULTS = {"repo-base-dir": "~/.stack/repos"}
+_DEFAULTS = {"repo-base-dir": "~/.config/stack/repos"}
 
 
 def get_config_dir():
-    return Path(os.path.expanduser("~/.stack"))
+    return Path(os.path.expanduser("~/.config/stack"))
 
 
 def get_config_file_path():
