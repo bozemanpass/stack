@@ -17,7 +17,7 @@
 # Builds webapp containers
 
 # env vars:
-# STACK_REPO_BASE_DIR defaults to ~/.stack/repos
+# STACK_REPO_BASE_DIR defaults to ~/.config/stack/repos
 
 # TODO: display the available list of containers; allow re-build of either all or specific containers
 

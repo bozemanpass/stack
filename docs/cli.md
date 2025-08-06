@@ -26,7 +26,7 @@ siwe-on-fixturenet
 Show paths and filter:
 ```
 $ stack list --show-path todo
-todo         /home/example/.stack/repos/github.com/bozemanpass/example-todo-list/stacks/todo
+todo         /home/example/.config/stack/repos/github.com/bozemanpass/example-todo-list/stacks/todo
 ```
 
 ## prepare the stack containers
