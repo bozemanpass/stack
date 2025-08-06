@@ -58,7 +58,7 @@ stack update
 
 If you want to update from a different location (e.g., a fork), you can do so setting the distribution URL to use:
 
-Save the alternate distribution URL in `~/.stack/config.yml`:
+Save the alternate distribution URL in `~/.config/stack/config.yml`:
 
 ```bash
 stack config set distribution-url https://github.com/example-org/my-stack-fork/releases/latest/download/stack
