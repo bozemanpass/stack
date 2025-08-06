@@ -163,6 +163,9 @@ def fs_path_for_repo(fully_qualified_repo, dev_root_path=get_dev_root_path()):
 def process_repo(pull, check_only, git_ssh, dev_root_path, branches_array, fully_qualified_repo):
     log_debug(f"Processing repo: {fully_qualified_repo}")
     repo_host, repo_path, repo_branch = host_and_path_for_repo(fully_qualified_repo)
+    if not repo_host or not repo_path:
+        log_info(f"No repo host or path specified for {fully_qualified_repo}, skipping.")
+        return None
     git_ssh_prefix = f"git@{repo_host}:"
     git_http_prefix = f"https://{repo_host}/"
     full_github_repo_path = f"{git_ssh_prefix if git_ssh else git_http_prefix}{repo_path}"
@@ -256,7 +259,8 @@ def clone_all_repos_for_stack(stack, include=None, exclude=None, pull=False, git
             try:
                 ref = req_stack[constants.ref_key]
                 repo_fs_path = process_repo(pull, False, git_ssh, get_dev_root_path(), None, ref)
-                processed_repos.append(repo_fs_path)
+                if repo_fs_path:
+                    processed_repos.append(repo_fs_path)
             except git.exc.GitCommandError as error:
                 error_exit(f"\n******* git command returned error exit status:\n{error}")
             required_stacks.append(repo_fs_path.joinpath(req_stack[constants.path_key]))
@@ -296,7 +300,7 @@ def clone_all_repos_for_stack(stack, include=None, exclude=None, pull=False, git
 
         for repo in repos:
             repo_fs_path = fs_path_for_repo(repo, dev_root_path)
-            if repo_fs_path not in processed_repos:
+            if repo_fs_path and repo_fs_path not in processed_repos:
                 try:
                     process_repo(pull, False, git_ssh, dev_root_path, None, repo)
                     processed_repos.append(repo_fs_path)
