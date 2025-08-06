@@ -44,11 +44,11 @@ class GitProgress(git.RemoteProgress):
 
 
 def branch_strip(s):
-    return s.split("@")[0]
+    return str(s).split("@")[0]
 
 
 def host_and_path_for_repo(fully_qualified_repo):
-    repo_branch_split = fully_qualified_repo.split("@")
+    repo_branch_split = str(fully_qualified_repo).split("@")
     repo_branch = repo_branch_split[-1] if len(repo_branch_split) > 1 else None
     repo_host_split = repo_branch_split[0].split("/")
     # Legacy unqualified repo means github
@@ -58,6 +58,7 @@ def host_and_path_for_repo(fully_qualified_repo):
         if len(repo_host_split) == 3:
             # First part is the host
             return repo_host_split[0], "/".join(repo_host_split[1:]), repo_branch
+    return None, None, None
 
 
 def image_registry_for_repo(repository):
@@ -153,13 +154,18 @@ def _get_repo_current_branch_or_tag(full_filesystem_repo_path):
 
 def fs_path_for_repo(fully_qualified_repo, dev_root_path=get_dev_root_path()):
     repo_host, repo_path, repo_branch = host_and_path_for_repo(fully_qualified_repo)
-    return Path(os.path.join(dev_root_path, repo_host, repo_path))
+    if repo_host and repo_path:
+        return Path(os.path.join(dev_root_path, repo_host, repo_path))
+    return None
 
 
 # TODO: fix the messy arg list here
 def process_repo(pull, check_only, git_ssh, dev_root_path, branches_array, fully_qualified_repo):
     log_debug(f"Processing repo: {fully_qualified_repo}")
     repo_host, repo_path, repo_branch = host_and_path_for_repo(fully_qualified_repo)
+    if not repo_host or not repo_path:
+        log_info(f"No repo host or path specified for {fully_qualified_repo}, skipping.")
+        return None
     git_ssh_prefix = f"git@{repo_host}:"
     git_http_prefix = f"https://{repo_host}/"
     full_github_repo_path = f"{git_ssh_prefix if git_ssh else git_http_prefix}{repo_path}"
@@ -181,7 +187,7 @@ def process_repo(pull, check_only, git_ssh, dev_root_path, branches_array, fully
             error_exit(f"{full_filesystem_repo_path} does not contain a valid git repository")
         else:
             if pull:
-                log_debug(f"Running git pull for {full_filesystem_repo_path}")
+                log_info(f"Running git pull for {full_github_repo_path} in {full_filesystem_repo_path}")
                 if not check_only:
                     if is_branch:
                         git_repo = git.Repo(full_filesystem_repo_path)
@@ -193,7 +199,7 @@ def process_repo(pull, check_only, git_ssh, dev_root_path, branches_array, fully
                     log_info("(git pull skipped)")
     if not is_present:
         # Clone
-        log_debug(f"Running git clone for {full_github_repo_path} into {full_filesystem_repo_path}")
+        log_info(f"Running git clone for {full_github_repo_path} into {full_filesystem_repo_path}")
         if not opts.o.dry_run:
             git.Repo.clone_from(
                 full_github_repo_path,
@@ -244,16 +250,20 @@ def parse_branches(branches_string):
 
 
 def clone_all_repos_for_stack(stack, include=None, exclude=None, pull=False, git_ssh=None):
-    required_stacks = []
+    required_stacks = [stack]
+    processed_repos = []
+
     if stack.is_super_stack():
-        for stack_refs in stack.get_required_stacks():
+        # Pre-pull child stacks so that we can load their parsed stack configs in the next step.
+        for req_stack in stack.get_required_stacks():
             try:
-                repo_path = process_repo(pull, False, git_ssh, get_dev_root_path(), None, stack_refs[constants.ref_key])
+                ref = req_stack[constants.ref_key]
+                repo_fs_path = process_repo(pull, False, git_ssh, get_dev_root_path(), None, ref)
+                if repo_fs_path:
+                    processed_repos.append(repo_fs_path)
             except git.exc.GitCommandError as error:
                 error_exit(f"\n******* git command returned error exit status:\n{error}")
-            required_stacks.append(repo_path.joinpath(stack_refs[constants.path_key]))
-    else:
-        required_stacks.append(stack)
+            required_stacks.append(repo_fs_path.joinpath(req_stack[constants.path_key]))
 
     for req_stack in required_stacks:
         req_stack = stack_util.get_parsed_stack_config(req_stack)
@@ -265,7 +275,8 @@ def clone_all_repos_for_stack(stack, include=None, exclude=None, pull=False, git
             log_debug("Dev root directory doesn't exist, creating")
             os.makedirs(dev_root_path)
 
-        repos_in_scope = req_stack.get("repos", [])
+        repos_in_scope = [req_stack.get_repo_ref()]
+        repos_in_scope.extend(req_stack.get("repos", []))
 
         # containers can reference an external repo
         containers_in_scope = build_util.get_containers_in_scope(req_stack)
@@ -288,7 +299,14 @@ def clone_all_repos_for_stack(stack, include=None, exclude=None, pull=False, git
                 log_debug(f"Excluding: {repo}")
 
         for repo in repos:
-            try:
-                process_repo(pull, False, git_ssh, dev_root_path, None, repo)
-            except git.exc.GitCommandError as error:
-                error_exit(f"\n******* git command returned error exit status:\n{error}")
+            repo_fs_path = fs_path_for_repo(repo, dev_root_path)
+            if repo_fs_path and repo_fs_path not in processed_repos:
+                try:
+                    process_repo(pull, False, git_ssh, dev_root_path, None, repo)
+                    processed_repos.append(repo_fs_path)
+                except git.exc.GitCommandError as error:
+                    error_exit(f"\n******* git command returned error exit status:\n{error}")
+            else:
+                log_debug(f"Repo {repo} already processed")
+
+    return processed_repos
