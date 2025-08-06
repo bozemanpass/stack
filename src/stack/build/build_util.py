@@ -29,7 +29,8 @@ import stack.deploy.stack as stack_util
 
 from stack.log import log_debug
 from stack.repos.repo_util import find_repo_root
-from stack.util import warn_exit, get_yaml
+from stack.util import warn_exit, get_yaml, error_exit
+
 
 class StackContainer:
     name: str
@@ -77,7 +78,11 @@ class ContainerSpec:
         self.path = Path(self.file_path).parent.as_posix()
 
         y = get_yaml().load(open(file_path, "r"))
-        self.name = y["container"]["name"]
+        if "container" not in y:
+            error_exit(f"No 'container' section in {file_path}.")
+        self.name = y["container"].get("name", self.name)
+        if not self.name:
+            error_exit(f"Missing required property 'name' in 'container' section of {file_path}.")
         self.ref = y["container"].get("ref")
         self.build = y["container"].get("build")
         self.repo_path = find_repo_root(self.path)
