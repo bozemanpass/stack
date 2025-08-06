@@ -27,7 +27,7 @@ from python_on_whales import DockerClient
 
 import stack.deploy.stack as stack_util
 
-from stack.log import log_debug
+from stack.log import log_debug, log_info
 from stack.repos.repo_util import find_repo_root
 from stack.util import warn_exit, get_yaml, error_exit
 
@@ -125,9 +125,9 @@ def get_containers_in_scope(stack):
             stack_config = stack_util.get_parsed_stack_config(stack)
         else:
             stack_config = stack
-        if "containers" not in stack_config or stack_config["containers"] is None:
+        raw_containers = stack_config.get("containers", [])
+        if not raw_containers and not stack.is_super_stack():
             warn_exit(f"stack {stack} does not define any containers")
-        raw_containers = stack_config['containers']
     else:
         # See: https://stackoverflow.com/a/20885799/1701505
         from stack import data

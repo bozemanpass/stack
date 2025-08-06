@@ -163,10 +163,14 @@ def build_containers(parent_stack,
                      exclude=None,
                      extra_build_args=None,
                      git_ssh=get_config_setting("git-ssh", False),
+                     git_pull=False,
+                     dont_pull_repo_fs_paths=None,
                      target_arch=None,
                      dont_pull_images=False):
     dev_root_path = get_dev_root_path()
     required_stacks = parent_stack.get_required_stacks_paths()
+    if not dont_pull_repo_fs_paths:
+        dont_pull_repo_fs_paths = []
 
     all_containers_in_scope = []
     finished_containers = {}
@@ -225,8 +229,9 @@ def build_containers(parent_stack,
 
             if stack_container.ref:
                 fs_path_for_container_specs = fs_path_for_repo(stack_container.ref, dev_root_path)
-                if not os.path.exists(fs_path_for_container_specs):
-                    process_repo(False, False, git_ssh, dev_root_path, [], stack_container.ref)
+                if not os.path.exists(fs_path_for_container_specs) or (git_pull and fs_path_for_container_specs not in dont_pull_repo_fs_paths):
+                    process_repo(git_pull, False, git_ssh, dev_root_path, [], stack_container.ref)
+                    dont_pull_repo_fs_paths.append(fs_path_for_container_specs)
 
                 image_registries_to_check = [r for r in [image_registry, image_registry_for_repo(stack_container.ref)] if r]
 
@@ -285,6 +290,9 @@ def build_containers(parent_stack,
                                 else:
                                     target_hash = git_hash
                         else:
+                            if git_pull and target_fs_repo_path not in dont_pull_repo_fs_paths:
+                                process_repo(git_pull, False, git_ssh, dev_root_path, [], container_spec.ref)
+                                dont_pull_repo_fs_paths.append(target_fs_repo_path)
                             git_hash = get_repo_current_hash(target_fs_repo_path)
                             if locked_hash:
                                 if locked_hash != git_hash:
@@ -326,9 +334,10 @@ def build_containers(parent_stack,
                             log_info(f"Container {container_tag} needs to be built.")
                             container_needs_pulled = False
                             container_needs_built = True
-                            if not os.path.exists(target_fs_repo_path):
+                            if not os.path.exists(target_fs_repo_path) or (git_pull and target_fs_repo_path not in dont_pull_repo_fs_paths):
                                 reconstructed_ref = f"{container_spec.ref.split('@')[0]}@{target_hash}"
-                                process_repo(False, False, git_ssh, dev_root_path, [], reconstructed_ref)
+                                process_repo(git_pull, False, git_ssh, dev_root_path, [], reconstructed_ref)
+                                dont_pull_repo_fs_paths.append(target_fs_repo_path)
                             else:
                                 log_info(f"Building {container_tag} from {target_fs_repo_path}")
 
@@ -446,5 +455,7 @@ def command(ctx, stack, include, exclude, git_ssh, build_policy, extra_build_arg
                      exclude,
                      extra_build_args,
                      git_ssh,
+                     False,
+                     [],
                      target_arch,
                      dont_pull_images)

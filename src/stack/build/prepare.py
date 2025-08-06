@@ -64,10 +64,10 @@ def command(
         error_exit(f"{build_policy} is not one of {PREPARE_POLICIES}")
 
     stack = resolve_stack(stack)
-    clone_all_repos_for_stack(stack, include_repos, exclude_repos, git_pull, git_ssh)
+    cloned_or_pulled_repos = clone_all_repos_for_stack(stack, include_repos, exclude_repos, git_pull, git_ssh)
 
     if build_policy == "fetch-repos":
         return
 
     build_containers(stack, build_policy, image_registry, publish_images, include_containers, exclude_containers,
-                     extra_build_args, git_ssh, target_arch, dont_pull_images)
+                     extra_build_args, git_ssh, git_pull, cloned_or_pulled_repos, target_arch, dont_pull_images)
