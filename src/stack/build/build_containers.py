@@ -290,14 +290,17 @@ def build_containers(parent_stack,
                                 else:
                                     target_hash = git_hash
                         else:
-                            if git_pull and target_fs_repo_path not in dont_pull_repo_fs_paths:
-                                process_repo(git_pull, False, git_ssh, dev_root_path, [], container_spec.ref)
-                                dont_pull_repo_fs_paths.append(target_fs_repo_path)
+                            if git_pull:
+                                if locked_hash:
+                                    log_warn(f"WARN: Locked hash {locked_hash} from {container_lock_file_path} prevents pulling.")
+                                elif not target_fs_repo_path not in dont_pull_repo_fs_paths:
+                                    process_repo(git_pull, False, git_ssh, dev_root_path, [], container_spec.ref)
+                                    dont_pull_repo_fs_paths.append(target_fs_repo_path)
                             git_hash = get_repo_current_hash(target_fs_repo_path)
                             if locked_hash:
                                 if locked_hash != git_hash:
                                     log_warn(
-                                        f"WARN: Locked hash {locked_hash} from {container_lock_file_path} does not match loacl hash {git_hash}."
+                                        f"WARN: Locked hash {locked_hash} from {container_lock_file_path} does not match local hash {git_hash}."
                                     )
                             else:
                                 target_hash = git_hash
