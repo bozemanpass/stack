@@ -34,7 +34,7 @@ todo         /home/example/.config/stack/repos/github.com/bozemanpass/example-to
 Check if the containers are ready:
 
 ```
-$ stack checklist --stack todo
+$ stack check --stack todo
 bozemanpass/todo-frontend:stack         needs to be built
 bozemanpass/todo-backend:stack          needs to be built
 
@@ -56,7 +56,7 @@ $ stack prepare --stack todo --build-policy build-force
 
 Now check again:
 ```
-$ stack checklist --stack todo
+$ stack check --stack todo
 bozemanpass/todo-frontend:d87d76671ad7dde247a328716c15827de9c1a89a         ready
 bozemanpass/todo-backend:d87d76671ad7dde247a328716c15827de9c1a89a          ready
 
