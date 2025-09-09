@@ -2,9 +2,11 @@ name: Lint Checks
 
 on:
   pull_request:
-    branches: '*'
+    branches:
+      - '*'
   push:
-    branches: '*'
+    branches:
+      - '*'
 
 jobs:
   test:
