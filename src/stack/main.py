@@ -82,7 +82,7 @@ def cli(ctx, profile, quiet, verbose, log_file, dry_run, debug, stack):
 
 cli.add_command(build.command, "build")
 cli.add_command(chart.command, "chart")
-cli.add_command(checklist.command, "checklist")
+cli.add_command(checklist.command, "check")
 cli.add_command(complete.command, "complete")
 cli.add_command(config.command, "config")
 cli.add_command(deployment_create.create, "deploy")
