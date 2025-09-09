@@ -100,3 +100,5 @@ See the [CONTRIBUTING.md](/docs/CONTRIBUTING.md) for developer mode install.
 ## Origin
 
 This is a fork of https://git.vdb.to/cerc-io/stack-orchestrator intended for more general use.
+
+trigger ci
