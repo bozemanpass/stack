@@ -141,7 +141,7 @@ def get_containers_in_scope(stack):
         else:
             containers_in_scope.append(StackContainer(container["name"], ref=container.get("ref"), path=container.get("path")))
 
-    log_debug(f'Containers: {containers_in_scope}')
+    log_debug(f"Containers: {containers_in_scope}")
     if stack:
         log_debug(f"Stack: {stack}")
 

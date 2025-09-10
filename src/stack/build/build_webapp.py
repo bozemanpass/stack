@@ -38,8 +38,8 @@ from stack.log import log_debug, output_main
 
 
 @click.command()
-@click.option('--base-container')
-@click.option('--source-repo', help="directory containing the webapp to build", required=True)
+@click.option("--base-container")
+@click.option("--source-repo", help="directory containing the webapp to build", required=True)
 @click.option("--force-rebuild", is_flag=True, default=False, help="Override dependency checking -- always rebuild")
 @click.option("--extra-build-args", help="Supply extra arguments to build")
 @click.option("--tag", help="Container tag (default: bozemanpass/<app_name>:stack)")
@@ -52,7 +52,7 @@ def command(ctx, base_container, source_repo, force_rebuild, extra_build_args, t
 
     dev_root_path = get_dev_root_path()
 
-    log_debug(f'Dev Root is: {dev_root_path}')
+    log_debug(f"Dev Root is: {dev_root_path}")
 
     if not base_container:
         base_container = determine_base_container(source_repo)
