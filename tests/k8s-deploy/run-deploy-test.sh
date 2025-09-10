@@ -5,6 +5,13 @@ if [ -n "$STACK_SCRIPT_DEBUG" ]; then
   set -x
 fi
 
+# Check for required utilities
+if ! command -v jq &> /dev/null; then
+    echo "Error: jq is not installed."
+    echo "Please install jq to run this test script."
+    exit 1
+fi
+
 # Dump environment variables for debugging
 echo "Environment variables:"
 env
