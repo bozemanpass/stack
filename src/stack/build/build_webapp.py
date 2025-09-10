@@ -52,7 +52,7 @@ def command(ctx, base_container, source_repo, force_rebuild, extra_build_args, t
 
     dev_root_path = get_dev_root_path()
 
-    log_debug(f'Dev Root is: {dev_root_path}')
+    log_debug(f"Dev Root is: {dev_root_path}")
 
     if not base_container:
         base_container = determine_base_container(source_repo)

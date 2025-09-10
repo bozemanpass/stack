@@ -75,4 +75,4 @@ def command(ctx, image, config_file, port):
     # TODO: This assumes a Docker container object...
     if webappPort in container.network_settings.ports:
         mapping = container.network_settings.ports[webappPort][0]
-        output_main(f"""Image: {image}\nID: {container.id}\nURL: http://localhost:{mapping['HostPort']}""")
+        output_main(f"""Image: {image}\nID: {container.id}\nURL: http://localhost:{mapping["HostPort"]}""")
