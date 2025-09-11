@@ -296,7 +296,10 @@ class K8sDeployer(Deployer):
             for cfg_map in cfg_maps:
                 log_debug(f"Deleting this ConfigMap: {cfg_map}")
                 try:
-                    cfg_map_resp = self.core_api.delete_namespaced_config_map(name=cfg_map.metadata.name, namespace=self.k8s_namespace)
+                    cfg_map_resp = self.core_api.delete_namespaced_config_map(
+                        name=cfg_map.metadata.name,
+                        namespace=self.k8s_namespace
+                        )
                     log_debug("ConfigMap deleted:")
                     log_debug(f"{cfg_map_resp}")
                 except client.exceptions.ApiException as e:
@@ -331,7 +334,7 @@ class K8sDeployer(Deployer):
             if self.is_kind() and not self.skip_cluster_management:
                 # Destroy the kind cluster
                 destroy_cluster(self.kind_cluster_name)
-        
+
         except Exception as e:
             error_exit(f"Exception thrown bringing stack up: {e}")
 
