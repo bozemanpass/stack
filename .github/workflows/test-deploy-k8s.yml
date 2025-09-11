@@ -8,6 +8,10 @@ on:
     branches:
       - '*'
 
+# Note: this test depends on having kind installed in the runner environment.
+# It turns out that kind is pre-installed in the ubuntu-latest. It may be worthwhile
+# checking which version is installed in the event that unexplained test failures occur.
+
 jobs:
   test:
     name: "Run k8s deploy test suite"
@@ -21,6 +25,8 @@ jobs:
           python-version: '3.12'
       - name: "Print Python version"
         run: python3 --version
+      - name: "Print kind version"
+        run: kind version
       - name: "Install shiv"
         run: pip install shiv
       - name: "Generate build version file"
