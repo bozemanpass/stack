@@ -251,7 +251,6 @@ class K8sDeployer(Deployer):
             if ingress:
                 log_debug(f"Sending this ingress: {ingress}")
                 if not opts.o.dry_run:
-                    # Exception thrown here
                     # kubernetes.client.exceptions.ApiException: (500)
                     ingress_resp = self.networking_api.create_namespaced_ingress(namespace=self.k8s_namespace, body=ingress)
                     log_debug("Ingress created:")
