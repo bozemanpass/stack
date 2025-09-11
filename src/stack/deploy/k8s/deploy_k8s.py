@@ -216,45 +216,52 @@ class K8sDeployer(Deployer):
         return None
 
     def up(self, detach, skip_cluster_management, services):
-        self.skip_cluster_management = skip_cluster_management
-        if not opts.o.dry_run:
-            if self.is_kind() and not self.skip_cluster_management:
-                # Create the kind cluster
-                create_cluster(
-                    self.kind_cluster_name,
-                    self.deployment_dir.joinpath(constants.kind_config_filename),
-                )
-                # Ensure the referenced containers are copied into kind
-                load_images_into_kind(self.kind_cluster_name, self.cluster_info.image_set)
-            self.connect_api()
-            if self.is_kind() and not self.skip_cluster_management:
-                # Now configure an ingress controller (not installed by default in kind)
-                install_ingress_for_kind()
-                # Wait for ingress to start (deployment provisioning will fail unless this is done)
-                wait_for_ingress_in_kind()
-
-        else:
-            log_info("Dry run mode enabled, skipping k8s API connect")
-
-        self._create_volume_data()
-        self._create_deployments()
-
-        http_proxy_info = self.cluster_info.spec.get_http_proxy()
-        # Note: at present we don't support tls for kind (and enabling tls causes errors)
-        use_tls = http_proxy_info and not self.is_kind()
-        certificate = self._find_certificate_for_host_name(http_proxy_info[0]["host-name"]) if use_tls else None
-        if certificate:
-            log_debug(f"Using existing certificate: {certificate}")
-
-        ingress: client.V1Ingress = self.cluster_info.get_ingress(use_tls=use_tls, certificate=certificate)
-        if ingress:
-            log_debug(f"Sending this ingress: {ingress}")
+        try:
+            self.skip_cluster_management = skip_cluster_management
             if not opts.o.dry_run:
-                ingress_resp = self.networking_api.create_namespaced_ingress(namespace=self.k8s_namespace, body=ingress)
-                log_debug("Ingress created:")
-                log_debug(f"{ingress_resp}")
-        else:
-            log_debug("No ingress configured")
+                if self.is_kind() and not self.skip_cluster_management:
+                    # Create the kind cluster
+                    create_cluster(
+                        self.kind_cluster_name,
+                        self.deployment_dir.joinpath(constants.kind_config_filename),
+                    )
+                    # Ensure the referenced containers are copied into kind
+                    load_images_into_kind(self.kind_cluster_name, self.cluster_info.image_set)
+                self.connect_api()
+                if self.is_kind() and not self.skip_cluster_management:
+                    # Now configure an ingress controller (not installed by default in kind)
+                    install_ingress_for_kind()
+                    # Wait for ingress to start (deployment provisioning will fail unless this is done)
+                    wait_for_ingress_in_kind()
+
+            else:
+                log_info("Dry run mode enabled, skipping k8s API connect")
+
+            self._create_volume_data()
+            self._create_deployments()
+
+            http_proxy_info = self.cluster_info.spec.get_http_proxy()
+            # Note: at present we don't support tls for kind (and enabling tls causes errors)
+            use_tls = http_proxy_info and not self.is_kind()
+            certificate = self._find_certificate_for_host_name(http_proxy_info[0]["host-name"]) if use_tls else None
+            if certificate:
+                log_debug(f"Using existing certificate: {certificate}")
+
+            ingress: client.V1Ingress = self.cluster_info.get_ingress(use_tls=use_tls, certificate=certificate)
+            if ingress:
+                log_debug(f"Sending this ingress: {ingress}")
+                if not opts.o.dry_run:
+                    # Exception thrown here
+                    #     raise ApiException(http_resp=r)
+                    # kubernetes.client.exceptions.ApiException: (500)
+                    # Reason: Internal Server Error
+                    ingress_resp = self.networking_api.create_namespaced_ingress(namespace=self.k8s_namespace, body=ingress)
+                    log_debug("Ingress created:")
+                    log_debug(f"{ingress_resp}")
+            else:
+                log_debug("No ingress configured")
+        except Exception as e:
+            error_exit(f"Error from kubernetes API: {e}")
 
     def down(self, timeout, volumes, skip_cluster_management):  # noqa: C901
         self.skip_cluster_management = skip_cluster_management
