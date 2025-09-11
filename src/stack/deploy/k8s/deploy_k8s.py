@@ -216,116 +216,127 @@ class K8sDeployer(Deployer):
         return None
 
     def up(self, detach, skip_cluster_management, services):
-        self.skip_cluster_management = skip_cluster_management
-        if not opts.o.dry_run:
-            if self.is_kind() and not self.skip_cluster_management:
-                # Create the kind cluster
-                create_cluster(
-                    self.kind_cluster_name,
-                    self.deployment_dir.joinpath(constants.kind_config_filename),
-                )
-                # Ensure the referenced containers are copied into kind
-                load_images_into_kind(self.kind_cluster_name, self.cluster_info.image_set)
-            self.connect_api()
-            if self.is_kind() and not self.skip_cluster_management:
-                # Now configure an ingress controller (not installed by default in kind)
-                install_ingress_for_kind()
-                # Wait for ingress to start (deployment provisioning will fail unless this is done)
-                wait_for_ingress_in_kind()
-
-        else:
-            log_info("Dry run mode enabled, skipping k8s API connect")
-
-        self._create_volume_data()
-        self._create_deployments()
-
-        http_proxy_info = self.cluster_info.spec.get_http_proxy()
-        # Note: at present we don't support tls for kind (and enabling tls causes errors)
-        use_tls = http_proxy_info and not self.is_kind()
-        certificate = self._find_certificate_for_host_name(http_proxy_info[0]["host-name"]) if use_tls else None
-        if certificate:
-            log_debug(f"Using existing certificate: {certificate}")
-
-        ingress: client.V1Ingress = self.cluster_info.get_ingress(use_tls=use_tls, certificate=certificate)
-        if ingress:
-            log_debug(f"Sending this ingress: {ingress}")
+        try:
+            self.skip_cluster_management = skip_cluster_management
             if not opts.o.dry_run:
-                ingress_resp = self.networking_api.create_namespaced_ingress(namespace=self.k8s_namespace, body=ingress)
-                log_debug("Ingress created:")
-                log_debug(f"{ingress_resp}")
-        else:
-            log_debug("No ingress configured")
+                if self.is_kind() and not self.skip_cluster_management:
+                    # Create the kind cluster
+                    create_cluster(
+                        self.kind_cluster_name,
+                        self.deployment_dir.joinpath(constants.kind_config_filename),
+                    )
+                    # Ensure the referenced containers are copied into kind
+                    load_images_into_kind(self.kind_cluster_name, self.cluster_info.image_set)
+                self.connect_api()
+                if self.is_kind() and not self.skip_cluster_management:
+                    # Now configure an ingress controller (not installed by default in kind)
+                    install_ingress_for_kind()
+                    # Wait for ingress to start (deployment provisioning will fail unless this is done)
+                    wait_for_ingress_in_kind()
+
+            else:
+                log_info("Dry run mode enabled, skipping k8s API connect")
+
+            self._create_volume_data()
+            self._create_deployments()
+
+            http_proxy_info = self.cluster_info.spec.get_http_proxy()
+            # Note: at present we don't support tls for kind (and enabling tls causes errors)
+            use_tls = http_proxy_info and not self.is_kind()
+            certificate = self._find_certificate_for_host_name(http_proxy_info[0]["host-name"]) if use_tls else None
+            if certificate:
+                log_debug(f"Using existing certificate: {certificate}")
+
+            ingress: client.V1Ingress = self.cluster_info.get_ingress(use_tls=use_tls, certificate=certificate)
+            if ingress:
+                log_debug(f"Sending this ingress: {ingress}")
+                if not opts.o.dry_run:
+                    # We've seen this exception thrown here: kubernetes.client.exceptions.ApiException: (500)
+                    ingress_resp = self.networking_api.create_namespaced_ingress(namespace=self.k8s_namespace, body=ingress)
+                    log_debug("Ingress created:")
+                    log_debug(f"{ingress_resp}")
+            else:
+                log_debug("No ingress configured")
+        except Exception as e:
+            error_exit(f"Exception thrown bringing stack up: {e}")
 
     def down(self, timeout, volumes, skip_cluster_management):  # noqa: C901
-        self.skip_cluster_management = skip_cluster_management
-        self.connect_api()
-        # Delete the k8s objects
+        try:
+            self.skip_cluster_management = skip_cluster_management
+            self.connect_api()
+            # Delete the k8s objects
 
-        if volumes:
-            # Create the host-path-mounted PVs for this deployment
-            pvs = self.cluster_info.get_pvs()
-            for pv in pvs:
-                log_debug(f"Deleting this pv: {pv}")
+            if volumes:
+                # Create the host-path-mounted PVs for this deployment
+                pvs = self.cluster_info.get_pvs()
+                for pv in pvs:
+                    log_debug(f"Deleting this pv: {pv}")
+                    try:
+                        pv_resp = self.core_api.delete_persistent_volume(name=pv.metadata.name)
+                        log_debug("PV deleted:")
+                        log_debug(f"{pv_resp}")
+                    except client.exceptions.ApiException as e:
+                        _check_delete_exception(e)
+
+                # Figure out the PVCs for this deployment
+                pvcs = self.cluster_info.get_pvcs()
+                for pvc in pvcs:
+                    log_debug(f"Deleting this pvc: {pvc}")
+                    try:
+                        pvc_resp = self.core_api.delete_namespaced_persistent_volume_claim(
+                            name=pvc.metadata.name, namespace=self.k8s_namespace
+                        )
+                        log_debug("PVCs deleted:")
+                        log_debug(f"{pvc_resp}")
+                    except client.exceptions.ApiException as e:
+                        _check_delete_exception(e)
+
+            # Figure out the ConfigMaps for this deployment
+            cfg_maps = self.cluster_info.get_configmaps()
+            for cfg_map in cfg_maps:
+                log_debug(f"Deleting this ConfigMap: {cfg_map}")
                 try:
-                    pv_resp = self.core_api.delete_persistent_volume(name=pv.metadata.name)
-                    log_debug("PV deleted:")
-                    log_debug(f"{pv_resp}")
+                    cfg_map_resp = self.core_api.delete_namespaced_config_map(
+                        name=cfg_map.metadata.name,
+                        namespace=self.k8s_namespace
+                        )
+                    log_debug("ConfigMap deleted:")
+                    log_debug(f"{cfg_map_resp}")
                 except client.exceptions.ApiException as e:
                     _check_delete_exception(e)
 
-            # Figure out the PVCs for this deployment
-            pvcs = self.cluster_info.get_pvcs()
-            for pvc in pvcs:
-                log_debug(f"Deleting this pvc: {pvc}")
+            deployments = self.cluster_info.get_deployments()
+            for deployment in deployments:
+                log_debug(f"Deleting this deployment: {deployment}")
                 try:
-                    pvc_resp = self.core_api.delete_namespaced_persistent_volume_claim(
-                        name=pvc.metadata.name, namespace=self.k8s_namespace
-                    )
-                    log_debug("PVCs deleted:")
-                    log_debug(f"{pvc_resp}")
+                    self.apps_api.delete_namespaced_deployment(name=deployment.metadata.name, namespace=self.k8s_namespace)
                 except client.exceptions.ApiException as e:
                     _check_delete_exception(e)
 
-        # Figure out the ConfigMaps for this deployment
-        cfg_maps = self.cluster_info.get_configmaps()
-        for cfg_map in cfg_maps:
-            log_debug(f"Deleting this ConfigMap: {cfg_map}")
-            try:
-                cfg_map_resp = self.core_api.delete_namespaced_config_map(name=cfg_map.metadata.name, namespace=self.k8s_namespace)
-                log_debug("ConfigMap deleted:")
-                log_debug(f"{cfg_map_resp}")
-            except client.exceptions.ApiException as e:
-                _check_delete_exception(e)
+            services: client.V1Service = self.cluster_info.get_services()
+            for svc in services:
+                log_debug(f"Deleting service: {svc}")
+                try:
+                    self.core_api.delete_namespaced_service(namespace=self.k8s_namespace, name=svc.metadata.name)
+                except client.exceptions.ApiException as e:
+                    _check_delete_exception(e)
 
-        deployments = self.cluster_info.get_deployments()
-        for deployment in deployments:
-            log_debug(f"Deleting this deployment: {deployment}")
-            try:
-                self.apps_api.delete_namespaced_deployment(name=deployment.metadata.name, namespace=self.k8s_namespace)
-            except client.exceptions.ApiException as e:
-                _check_delete_exception(e)
+            ingress: client.V1Ingress = self.cluster_info.get_ingress(use_tls=not self.is_kind())
+            if ingress:
+                log_debug(f"Deleting this ingress: {ingress}")
+                try:
+                    self.networking_api.delete_namespaced_ingress(name=ingress.metadata.name, namespace=self.k8s_namespace)
+                except client.exceptions.ApiException as e:
+                    _check_delete_exception(e)
+            else:
+                log_debug("No ingress to delete")
 
-        services: client.V1Service = self.cluster_info.get_services()
-        for svc in services:
-            log_debug(f"Deleting service: {svc}")
-            try:
-                self.core_api.delete_namespaced_service(namespace=self.k8s_namespace, name=svc.metadata.name)
-            except client.exceptions.ApiException as e:
-                _check_delete_exception(e)
+            if self.is_kind() and not self.skip_cluster_management:
+                # Destroy the kind cluster
+                destroy_cluster(self.kind_cluster_name)
 
-        ingress: client.V1Ingress = self.cluster_info.get_ingress(use_tls=not self.is_kind())
-        if ingress:
-            log_debug(f"Deleting this ingress: {ingress}")
-            try:
-                self.networking_api.delete_namespaced_ingress(name=ingress.metadata.name, namespace=self.k8s_namespace)
-            except client.exceptions.ApiException as e:
-                _check_delete_exception(e)
-        else:
-            log_debug("No ingress to delete")
-
-        if self.is_kind() and not self.skip_cluster_management:
-            # Destroy the kind cluster
-            destroy_cluster(self.kind_cluster_name)
+        except Exception as e:
+            error_exit(f"Exception thrown bringing stack up: {e}")
 
     def status(self):
         self.connect_api()
