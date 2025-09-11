@@ -22,3 +22,6 @@ jobs:
         run: kind version
       - name: "See where kind is installed"
         run: which kind
+      - name: "Check timestamp on kind binary"
+        run: ls -l /usr/local/bin
+
