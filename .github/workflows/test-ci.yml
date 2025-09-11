@@ -7,7 +7,7 @@ on:
 
 jobs:
   test:
-    name: Test CI jobs"
+    name: "Test CI jobs"
     runs-on: ubuntu-24.04
     steps:
       - name: "Clone project repository"
@@ -20,3 +20,5 @@ jobs:
         run: python3 --version
       - name: "Run kind"
         run: kind version
+      - name: "See where kind is installed"
+        run: which kind
