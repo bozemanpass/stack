@@ -254,7 +254,6 @@ class K8sDeployer(Deployer):
                     # Exception thrown here
                     #     raise ApiException(http_resp=r)
                     # kubernetes.client.exceptions.ApiException: (500)
-                    # Reason: Internal Server Error
                     ingress_resp = self.networking_api.create_namespaced_ingress(namespace=self.k8s_namespace, body=ingress)
                     log_debug("Ingress created:")
                     log_debug(f"{ingress_resp}")
