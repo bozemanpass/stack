@@ -21,6 +21,7 @@ from expandvars import expand
 from kubernetes import client, utils, watch
 from pathlib import Path
 from ruamel.yaml.comments import CommentedSeq
+from time import sleep
 from typing import Set, Mapping, List
 
 from stack.build.build_util import container_exists_locally
@@ -58,6 +59,11 @@ def wait_for_ingress_in_kind():
                 if event["object"].status.container_statuses[0].ready is True:
                     if warned_waiting:
                         log_info("Ingress controller is ready")
+                        # Hack to work around https://github.com/bozemanpass/stack/issues/110
+                        # Theory is that depending on when in the 30 second polling cycle we hit ready,
+                        # the controller may not actually be ready to serve ingress requests yet.
+                        # So we wait a bit longer here.
+                        sleep(10)
                     return
             log_info("Waiting for ingress controller to become ready...")
             warned_waiting = True
