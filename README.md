@@ -91,7 +91,7 @@ chmod +x ~/bin/stack
 ### Hard Mode
 Detailed documentation on the installation of stack and its prerequisites as well as how to update stack can be found [here](./docs/install.md).
 ## Learn More
- - [Stack commands](./docs/cli.md)
+ - [Stack commands](./docs/commands.md)
  - [Recent New Features](./docs/recent-features.md)
 ## Contributing
 
