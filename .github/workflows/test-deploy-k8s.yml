@@ -19,16 +19,12 @@ jobs:
     steps:
       - name: "Clone project repository"
         uses: actions/checkout@v3
-      - name: "Install Python"
-        uses: actions/setup-python@v4
+      - name: "Install uv"
+        uses: astral-sh/setup-uv@v4
         with:
           python-version: '3.12'
-      - name: "Print Python version"
-        run: python3 --version
       - name: "Print kind version"
         run: kind version
-      - name: "Install shiv"
-        run: pip install shiv
       - name: "Generate build version file"
         run: ./scripts/create_build_tag_file.sh
       - name: "Build local shiv package"

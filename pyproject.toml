@@ -1,6 +1,6 @@
 [build-system]
-requires = ["setuptools>=75.0", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["uv_build>=0.10.6,<0.11.0"]
+build-backend = "uv_build"
 
 [project]
 name = "stack"
@@ -25,16 +25,14 @@ dependencies = [
     "mergedeep",
     "mermaid-builder",
     "termcolor",
-    "flake8",
-    "black"
 ]
 requires-python = ">=3.10"
 
 [project.scripts]
 stack = "stack:main.cli"
 
-[tool.setuptools.package-data]
-stack = ['data/**']
+[dependency-groups]
+dev = ["flake8", "black"]
 
 [project.urls]
 "Homepage" = "https://github.com/bozemanpass/stack"
