@@ -10,17 +10,7 @@ Suitable for developers either modifying or debugging the orchestrator Python co
 
 In addition to the pre-requisites listed in the [README](/README.md), the following are required:
 
-1. Python venv package
-   This may or may not be already installed depending on the host OS and version. Check by running:
-   ```
-   $ python3 -m venv
-   usage: venv [-h] [--system-site-packages] [--symlinks | --copies] [--clear] [--upgrade] [--without-pip] [--prompt PROMPT] ENV_DIR [ENV_DIR ...]
-   venv: error: the following arguments are required: ENV_DIR
-   ```
-   If the venv package is missing you should see a message indicating how to install it, for example with:
-   ```
-   $ apt install python3.10-venv
-   ```
+1. [uv](https://docs.astral.sh/uv/getting-started/installation/) — used for dependency management and virtual environments.
 
 ### Install
 
@@ -29,19 +19,20 @@ In addition to the pre-requisites listed in the [README](/README.md), the follow
    $ git clone https://github.com/bozemanpass/stack.git
    ```
 
-   2. Enter the project directory:
+2. Enter the project directory:
    ```
    $ cd stack
    ```
 
-   3. Setup the virtualenv:
+3. Install dependencies:
    ```
-   $ source ./scripts/developer-mode-setup.sh
+   $ ./scripts/developer-mode-setup.sh
    ```
+   This runs `uv sync`, which creates a `.venv` virtual environment and installs all dependencies.
 
-   4. Verify installation:
+4. Verify installation:
    ```
-   $ (venv)  stack
+   $ uv run stack
       Usage: stack [OPTIONS] COMMAND [ARGS]...
 
       BPI stack
@@ -68,11 +59,11 @@ In addition to the pre-requisites listed in the [README](/README.md), the follow
 
 ## Build a zipapp (single file distributable script)
 
-Use shiv to build a single file Python executable zip archive of stack:
+Use shiv (via `uvx`) to build a single file Python executable zip archive of stack:
 
 1. Run shiv to create a zipapp file:
    ```
-   $ (venv)  ./scripts/build_shiv_package.sh
+   $ ./scripts/build_shiv_package.sh
    ```
    This creates a file under `./package/` that is executable outside of any venv, and on other machines and OSes and architectures, and requiring only the system Python3:
 

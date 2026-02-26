@@ -80,8 +80,14 @@ To get started quickly on a fresh Ubuntu 24.04 instance (e.g, a Digital Ocean dr
 
 **WARNING:** Always review downloaded scripts prior to running them so that you know what going to happen to your machine.
 
-### Lazy Mode
-Stack is written in Python and so needs a recent Python 3 on the machine. It also needs either docker or podman installed, and these utilities: git, jq. The [full installation instructions](./docs/install.md) show how to get these but if you're allready set up, proceed:
+### Install with uv
+If you have [uv](https://docs.astral.sh/uv/getting-started/installation/) installed:
+```bash
+uv tool install --from git+https://github.com/bozemanpass/stack stack
+```
+
+### Download a release
+Stack is written in Python and so needs a recent Python 3 on the machine. It also needs either docker or podman installed, and these utilities: git, jq. The [full installation instructions](./docs/install.md) show how to get these but if you're already set up, proceed:
 
 Stack is distributed as a single-file self-extracting script. The latest release can be downloaded like this:
 ```bash
