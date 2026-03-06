@@ -93,6 +93,30 @@ id: 6c4d42c1c0f03, name: stack-3285f74574bd152c-nginx-proxy-1, ports: 0.0.0.0:80
 id: 700202db6e6ab, name: stack-3285f74574bd152c-frontend-1, ports: 0.0.0.0:56454->3000/tcp
 ```
 
+## How Docker Ingress Works
+
+The stack tool does not write nginx configuration files directly. Instead, it relies on
+[nginxproxy/nginx-proxy](https://github.com/nginx-proxy/nginx-proxy), which automatically generates and reloads
+nginx configuration by discovering environment variables on containers via the Docker API.
+
+The process has three stages:
+
+1. **Annotations to spec**: During `stack init`, port annotations in `composefile.yml` (e.g.,
+   `"3000" # @stack http-proxy /`) are parsed and written into an `http-proxy` section in the output spec file,
+   mapping paths to backend services and ports.
+
+2. **Spec to environment variables**: During `stack deploy`, the tool reads the `http-proxy` spec and injects
+   environment variables into each matching service's Docker Compose definition:
+   - `VIRTUAL_HOST_MULTIPORTS` — a JSON object describing the hostname, path routing rules, and destination ports.
+     For non-root paths, a regex rule is generated that strips the prefix so the backend sees requests at `/`.
+   - `LETSENCRYPT_HOST` — set to the hostname (unless it is `localhost`), triggering automatic SSL certificate
+     provisioning via the companion letsencrypt container in the ingress stack.
+
+3. **nginx-proxy generates nginx config**: The `nginx-proxy` container in the
+   [docker-ingress-stack](https://github.com/bozemanpass/docker-ingress-stack) watches the Docker socket for
+   container events. When it sees containers with `VIRTUAL_HOST_MULTIPORTS` environment variables, it generates
+   the appropriate nginx configuration and reloads nginx automatically.
+
 ## Combining Stacks
 
 It is often useful to create "super stacks" by combining and deploying multiple stacks together as a single unit.
