@@ -411,6 +411,8 @@ def locate_single_stack(stack_name, search_path=get_dev_root_path(), fail_on_mul
         if fail_on_multiple:
             error_exit(f"multiple stacks named {stack_name} found")
         else:
+            # DBDB this means that if we asked to find a stack, found two or more stacks, and specified
+            # fail_on_multiple=False then it looks the same to the caller as if we found zero stacks.
             return None
 
     if fail_on_none:
@@ -445,6 +447,6 @@ def resolve_stack(stack_name):
         log_debug(f"Resolved {stack_name} to {stack.file_path.parent}")
 
     if not stack:
-        error_exit(f"stack {stack_name} not found")
+        error_exit(f"stack {stack_name} not found in resolve_stack")
 
     return stack
