@@ -18,7 +18,7 @@ import click
 import os
 import sys
 
-from stack import opts
+from stack.opts import opts
 from stack import update
 from stack import version
 
@@ -49,9 +49,9 @@ CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 @click.option(
     "--profile", help="name of the configuration profile to use", default=os.environ.get("STACK_CONFIG_PROFILE", "config")
 )
-# TEL: Hide these for now, until we make sure they are consistently implemented.
 @click.option("--verbose", is_flag=True, default=False, help="Log extra details")
 @click.option("--quiet", is_flag=True, default=False, help="Suppress unnecessary log output")
+# TEL: Hide these for now, until we make sure they are consistently implemented.
 @click.option("--dry-run", is_flag=True, default=False, hidden=True)
 @click.pass_context
 def cli(ctx, profile, quiet, verbose, log_file, dry_run, debug, stack):
@@ -69,7 +69,7 @@ def cli(ctx, profile, quiet, verbose, log_file, dry_run, debug, stack):
         log_level = LOG_LEVELS["warn"]
 
     command_options = CommandOptions(profile, stack, log_level, log_file, dry_run, debug, quiet)
-    opts.opts.o = command_options
+    opts.o = command_options
     ctx.obj = command_options
 
     if command_options.profile:
@@ -79,7 +79,7 @@ def cli(ctx, profile, quiet, verbose, log_file, dry_run, debug, stack):
     if command_options.log_level is not None:
         os.environ["STACK_LOG_LEVEL"] = str(command_options.log_level)
 
-
+print("Hellloooo")
 cli.add_command(build.command, "build")
 cli.add_command(chart.command, "chart")
 cli.add_command(checklist.command, "check")
@@ -95,14 +95,20 @@ cli.add_command(update.command, "update")
 cli.add_command(version.command, "version")
 cli.add_command(webapp.command, "webapp")
 
+# DBDB Note that this code is run at module import time, before the
+# process is properly initialized. Therefore it may fail.
+# While we sort that out, let's catch exceptions here.
 # We only try to load external commands from an external stack.
 if not STACK_USE_BUILTIN_STACK:
-    stack_path = None
-    for i in range(len(sys.argv)):
-        arg = sys.argv[i]
-        if arg == "--stack":
-            if i + 1 < len(sys.argv):
-                stack_path = sys.argv[i + 1]
-                break
-    if stack_path:
-        load_subcommands_from_stack(cli, stack_path)
+    try:
+        stack_path = None
+        for i in range(len(sys.argv)):
+            arg = sys.argv[i]
+            if arg == "--stack":
+                if i + 1 < len(sys.argv):
+                    stack_path = sys.argv[i + 1]
+                    break
+        if stack_path:
+            load_subcommands_from_stack(cli, stack_path)
+    except Exception as e:
+        print(f"WARNING, ignoring exception in command loading code: {e}")
