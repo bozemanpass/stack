@@ -10,15 +10,25 @@ env
 echo "Running stack smoke test"
 # Bit of a hack, test the most recent package
 TEST_TARGET_STACK=$( ls -t1 ./package/stack* | head -1 )
+# We make a directory within which our test will create files
+STACK_TEST_DIR=~/stack-test/smoke-test-dir
 # Set a non-default repo dir
-export STACK_REPO_BASE_DIR=~/stack-test/repo-base-dir
+export STACK_REPO_BASE_DIR=${STACK_TEST_DIR}/repo-base-dir
 echo "Testing this package: $TEST_TARGET_STACK"
 echo "Test version command"
 reported_version_string=$( $TEST_TARGET_STACK version )
 echo "Version reported is: ${reported_version_string}"
+echo "Using test directory: $STACK_TEST_DIR"
 echo "Cloning repositories into: $STACK_REPO_BASE_DIR"
-rm -rf $STACK_REPO_BASE_DIR
+rm -rf $STACK_TEST_DIR
+mkdir -p $STACK_TEST_DIR
 mkdir -p $STACK_REPO_BASE_DIR
+# We must delete any instances of the test-container in the local registory
+# otherwise we'll skip building it below
+existing_test_images=$(docker image ls -q --filter=reference=bozemanpass/test-container | uniq)
+if [ -n "$existing_test_images" ]; then
+  docker image rm -f ${existing_test_images}
+fi
 # Fetch the test stacks
 $TEST_TARGET_STACK fetch repo github.com/bozemanpass/stack-test-stacks
 # Test building the a stack container
@@ -27,8 +37,8 @@ $TEST_TARGET_STACK prepare --stack test
 $TEST_TARGET_STACK prepare --stack test --include-containers bozemanpass/test-container
 echo "Images in the local registry:"
 docker image ls -a
-test_deployment_dir=$STACK_REPO_BASE_DIR/test-deployment-dir
-test_deployment_spec=$STACK_REPO_BASE_DIR/test-deployment-spec.yml
+test_deployment_dir=$STACK_TEST_DIR/test-deployment-dir
+test_deployment_spec=$STACK_TEST_DIR/test-deployment-spec.yml
 # Deploy the test container
 $TEST_TARGET_STACK init --stack test --output $test_deployment_spec
 $TEST_TARGET_STACK deploy --spec-file $test_deployment_spec --deployment-dir $test_deployment_dir
