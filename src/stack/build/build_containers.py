@@ -38,6 +38,7 @@ from stack.opts import opts
 from stack.repos.repo_util import host_and_path_for_repo, image_registry_for_repo, fs_path_for_repo, process_repo, get_repo_current_hash, is_repo_dirty, get_container_tag_for_repo
 from stack.util import include_exclude_check, stack_is_external, error_exit, get_yaml
 from stack.util import run_shell_command
+from stack import constants
 
 docker = DockerClient()
 
@@ -78,81 +79,96 @@ def make_container_build_env(dev_root_path: str, default_container_base_dir: str
 
 
 def process_container(build_context: BuildContext) -> bool:
-    log_info(f"Building: {build_context.container.name}:stack")
 
-    default_container_tag = f"{build_context.container.name}:stack"
-    build_context.container_build_env.update({"STACK_FULL_CONTAINER_IMAGE_TAG": default_container_tag})
-    build_context.container_build_env.update({"STACK_DEFAULT_CONTAINER_IMAGE_TAG": default_container_tag})
+    building_container = build_context.container
+    build_envs = build_context.container_build_env
+
+    default_container_tag = f"{building_container.name}:stack"
+    log_info(f"Processing build of container: {default_container_tag}")
+
+    build_envs.update({"STACK_FULL_CONTAINER_IMAGE_TAG": default_container_tag})
+    build_envs.update({"STACK_DEFAULT_CONTAINER_IMAGE_TAG": default_container_tag})
 
     build_dir = None
     build_script_filename = None
 
     # Check if this is in an external stack
     if stack_is_external(build_context.stack):
-        if build_context.container.build:
-            build_script_filename = Path(build_context.container.file_path).parent.joinpath(build_context.container.build)
+        log_debug(f"Determined stack: {build_context.stack.name} is external")
+        # DBDB What is this code below doing?
+        # "build" is pulled from the container description yaml
+        # Presumably it means "the relative name of the build file"
+        if building_container.build:
+            # If the build script filename was provided, we use that
+            build_script_filename = Path(building_container.file_path).parent.joinpath(building_container.build)
             build_dir = build_script_filename.parent
-            build_context.container_build_env["STACK_BUILD_DIR"] = build_dir
+            build_envs["STACK_BUILD_DIR"] = build_dir
         else:
-            container_build_script_dir = Path(build_context.stack.name).parent.parent.joinpath("container-build")
+            # If the build script filename is not explicitly provided, we try to infer it
+            # DBDB this code seems not to work because we use the bare stack name rather than a directory
+            # We go looking for a "containers" directory in the root of the container's repo.
+            container_build_script_dir = fs_path_for_repo(building_container.ref).joinpath(constants.stack_files_directory_name).joinpath(constants.containers_directory_name)
+            log_debug(f"Looking for build script in this directory: {container_build_script_dir}")
             if os.path.exists(container_build_script_dir):
-                temp_build_dir = container_build_script_dir.joinpath(build_context.container.name.replace("/", "-"))
+                temp_build_dir = container_build_script_dir.joinpath(building_container.name.replace("/", "-"))
                 temp_build_script_filename = temp_build_dir.joinpath("build.sh")
                 # Now check if the container exists in the external stack.
+                log_debug(f"Looking for build script at: {temp_build_script_filename}")
                 if not temp_build_script_filename.exists():
                     # If not, revert to building an internal container
+                    # DBDB Why?
                     container_build_script_dir = build_context.default_container_base_dir
-                build_dir = container_build_script_dir.joinpath(build_context.container.name.replace("/", "-"))
+                build_dir = container_build_script_dir.joinpath(building_container.name.replace("/", "-"))
                 build_script_filename = build_dir.joinpath("build.sh")
-                build_context.container_build_env["STACK_BUILD_DIR"] = build_dir
+                build_envs["STACK_BUILD_DIR"] = build_dir
+
     if not build_dir:
-        build_dir = build_context.default_container_base_dir.joinpath(build_context.container.name.replace("/", "-"))
+        build_dir = build_context.default_container_base_dir.joinpath(building_container.name.replace("/", "-"))
         build_script_filename = build_dir.joinpath("build.sh")
 
     log_debug(f"Build script filename: {build_script_filename}")
+    log_debug(f"Build script filename: {build_dir}")
 
     if os.path.exists(build_script_filename):
         build_command = build_script_filename.as_posix()
     else:
         log_debug(f"No script file found: {build_script_filename}, using default build script")
-        if build_context.container.ref:
-            repo_full_path = fs_path_for_repo(build_context.container.ref)
+        if building_container.ref:
+            repo_full_path = fs_path_for_repo(building_container.ref)
         else:
             repo_full_path = build_context.stack.repo_path
 
-        if build_context.container.path:
-            repo_full_path = repo_full_path.joinpath(build_context.container.path)
+        if building_container.path:
+            repo_full_path = repo_full_path.joinpath(building_container.path)
         repo_dir_or_build_dir = repo_full_path if repo_full_path and repo_full_path.exists() else build_dir
         build_command = (
             os.path.join(build_context.default_container_base_dir, "default-build.sh")
             + f" {default_container_tag} {repo_dir_or_build_dir}"
         )
-        build_context.container_build_env["STACK_BUILD_DIR"] = repo_dir_or_build_dir
+        build_envs["STACK_BUILD_DIR"] = repo_dir_or_build_dir
 
+    build_envs["STACK_IMAGE_NAME"] = building_container.name
 
-    build_context.container_build_env["STACK_IMAGE_NAME"] = build_context.container.name
-
-    build_context.container_build_env["STACK_REPO_STACK_DIR"] = str(build_context.stack.repo_path) if build_context.stack.repo_path else ""
-    build_context.container_build_env["STACK_REPO_CONTAINER_DIR"] = str(build_context.container.repo_path) if build_context.container.repo_path else build_context.container_build_env["STACK_REPO_STACK_DIR"]
-    build_context.container_build_env["STACK_REPO_SOURCE_DIR"] = str(fs_path_for_repo(build_context.container.ref)) if build_context.container.ref else build_context.container_build_env["STACK_REPO_CONTAINER_DIR"]
+    build_envs["STACK_REPO_STACK_DIR"] = str(build_context.stack.repo_path) if build_context.stack.repo_path else ""
+    build_envs["STACK_REPO_CONTAINER_DIR"] = str(build_context.container.repo_path) if building_container.repo_path else build_envs["STACK_REPO_STACK_DIR"]
+    build_envs["STACK_REPO_SOURCE_DIR"] = str(fs_path_for_repo(building_container.ref)) if building_container.ref else build_envs["STACK_REPO_CONTAINER_DIR"]
 
     if not opts.o.dry_run:
         # No PATH at all causes failures with podman.
-        if "PATH" not in build_context.container_build_env:
-            build_context.container_build_env["PATH"] = os.environ["PATH"]
-        log_debug(f"Executing: {build_command} with environment: {build_context.container_build_env}")
+        if "PATH" not in build_envs:
+            build_envs["PATH"] = os.environ["PATH"]
+        log_debug(f"Executing: {build_command} with environment: {build_envs}")
 
-        build_result = run_shell_command(build_command, env=build_context.container_build_env, quiet=opts.o.quiet)
+        build_result = run_shell_command(build_command, env=build_envs, quiet=opts.o.quiet)
 
-        log_debug(f"Return code is: {build_result}")
+        log_debug(f"Build command return code is: {build_result}")
         if build_result != 0:
             return False
         else:
             return True
     else:
-        log_info("Skipped")
+        log_info("Skipped for dry run")
         return True
-
 
 
 def build_containers(parent_stack,
@@ -337,6 +353,7 @@ def build_containers(parent_stack,
                             log_info(f"Container {container_tag} needs to be built.")
                             container_needs_pulled = False
                             container_needs_built = True
+                            # DBDB add comment explaining what this code below is doing.
                             if not os.path.exists(target_fs_repo_path) or (git_pull and target_fs_repo_path not in dont_pull_repo_fs_paths):
                                 reconstructed_ref = f"{container_spec.ref.split('@')[0]}@{target_hash}"
                                 process_repo(git_pull, False, git_ssh, dev_root_path, [], reconstructed_ref)
@@ -373,7 +390,6 @@ def build_containers(parent_stack,
                     except:
                         pass
 
-                log_info(f"Building {container_spec.name}")
                 result = process_container(build_context)
                 if result:
                     container_was_built = True
