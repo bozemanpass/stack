@@ -93,8 +93,12 @@ def process_container(build_context: BuildContext) -> bool:
     build_script_filename = None
 
     # Check if this is in an external stack
-    if stack_is_external(build_context.stack):
-        log_debug(f"Determined stack: {build_context.stack.name} is external")
+    # There may be no stack (stack.name == "None") when we build a bare container
+    # DBDB we need to find where that name is getting set to the literal string "None"
+    # because that ain't right.
+    stack = build_context.stack
+    if stack.name != "None" and stack_is_external(stack):
+        log_debug(f"Determined stack: {stack.name} is external")
         # DBDB What is this code below doing?
         # "build" is pulled from the container description yaml
         # Presumably it means "the relative name of the build file"
@@ -136,7 +140,7 @@ def process_container(build_context: BuildContext) -> bool:
         if building_container.ref:
             repo_full_path = fs_path_for_repo(building_container.ref)
         else:
-            repo_full_path = build_context.stack.repo_path
+            repo_full_path = stack.repo_path
 
         if building_container.path:
             repo_full_path = repo_full_path.joinpath(building_container.path)
@@ -149,7 +153,7 @@ def process_container(build_context: BuildContext) -> bool:
 
     build_envs["STACK_IMAGE_NAME"] = building_container.name
 
-    build_envs["STACK_REPO_STACK_DIR"] = str(build_context.stack.repo_path) if build_context.stack.repo_path else ""
+    build_envs["STACK_REPO_STACK_DIR"] = str(stack.repo_path) if stack.repo_path else ""
     build_envs["STACK_REPO_CONTAINER_DIR"] = str(build_context.container.repo_path) if building_container.repo_path else build_envs["STACK_REPO_STACK_DIR"]
     build_envs["STACK_REPO_SOURCE_DIR"] = str(fs_path_for_repo(building_container.ref)) if building_container.ref else build_envs["STACK_REPO_CONTAINER_DIR"]
 
