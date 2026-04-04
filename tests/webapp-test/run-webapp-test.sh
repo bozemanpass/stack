@@ -36,19 +36,43 @@ set +e
 app_image_name="bozemanpass/test-progressive-web-app:stack"
 
 CONTAINER_ID=$(docker run -p 3000:80 -d -e STACK_SCRIPT_DEBUG=$STACK_SCRIPT_DEBUG ${app_image_name})
+if [ $? -ne 0 ]; then
+  echo "Failed to start container from image ${app_image_name}"
+  exit 1
+fi
 sleep 3
 wget --tries 20 --retry-connrefused --waitretry=3 -O test.before -m http://localhost:3000
 
 docker logs $CONTAINER_ID
-docker remove -f $CONTAINER_ID
+if [ $? -ne 0 ]; then
+  echo "Failed to get logs from container ${CONTAINER_ID}"
+  exit 1
+fi
+docker stop $CONTAINER_ID
+if [ $? -ne 0 ]; then
+  echo "Failed to stop container ${CONTAINER_ID}"
+  exit 1
+fi
 
 echo "Running app container test"
 CONTAINER_ID=$(docker run -p 3000:80 -e CERC_WEBAPP_DEBUG=$CHECK -e STACK_SCRIPT_DEBUG=$STACK_SCRIPT_DEBUG -d ${app_image_name})
+if [ $? -ne 0 ]; then
+  echo "Failed to start container from image ${app_image_name}"
+  exit 1
+fi
 sleep 3
 wget --tries 20 --retry-connrefused --waitretry=3 -O test.after -m http://localhost:3000
 
 docker logs $CONTAINER_ID
-docker remove -f $CONTAINER_ID
+if [ $? -ne 0 ]; then
+  echo "Failed to get logs from container ${CONTAINER_ID}"
+  exit 1
+fi
+docker stop $CONTAINER_ID
+if [ $? -ne 0 ]; then
+  echo "Failed to stop container ${CONTAINER_ID}"
+  exit 1
+fi
 
 echo "###########################################################################"
 echo ""
