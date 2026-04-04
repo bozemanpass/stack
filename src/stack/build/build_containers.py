@@ -466,9 +466,6 @@ def build_containers(parent_stack,
 @click.pass_context
 def command(ctx, stack, include, exclude, git_ssh, build_policy, extra_build_args, dont_pull_images, publish_images, image_registry, target_arch):
     """build stack containers"""
-    if not stack:
-        stack = ctx.obj.stack_path
-
     stack = resolve_stack(stack)
     build_containers(stack,
                      build_policy,

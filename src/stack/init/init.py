@@ -144,9 +144,6 @@ def command(
         deploy_to,
     )
 
-    if not stack:
-        stack = ctx.obj.stack_path
-
     top_stack_config = resolve_stack(stack)
     required_stacks = top_stack_config.get_required_stacks_paths()
     config_variables = {}
