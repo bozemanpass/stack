@@ -14,7 +14,6 @@ These options can be used with any command:
 |--------|------|-------------|---------|
 | `--log-file` | TEXT | Log to file (default stdout/stderr) | - |
 | `--debug` | FLAG | Enable debug options | From config |
-| `--stack` | TEXT | Name or path of the stack | - |
 | `--profile` | TEXT | Configuration profile to use | `config` |
 | `--verbose` | FLAG | Log extra details | False |
 | `--quiet` | FLAG | Suppress unnecessary log output | False |
