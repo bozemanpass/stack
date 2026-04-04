@@ -79,7 +79,7 @@ def cli(ctx, profile, quiet, verbose, log_file, dry_run, debug, stack):
     if command_options.log_level is not None:
         os.environ["STACK_LOG_LEVEL"] = str(command_options.log_level)
 
-print("Hellloooo")
+
 cli.add_command(build.command, "build")
 cli.add_command(chart.command, "chart")
 cli.add_command(checklist.command, "check")
