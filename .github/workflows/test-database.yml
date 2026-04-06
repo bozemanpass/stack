@@ -1,0 +1,33 @@
+name: Database Stack Test
+
+on:
+  pull_request:
+    branches:
+      - '*'
+  push:
+    branches:
+      - '*'
+
+# Note: this test depends on having kind installed in the runner environment.
+# It turns out that kind is pre-installed in the ubuntu-latest. It may be worthwhile
+# checking which version is installed in the event that unexplained test failures occur.
+
+jobs:
+  test:
+    name: "Run k8s deploy test suite"
+    runs-on: ubuntu-24.04
+    steps:
+      - name: "Clone project repository"
+        uses: actions/checkout@v3
+      - name: "Install uv"
+        uses: astral-sh/setup-uv@v4
+        with:
+          python-version: '3.12'
+      - name: "Print kind version"
+        run: kind version
+      - name: "Generate build version file"
+        run: ./scripts/create_build_tag_file.sh
+      - name: "Build local shiv package"
+        run: ./scripts/build_shiv_package.sh
+      - name: "Run k8s deploy tests"
+        run: ./tests/database/run-test.sh

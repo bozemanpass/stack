@@ -7,6 +7,11 @@ if [ -n "$STACK_SCRIPT_DEBUG" ]; then
     env
 fi
 
+if ! command -v kind &> /dev/null; then
+    echo "Error: 'kind' is not installed or not available on the PATH"
+    exit 1
+fi
+
 if [ "$1" == "from-path" ]; then
     TEST_TARGET_STACK="stack"
 else
@@ -23,7 +28,7 @@ wait_for_pods_started () {
     do
         local ps_output=$( $TEST_TARGET_STACK manage --dir $test_deployment_dir ps )
 
-        if [[ "$ps_output" == *"Running containers:"* ]]; then
+        if [[ "$ps_output" == *"id:"* ]]; then
             # if ready, return
             return
         else
@@ -62,7 +67,7 @@ delete_cluster_exit () {
 }
 
 # We make a directory within which our test will create files
-STACK_TEST_DIR=~/stack-test/smoke-test-dir
+STACK_TEST_DIR=~/stack-test/database-test-dir
 # Set a non-default repo dir
 export STACK_REPO_BASE_DIR=${STACK_TEST_DIR}/repo-base-dir
 echo "Testing this package: $TEST_TARGET_STACK"
@@ -103,7 +108,7 @@ echo "deploy init test: passed"
 # Switch to a full path for the data dir so it gets provisioned as a host bind mounted volume and preserved beyond cluster lifetime
 sed -i "s|^\(\s*db-data:$\)$|\1 ${test_deployment_dir}/data/db-data|" $test_deployment_spec
 
-$TEST_TARGET_STACK --stack ${stack} deploy --spec-file $test_deployment_spec --deployment-dir $test_deployment_dir
+$TEST_TARGET_STACK deploy --spec-file $test_deployment_spec --deployment-dir $test_deployment_dir
 # Check the deployment dir exists
 if [ ! -d "$test_deployment_dir" ]; then
     echo "deploy create test: deployment directory not present"
