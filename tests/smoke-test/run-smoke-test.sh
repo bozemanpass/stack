@@ -19,7 +19,6 @@ echo "Test version command"
 reported_version_string=$( $TEST_TARGET_STACK version )
 echo "Version reported is: ${reported_version_string}"
 echo "Using test directory: $STACK_TEST_DIR"
-echo "Cloning repositories into: $STACK_REPO_BASE_DIR"
 rm -rf $STACK_TEST_DIR
 mkdir -p $STACK_TEST_DIR
 mkdir -p $STACK_REPO_BASE_DIR
@@ -30,6 +29,7 @@ if [ -n "$existing_test_images" ]; then
   docker image rm -f ${existing_test_images}
 fi
 # Fetch the test stacks
+echo "Fetching test stac repo into: $STACK_REPO_BASE_DIR"
 $TEST_TARGET_STACK fetch repo github.com/bozemanpass/stack-test-stacks
 # Test building the a stack container
 $TEST_TARGET_STACK prepare --stack test
