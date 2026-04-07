@@ -35,6 +35,7 @@ from stack.deploy.deploy import (
 )
 from stack.deploy.deploy_types import DeployCommandContext
 from stack.deploy.deployment_context import DeploymentContext
+from stack.deploy.explain import explain_op
 from stack.deploy.stack import Stack
 from stack.log import output_main
 from stack.util import error_exit
@@ -80,6 +81,14 @@ def make_deploy_context(ctx) -> DeployCommandContext:
 
 
 @command.command()
+@click.pass_context
+def explain(ctx):
+    """Explain the deployment (experimental)"""
+    ctx.obj = make_deploy_context(ctx)
+    explain_op(ctx)
+
+
+@command.command()
 @click.option(
     "--stay-attached/--detatch-terminal",
     default=False,
@@ -93,7 +102,7 @@ def make_deploy_context(ctx) -> DeployCommandContext:
 @click.argument("extra_args", nargs=-1)  # help: command: start <service1> <service2>
 @click.pass_context
 def start(ctx, stay_attached, skip_cluster_management, extra_args):
-    """start the stack"""
+    """start the deployment"""
     ctx.obj = make_deploy_context(ctx)
     services_list = list(extra_args) or None
     up_operation(ctx, services_list, stay_attached, skip_cluster_management)
@@ -109,7 +118,7 @@ def start(ctx, stay_attached, skip_cluster_management, extra_args):
 @click.argument("extra_args", nargs=-1)  # help: command: down <service1> <service2>
 @click.pass_context
 def stop(ctx, delete_volumes, skip_cluster_management, extra_args):
-    """stop the stack and remove the containers"""
+    """stop the deployment and remove the containers"""
     # TODO: add cluster name and env file here
     ctx.obj = make_deploy_context(ctx)
     down_operation(ctx, delete_volumes, extra_args, skip_cluster_management)
