@@ -279,7 +279,6 @@ def clone_all_repos_for_stack(stack, include=None, exclude=None, pull=False, git
         stack_repos = req_stack.get("repos", [])
         if stack_repos is not None:
             repos_in_scope.extend(req_stack.get("repos", []))
-        else:
 
         # containers can reference an external repo
         containers_in_scope = build_util.get_containers_in_scope(req_stack)
