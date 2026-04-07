@@ -148,7 +148,7 @@ class ClusterInfo:
                         path=path,
                         backend=client.V1IngressBackend(
                             service=client.V1IngressServiceBackend(
-                                name=f"{self.app_name}-svc-{proxy_to_svc}",
+                                name=proxy_to_svc,
                                 port=client.V1ServiceBackendPort(number=int(proxy_to_port)),
                             )
                         ),

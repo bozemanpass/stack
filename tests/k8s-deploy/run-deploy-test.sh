@@ -22,8 +22,6 @@ delete_cluster_exit () {
   fi
 }
 
-trap delete_cluster_exit EXIT
-
 wait_for_pods_started () {
     for i in {1..50}
     do
@@ -134,14 +132,17 @@ add_todo() {
 echo "Running stack deploy test"
 # Bit of a hack, test the most recent package
 TEST_TARGET_SO=$( ls -t1 ./package/stack* | head -1 )
+# We make a directory within which our test will create files
+STACK_TEST_DIR=~/stack-test/k8s-test-dir
 # Set a non-default repo dir
-export STACK_REPO_BASE_DIR=~/stack-test/repo-base-dir
+export STACK_REPO_BASE_DIR=${STACK_TEST_DIR}/repo-base-dir
 echo "Testing this package: $TEST_TARGET_SO"
 echo "Test version command"
 reported_version_string=$( $TEST_TARGET_SO version )
 echo "Version reported is: ${reported_version_string}"
 echo "Cloning repositories into: $STACK_REPO_BASE_DIR"
-rm -rf $STACK_REPO_BASE_DIR
+rm -rf $STACK_TEST_DIR
+mkdir -p $STACK_TEST_DIR
 mkdir -p $STACK_REPO_BASE_DIR
 # Test bringing the test container up and down
 # with and without volume removal
@@ -152,8 +153,8 @@ $TEST_TARGET_SO fetch repo bozemanpass/example-todo-list
 $TEST_TARGET_SO prepare --stack $STACK_NAME
 
 # Basic test of creating a deployment
-test_deployment_dir=$STACK_REPO_BASE_DIR/test-deployment-dir
-test_deployment_spec=$STACK_REPO_BASE_DIR/test-deployment-spec.yml
+test_deployment_dir=$STACK_TEST_DIR/test-deployment-dir
+test_deployment_spec=$STACK_TEST_DIR/test-deployment-spec.yml
 $TEST_TARGET_SO init --deploy-to k8s-kind \
   --stack $STACK_NAME \
   --output $test_deployment_spec \
