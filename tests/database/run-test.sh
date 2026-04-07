@@ -93,8 +93,8 @@ echo "Fetching test stack repo into: $STACK_REPO_BASE_DIR"
 $TEST_TARGET_STACK fetch repo github.com/bozemanpass/stack-test-stacks
 $TEST_TARGET_STACK prepare --stack ${stack}
 # Test basic stack deploy to k8s
-test_deployment_dir=$STACK_REPO_BASE_DIR/${deployment_dir}
-test_deployment_spec=$STACK_REPO_BASE_DIR/${spec_file}
+test_deployment_dir=$STACK_TEST_DIR/${deployment_dir}
+test_deployment_spec=$STACK_TEST_DIR/${spec_file}
 
 $TEST_TARGET_STACK init --stack ${stack} --deploy-to k8s-kind --output $test_deployment_spec
 # Check the file now exists

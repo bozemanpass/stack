@@ -14,7 +14,7 @@ on:
 
 jobs:
   test:
-    name: "Run k8s deploy test suite"
+    name: "Run database test on k8s"
     runs-on: ubuntu-24.04
     steps:
       - name: "Clone project repository"
