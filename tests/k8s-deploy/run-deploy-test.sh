@@ -130,8 +130,6 @@ add_todo() {
   return $rc
 }
 
-export STACK_USE_BUILTIN_STACK=true
-
 # Test basic stack deploy
 echo "Running stack deploy test"
 # Bit of a hack, test the most recent package
