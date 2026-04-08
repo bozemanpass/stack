@@ -36,7 +36,7 @@ from stack.deploy.k8s.helpers import (
     containers_in_pod,
     log_stream_from_string,
 )
-from stack.deploy.k8s.helpers import generate_kind_config, DEFAULT_K8S_NAMESPACE
+from stack.deploy.k8s.helpers import generate_kind_config
 from stack.deploy.k8s.cluster_info import ClusterInfo
 from stack.opts import opts
 from stack.deploy.deployment_context import DeploymentContext
@@ -63,7 +63,7 @@ class K8sDeployer(Deployer):
     core_api: client.CoreV1Api
     apps_api: client.AppsV1Api
     networking_api: client.NetworkingV1Api
-    k8s_namespace: str = DEFAULT_K8S_NAMESPACE
+    k8s_namespace: str
     kind_cluster_name: str
     skip_cluster_management: bool
     cluster_info: ClusterInfo
@@ -86,6 +86,7 @@ class K8sDeployer(Deployer):
         self.deployment_dir = deployment_context.deployment_dir
         self.deployment_context = deployment_context
         self.kind_cluster_name = compose_project_name
+        self.k8s_namespace = compose_project_name
         self.cluster_info = ClusterInfo()
         self.cluster_info.int(
             compose_files,
@@ -237,6 +238,13 @@ class K8sDeployer(Deployer):
             else:
                 log_info("Dry run mode enabled, skipping k8s API connect")
 
+            if not opts.o.dry_run:
+                namespace = client.V1Namespace(
+                    metadata=client.V1ObjectMeta(name=self.k8s_namespace)
+                )
+                self.core_api.create_namespace(body=namespace)
+                log_debug(f"Namespace {self.k8s_namespace} created")
+
             self._create_volume_data()
             self._create_deployments()
 
@@ -331,6 +339,12 @@ class K8sDeployer(Deployer):
             else:
                 log_debug("No ingress to delete")
 
+            try:
+                self.core_api.delete_namespace(name=self.k8s_namespace)
+                log_debug(f"Namespace {self.k8s_namespace} deleted")
+            except client.exceptions.ApiException as e:
+                _check_delete_exception(e)
+
             if self.is_kind() and not self.skip_cluster_management:
                 # Destroy the kind cluster
                 destroy_cluster(self.kind_cluster_name)
@@ -341,13 +355,12 @@ class K8sDeployer(Deployer):
     def status(self):
         self.connect_api()
         # Call whatever API we need to get the running container list
-        all_pods = self.core_api.list_pod_for_all_namespaces(watch=False)
-        pods = []
-
-        if all_pods.items:
-            for p in all_pods.items:
-                if f"{self.cluster_info.app_name}-deploy" in p.metadata.name:
-                    pods.append(p)
+        pod_response = self.core_api.list_namespaced_pod(
+            namespace=self.k8s_namespace,
+            label_selector=f"app={self.cluster_info.app_name}",
+            watch=False,
+        )
+        pods = pod_response.items if pod_response.items else []
 
         if not pods:
             return
@@ -394,29 +407,32 @@ class K8sDeployer(Deployer):
 
     def ps(self):
         self.connect_api()
-        pods = self.core_api.list_pod_for_all_namespaces(watch=False)
+        pod_response = self.core_api.list_namespaced_pod(
+            namespace=self.k8s_namespace,
+            label_selector=f"app={self.cluster_info.app_name}",
+            watch=False,
+        )
 
         ret = []
 
-        for p in pods.items:
-            if f"{self.cluster_info.app_name}-deploy" in p.metadata.name:
-                pod_ip = p.status.pod_ip
-                ports = AttrDict()
-                for c in p.spec.containers:
-                    if c.ports:
-                        for prt in c.ports:
-                            ports[str(prt.container_port)] = [AttrDict({"HostIp": pod_ip, "HostPort": prt.container_port})]
+        for p in pod_response.items:
+            pod_ip = p.status.pod_ip
+            ports = AttrDict()
+            for c in p.spec.containers:
+                if c.ports:
+                    for prt in c.ports:
+                        ports[str(prt.container_port)] = [AttrDict({"HostIp": pod_ip, "HostPort": prt.container_port})]
 
-                ret.append(
-                    AttrDict(
-                        {
-                            "id": f"{p.metadata.namespace}/{p.metadata.name}",
-                            "name": p.metadata.name,
-                            "namespace": p.metadata.namespace,
-                            "network_settings": AttrDict({"ports": ports}),
-                        }
-                    )
+            ret.append(
+                AttrDict(
+                    {
+                        "id": f"{p.metadata.namespace}/{p.metadata.name}",
+                        "name": p.metadata.name,
+                        "namespace": p.metadata.namespace,
+                        "network_settings": AttrDict({"ports": ports}),
+                    }
                 )
+            )
 
         return ret
 
@@ -427,10 +443,10 @@ class K8sDeployer(Deployer):
 
     def execute(self, service_name, command, tty, envs):
         self.connect_api()
-        pods = pods_in_deployment(self.core_api, self.cluster_info.app_name)
+        pods = pods_in_deployment(self.core_api, self.cluster_info.app_name, self.k8s_namespace)
         k8s_pod_name = None
         for pod in pods:
-            if f"{self.cluster_info.app_name}-deploy-{service_name}" in pod:
+            if f"deploy-{service_name}" in pod:
                 k8s_pod_name = pod
                 break
 
@@ -459,7 +475,7 @@ class K8sDeployer(Deployer):
 
     def logs(self, services, tail, follow, stream):
         self.connect_api()
-        pods = pods_in_deployment(self.core_api, self.cluster_info.app_name)
+        pods = pods_in_deployment(self.core_api, self.cluster_info.app_name, self.k8s_namespace)
         if len(pods) == 0:
             log_data = "******* Pods not running ********\n"
 
@@ -467,7 +483,7 @@ class K8sDeployer(Deployer):
             matched_pods = []
             for svc in services:
                 for pod in pods:
-                    if f"{self.cluster_info.app_name}-deploy-{svc}" in pod:
+                    if f"deploy-{svc}" in pod:
                         matched_pods.append(pod)
             pods = matched_pods
 
@@ -486,7 +502,7 @@ class K8sDeployer(Deployer):
 
             threads = []
             for k8s_pod_name in pods:
-                containers = containers_in_pod(self.core_api, k8s_pod_name)
+                containers = containers_in_pod(self.core_api, k8s_pod_name, self.k8s_namespace)
                 for container in containers:
                     t = Thread(target=log_follower, args=(k8s_pod_name, container), daemon=True)
                     t.start()
@@ -498,7 +514,7 @@ class K8sDeployer(Deployer):
         else:
             all_logs = []
             for k8s_pod_name in pods:
-                containers = containers_in_pod(self.core_api, k8s_pod_name)
+                containers = containers_in_pod(self.core_api, k8s_pod_name, self.k8s_namespace)
                 # If the pod is not yet started, the logs request below will throw an exception
                 try:
                     log_data = ""

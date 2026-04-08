@@ -88,9 +88,9 @@ def load_images_into_kind(kind_cluster_name: str, image_set: Set[str]):
             raise DeployerException(f"kind create cluster failed: {result}")
 
 
-def pods_in_deployment(core_api: client.CoreV1Api, deployment_name: str):
+def pods_in_deployment(core_api: client.CoreV1Api, deployment_name: str, namespace: str = DEFAULT_K8S_NAMESPACE):
     pods = []
-    pod_response = core_api.list_namespaced_pod(namespace=DEFAULT_K8S_NAMESPACE, label_selector=f"app={deployment_name}")
+    pod_response = core_api.list_namespaced_pod(namespace=namespace, label_selector=f"app={deployment_name}")
     log_debug(f"pod_response: {pod_response}")
     for pod_info in pod_response.items:
         pod_name = pod_info.metadata.name
@@ -98,9 +98,9 @@ def pods_in_deployment(core_api: client.CoreV1Api, deployment_name: str):
     return pods
 
 
-def containers_in_pod(core_api: client.CoreV1Api, pod_name: str):
+def containers_in_pod(core_api: client.CoreV1Api, pod_name: str, namespace: str = DEFAULT_K8S_NAMESPACE):
     containers = []
-    pod_response = core_api.read_namespaced_pod(pod_name, namespace=DEFAULT_K8S_NAMESPACE)
+    pod_response = core_api.read_namespaced_pod(pod_name, namespace=namespace)
     log_debug(f"pod_response: {pod_response}")
     pod_containers = pod_response.spec.containers
     for pod_container in pod_containers:
@@ -189,11 +189,11 @@ def volumes_for_service(parsed_pod_files, service, spec, app_name):
                         for mount_string in volumes:
                             volume_name = mount_string.split(":")[0]
                             if volume_name in spec.get_configmaps():
-                                config_map = client.V1ConfigMapVolumeSource(name=f"{app_name}-{volume_name}")
+                                config_map = client.V1ConfigMapVolumeSource(name=volume_name)
                                 volume = client.V1Volume(name=volume_name, config_map=config_map)
                                 result.append(volume)
                             else:
-                                claim = client.V1PersistentVolumeClaimVolumeSource(claim_name=f"{app_name}-{volume_name}")
+                                claim = client.V1PersistentVolumeClaimVolumeSource(claim_name=volume_name)
                                 volume = client.V1Volume(name=volume_name, persistent_volume_claim=claim)
                                 result.append(volume)
     return result
@@ -207,11 +207,11 @@ def volumes_for_pod_files(parsed_pod_files, spec, app_name):
             volumes = parsed_pod_file["volumes"]
             for volume_name in volumes.keys():
                 if volume_name in spec.get_configmaps():
-                    config_map = client.V1ConfigMapVolumeSource(name=f"{app_name}-{volume_name}")
+                    config_map = client.V1ConfigMapVolumeSource(name=volume_name)
                     volume = client.V1Volume(name=volume_name, config_map=config_map)
                     result.append(volume)
                 else:
-                    claim = client.V1PersistentVolumeClaimVolumeSource(claim_name=f"{app_name}-{volume_name}")
+                    claim = client.V1PersistentVolumeClaimVolumeSource(claim_name=volume_name)
                     volume = client.V1Volume(name=volume_name, persistent_volume_claim=claim)
                     result.append(volume)
     return result
