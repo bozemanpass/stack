@@ -92,6 +92,7 @@ class ClusterInfo:
         self.image_set = images_for_deployment(pod_files)
         self.environment_variables = DeployEnvVars({})
         self.app_name = deployment_name
+        self.k8s_namespace = deployment_name
         self.spec = spec
 
         # Set the dynamic service ENV
@@ -125,7 +126,7 @@ class ClusterInfo:
                 [
                     client.V1IngressTLS(
                         hosts=certificate["spec"]["dnsNames"] if certificate else [host_name],
-                        secret_name=certificate["spec"]["secretName"] if certificate else f"{self.app_name}-tls",
+                        secret_name=certificate["spec"]["secretName"] if certificate else "tls",
                     )
                 ]
                 if use_tls
@@ -170,7 +171,7 @@ class ClusterInfo:
                 )
 
             ingress = client.V1Ingress(
-                metadata=client.V1ObjectMeta(name=f"{self.app_name}-ingress", annotations=ingress_annotations),
+                metadata=client.V1ObjectMeta(name="ingress", annotations=ingress_annotations),
                 spec=spec,
             )
         return ingress
@@ -235,7 +236,7 @@ class ClusterInfo:
                 volume_name=k8s_volume_name,
             )
             pvc = client.V1PersistentVolumeClaim(
-                metadata=client.V1ObjectMeta(name=f"{self.app_name}-{volume_name}", labels=labels),
+                metadata=client.V1ObjectMeta(name=volume_name, labels=labels),
                 spec=spec,
             )
             result.append(pvc)
@@ -262,7 +263,7 @@ class ClusterInfo:
 
             spec = client.V1ConfigMap(
                 metadata=client.V1ObjectMeta(
-                    name=f"{self.app_name}-{cfg_map_name}",
+                    name=cfg_map_name,
                     labels={"configmap-label": cfg_map_name},
                 ),
                 binary_data=data,
@@ -473,7 +474,7 @@ class ClusterInfo:
                 deployment = client.V1Deployment(
                     api_version="apps/v1",
                     kind="Deployment",
-                    metadata=client.V1ObjectMeta(name=f"{self.app_name}-deploy-{service_name}"),
+                    metadata=client.V1ObjectMeta(name=f"deploy-{service_name}"),
                     spec=spec,
                 )
 
