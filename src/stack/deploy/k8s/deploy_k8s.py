@@ -242,8 +242,14 @@ class K8sDeployer(Deployer):
                 namespace = client.V1Namespace(
                     metadata=client.V1ObjectMeta(name=self.k8s_namespace)
                 )
-                self.core_api.create_namespace(body=namespace)
-                log_debug(f"Namespace {self.k8s_namespace} created")
+                try:
+                    self.core_api.create_namespace(body=namespace)
+                    log_debug(f"Namespace {self.k8s_namespace} created")
+                except client.exceptions.ApiException as e:
+                    if e.status == 409:
+                        log_debug(f"Namespace {self.k8s_namespace} already exists")
+                    else:
+                        raise
 
             self._create_volume_data()
             self._create_deployments()
@@ -339,11 +345,12 @@ class K8sDeployer(Deployer):
             else:
                 log_debug("No ingress to delete")
 
-            try:
-                self.core_api.delete_namespace(name=self.k8s_namespace)
-                log_debug(f"Namespace {self.k8s_namespace} deleted")
-            except client.exceptions.ApiException as e:
-                _check_delete_exception(e)
+            if volumes:
+                try:
+                    self.core_api.delete_namespace(name=self.k8s_namespace)
+                    log_debug(f"Namespace {self.k8s_namespace} deleted")
+                except client.exceptions.ApiException as e:
+                    _check_delete_exception(e)
 
             if self.is_kind() and not self.skip_cluster_management:
                 # Destroy the kind cluster
