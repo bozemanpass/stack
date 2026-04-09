@@ -12,6 +12,25 @@ if ! command -v jq &> /dev/null; then
     exit 1
 fi
 
+# Determine if we're testing against a remote k8s cluster
+# Set STACK_K8S_REMOTE=true to enable remote mode, which also requires:
+#   STACK_KUBE_CONFIG    - path to kubeconfig file
+#   STACK_IMAGE_REGISTRY - container image registry URL
+#   STACK_K8S_HOSTNAME   - hostname of the remote cluster
+if [ "$STACK_K8S_REMOTE" = "true" ]; then
+  if [ -z "$STACK_KUBE_CONFIG" ] || [ -z "$STACK_IMAGE_REGISTRY" ] || [ -z "$STACK_K8S_HOSTNAME" ]; then
+    echo "Error: Remote k8s mode requires STACK_KUBE_CONFIG, STACK_IMAGE_REGISTRY, and STACK_K8S_HOSTNAME"
+    exit 1
+  fi
+  DEPLOY_TO="k8s"
+  TEST_HOSTNAME="$STACK_K8S_HOSTNAME"
+  TEST_SCHEME="https"
+else
+  DEPLOY_TO="k8s-kind"
+  TEST_HOSTNAME="localhost"
+  TEST_SCHEME="http"
+fi
+
 # Dump environment variables for debugging
 echo "Environment variables:"
 env
@@ -105,8 +124,8 @@ add_todo() {
       -H 'Accept-Language: en-US,en;q=0.9' \
       -H 'Connection: keep-alive' \
       -H 'Content-Type: application/json' \
-      -H 'Origin: http://localhost' \
-      -H 'Referer: http://localhost/' \
+      -H "Origin: ${TEST_SCHEME}://${TEST_HOSTNAME}" \
+      -H "Referer: ${TEST_SCHEME}://${TEST_HOSTNAME}/" \
       -H 'Sec-Fetch-Dest: empty' \
       -H 'Sec-Fetch-Mode: cors' \
       -H 'Sec-Fetch-Site: same-site' \
@@ -155,11 +174,13 @@ $TEST_TARGET_SO prepare --stack $STACK_NAME
 # Basic test of creating a deployment
 test_deployment_dir=$STACK_TEST_DIR/test-deployment-dir
 test_deployment_spec=$STACK_TEST_DIR/test-deployment-spec.yml
-$TEST_TARGET_SO init --deploy-to k8s-kind \
-  --stack $STACK_NAME \
-  --output $test_deployment_spec \
-  --http-proxy-fqdn localhost \
-  --config REACT_APP_API_URL=http://localhost/api/todos
+init_args="--deploy-to $DEPLOY_TO --stack $STACK_NAME --output $test_deployment_spec"
+init_args="$init_args --http-proxy-fqdn $TEST_HOSTNAME"
+init_args="$init_args --config REACT_APP_API_URL=${TEST_SCHEME}://${TEST_HOSTNAME}/api/todos"
+if [ "$STACK_K8S_REMOTE" = "true" ]; then
+  init_args="$init_args --kube-config $STACK_KUBE_CONFIG --image-registry $STACK_IMAGE_REGISTRY"
+fi
+$TEST_TARGET_SO init $init_args
 
 # Check the file now exists
 if [ ! -f "$test_deployment_spec" ]; then
@@ -177,22 +198,29 @@ if [ ! -d "$test_deployment_dir" ]; then
 fi
 echo "deploy create test: passed"
 
+# Push images to remote registry if needed
+if [ "$STACK_K8S_REMOTE" = "true" ]; then
+  $TEST_TARGET_SO manage --dir $test_deployment_dir push-images
+fi
+
 # Start
 $TEST_TARGET_SO manage --dir $test_deployment_dir start
 wait_for_running 3
 
 # Add a todo
 todo_title="79b06705-b402-431a-83a3-a634392d2754"
-add_todo http://localhost/api/todos "$todo_title"
+add_todo ${TEST_SCHEME}://${TEST_HOSTNAME}/api/todos "$todo_title"
 
 
 # Check that it exists
-if [ "$todo_title" != "$(curl -s http://localhost/api/todos | jq -r '.[] | select(.id == 1) | .title')" ]; then
+if [ "$todo_title" != "$(curl -s ${TEST_SCHEME}://${TEST_HOSTNAME}/api/todos | jq -r '.[] | select(.id == 1) | .title')" ]; then
     echo "deploy storage: failed - todo $todo_title not found"
     exit 1
 fi
 
-wget -q -O - http://localhost | grep 'bundle.js'
+wget -q -O - ${TEST_SCHEME}://${TEST_HOSTNAME} | grep 'bundle.js'
 echo "deploy http: passed"
+
+delete_cluster_exit
 
 echo "Test passed"
