@@ -27,6 +27,7 @@ from typing import List
 
 from stack import constants
 from stack.deploy.compose.helpers import add_env_var
+from stack.config.util import get_config_setting
 from stack.log import log_debug, log_warn, log_info
 from stack.util import (
     get_stack_path,
@@ -271,6 +272,7 @@ def init_operation(  # noqa: C901
     http_proxy_targets,
     output,
     map_ports_to_host,
+    backup_targets=None,
 ):
     spec_file_content = {"stack": stack, constants.deploy_to_key: deployer_type}
     if deployer_type in ["k8s", "k8s-kind"]:
@@ -324,6 +326,10 @@ def init_operation(  # noqa: C901
         if constants.network_key not in spec_file_content:
             spec_file_content[constants.network_key] = {}
         spec_file_content[constants.network_key].update({constants.http_proxy_key: [http_proxy]})
+
+    # Record backup annotations (e.g. excluded volumes) parsed from the stack's composefiles.
+    if backup_targets and (backup_targets.get("exclude") or backup_targets.get("commands")):
+        spec_file_content[constants.backup_key] = backup_targets
 
     # Implement merge, since update() overwrites
     if config_variables:
@@ -572,6 +578,33 @@ def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec,
                         if "localhost" != host and "." in host:
                             add_env_var("LETSENCRYPT_HOST", host, svc_env)
                         service_info["environment"] = svc_env
+
+                # When backup is enabled, augment the backup service (defined in the mixed-in
+                # backup-stack) with read-only mounts of the deployment's data volumes plus the
+                # backup engine configuration. Mirrors the VIRTUAL_HOST injection above.
+                # See docs/backup-implementation.md.
+                if get_config_setting("backup", False) and service_name == constants.backup_service_name:
+                    backup_cfg = parsed_spec.get_backup()
+                    exclude = set(backup_cfg.get("exclude", []))
+                    mounts = service_info.setdefault("volumes", [])
+                    for vol_name, vol_path in parsed_spec.get_volumes().items():
+                        if vol_name in exclude or not vol_path:
+                            continue
+                        # Same host path the named volume binds to (see _fixup_pod_file).
+                        # Mounted rw so the same container can restore in place; scheduled
+                        # backups only read. See docs/backup.md "Restore".
+                        device = vol_path if Path(vol_path).is_absolute() else f".{vol_path}"
+                        mounts.append(f"{device}:/backup/{vol_name}:rw")
+                    backup_env = service_info.get("environment", {})
+                    add_env_var("BACKUP_S3_ENDPOINT", get_config_setting("backup-s3-endpoint", ""), backup_env)
+                    add_env_var("BACKUP_S3_BUCKET", get_config_setting("backup-s3-bucket", ""), backup_env)
+                    add_env_var("BACKUP_SCHEDULE", get_config_setting("backup-schedule", "0 3 * * *"), backup_env)
+                    add_env_var(
+                        "BACKUP_RETENTION",
+                        get_config_setting("backup-retention", "--keep-daily 7 --keep-weekly 4 --keep-monthly 6"),
+                        backup_env,
+                    )
+                    service_info["environment"] = backup_env
 
         with open(destination_compose_dir.joinpath(f"{constants.compose_file_prefix}-%s.yml" % pod), "w") as output_file:
             yaml.dump(parsed_pod_file, output_file)

@@ -189,6 +189,7 @@ def command(
 
         inner_stack_config = get_parsed_stack_config(stack)
         http_proxy_targets = inner_stack_config.get_http_proxy_targets(http_prefix)
+        backup_targets = inner_stack_config.get_backup_targets()
 
         if i == len(required_stacks) - 1:
             http_proxy_targets.extend(http_proxy_target)
@@ -209,6 +210,7 @@ def command(
             http_proxy_targets,
             None,
             map_ports_to_host,
+            backup_targets,
         )
         specs.append(spec)
 
