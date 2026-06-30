@@ -140,6 +140,9 @@ class Spec:
     def get_http_proxy(self):
         return self.obj.get(constants.network_key, {}).get(constants.http_proxy_key, [])
 
+    def get_backup(self):
+        return self.obj.get(constants.backup_key, {})
+
     def _clear_http_proxy(self):
         if constants.network_key in self.obj:
             if constants.http_proxy_key in self.obj[constants.network_key]:

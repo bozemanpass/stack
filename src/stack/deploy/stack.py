@@ -191,6 +191,38 @@ class Stack:
                         volumes[svc_name] = svc[constants.volumes_key]
         return volumes
 
+    def get_backup_targets(self):
+        """Parse @stack backup-* annotations from the stack's composefiles.
+
+        Currently supports `backup-exclude` on a volume mount line, parsed the same way as the
+        http-proxy port annotations (see get_http_proxy_targets). Returns:
+
+            {"exclude": [volume_name, ...], "commands": {}}
+
+        `commands` (per-service consistency dumps from `backup-command`) is reserved for a
+        follow-up; see docs/backup-implementation.md.
+        """
+        exclude = []
+        for pod in self.get_pod_list():
+            parsed_pod_file = self.load_pod_file(pod)
+            if constants.services_key not in parsed_pod_file:
+                continue
+            for svc_name, svc in parsed_pod_file[constants.services_key].items():
+                if constants.volumes_key not in svc:
+                    continue
+                volumes_section = svc[constants.volumes_key]
+                for i, mount in enumerate(volumes_section):
+                    item_comments = volumes_section.ca.items.get(i)
+                    if item_comments and item_comments[0]:
+                        # Only the end-of-line comment (first line of the token) counts.
+                        # ruamel attaches trailing block comments (e.g. a comment that heads
+                        # the next service) to the preceding item; those must be ignored.
+                        comment = item_comments[0].value.split("\n", 1)[0].strip()
+                        if constants.stack_annotation_marker in comment \
+                                and constants.backup_exclude_annotation in comment:
+                            exclude.append(str(mount).split(":")[0])
+        return {"exclude": exclude, "commands": {}}
+
     def get_http_proxy_targets(self, prefix=None):
         if prefix:
             if prefix == "/":
