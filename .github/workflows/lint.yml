@@ -16,7 +16,7 @@ jobs:
       - name: "Clone project repository"
         uses: actions/checkout@v5
       - name: "Install uv"
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@v8.2.0
         with:
           python-version: '3.12'
       - name: "Install dependencies"
