@@ -55,7 +55,20 @@ force_rm () {
     fi
 }
 
+# Dump container logs on failure. The backup container's own output does not reveal why the
+# S3 store (SeaweedFS) rejected a request, so capture every service's logs - especially s3 -
+# before the deployment is torn down.
+dump_diagnostics () {
+    echo "===================== FAILURE DIAGNOSTICS ====================="
+    echo "----- ps -----"
+    $TEST_TARGET_STACK manage --dir "$test_deployment_dir" ps || true
+    echo "----- container logs (last 200 lines per service) -----"
+    $TEST_TARGET_STACK manage --dir "$test_deployment_dir" logs -n 200 || true
+    echo "=============================================================="
+}
+
 cleanup_exit () {
+    dump_diagnostics
     $TEST_TARGET_STACK manage --dir "$test_deployment_dir" stop --delete-volumes || true
     exit 1
 }
