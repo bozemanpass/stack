@@ -125,12 +125,15 @@ wait_for_pods_started
 dexec app "echo ${payload} > /data/payload.txt"
 echo "wrote payload: ${payload}"
 
-# 2. Take a backup, retrying until the S3 store has finished starting up. backup.sh creates
-#    the restic repository on first use (restic auto-creates the bucket on SeaweedFS).
+# 2. Take a backup. backup.sh's ensure_repo already waits for the S3 store to finish
+#    warming up (and creates the restic repository on first use), so we do NOT wrap this in
+#    a long readiness loop here - doing so would multiply with ensure_repo's own retry and
+#    stretch a failure into hours. A couple of attempts cover a transient post-readiness
+#    hiccup; genuine unavailability fails promptly.
 backed_up=
-for i in {1..50}; do
+for i in {1..3}; do
     if dexec backup "/scripts/backup.sh"; then backed_up=1; break; fi
-    echo "waiting for backup to succeed (s3 warming up): ${i}"
+    echo "backup attempt ${i} failed, retrying"
     sleep 5
 done
 if [ -z "$backed_up" ]; then
