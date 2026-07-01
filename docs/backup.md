@@ -267,6 +267,7 @@ K8up resources.
   and `lobaro/restic-backup-docker`. (`offen/docker-volume-backup` is feature-rich but defaults to
   tar+GPG, which would break cross-target compatibility.)
 - **Monitoring.** Surfacing backup success/failure (a healthcheck or status that `backup status` can read)
+
   so that a silently failing backup is not mistaken for a working one.
 - **New repository.** The Docker backup container lives in its own repo (e.g. `bozemanpass/backup-stack`),
   mirroring `bozemanpass/docker-ingress-stack`.
