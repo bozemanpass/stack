@@ -30,6 +30,7 @@ from stack.base import get_npm_registry_url
 from stack.build.build_types import BuildContext
 from stack.build.build_util import ContainerSpec, get_containers_in_scope, container_exists_locally, container_exists_remotely, local_container_arch
 from stack.build.publish import publish_image
+from stack.build.wrappers import fetch_default_wrapper_repos, resolve_wrapper
 from stack.config.util import get_config_setting, get_dev_root_path, debug_enabled
 from stack.constants import container_file_name, container_lock_file_name
 from stack.deploy.stack import get_parsed_stack_config, resolve_stack
@@ -86,18 +87,27 @@ def process_container(build_context: BuildContext) -> bool:
     default_container_tag = f"{building_container.name}:stack"
     log_info(f"Processing build of container: {default_container_tag}")
 
+    if building_container.wrapper:
+        return _process_wrapped_container(build_context)
+
     build_envs.update({"STACK_FULL_CONTAINER_IMAGE_TAG": default_container_tag})
     build_envs.update({"STACK_DEFAULT_CONTAINER_IMAGE_TAG": default_container_tag})
 
     build_dir = None
     build_script_filename = None
 
+    # A container spec (e.g. from a wrapper) may carry an absolute path to its build script.
+    if building_container.build and Path(building_container.build).is_absolute():
+        build_script_filename = Path(building_container.build)
+        build_dir = build_script_filename.parent
+        build_envs["STACK_BUILD_DIR"] = build_dir
+
     # Check if this is in an external stack
     # There may be no stack (stack.name == "None") when we build a bare container
     # DBDB we need to find where that name is getting set to the literal string "None"
     # because that ain't right.
     stack = build_context.stack
-    if stack.name != "None" and stack_is_external(stack):
+    if not build_dir and stack.name != "None" and stack_is_external(stack):
         log_debug(f"Determined stack: {stack.name} is external")
         # DBDB What is this code below doing?
         # "build" is pulled from the container description yaml
@@ -125,12 +135,6 @@ def process_container(build_context: BuildContext) -> bool:
                 build_dir = container_build_script_dir.joinpath(building_container.name.replace("/", "-"))
                 build_script_filename = build_dir.joinpath("build.sh")
                 build_envs["STACK_BUILD_DIR"] = build_dir
-
-    # A container spec (e.g. from a wrapper) may carry an absolute path to its build script.
-    if not build_dir and building_container.build and Path(building_container.build).is_absolute():
-        build_script_filename = Path(building_container.build)
-        build_dir = build_script_filename.parent
-        build_envs["STACK_BUILD_DIR"] = build_dir
 
     if not build_dir:
         build_dir = build_context.default_container_base_dir.joinpath(building_container.name.replace("/", "-"))
@@ -179,6 +183,56 @@ def process_container(build_context: BuildContext) -> bool:
     else:
         log_info("Skipped for dry run")
         return True
+
+
+def _process_wrapped_container(build_context: BuildContext) -> bool:
+    building_container = build_context.container
+
+    wrapper = resolve_wrapper(building_container.wrapper)
+    if not wrapper:
+        fetch_default_wrapper_repos()
+        wrapper = resolve_wrapper(building_container.wrapper)
+    if not wrapper:
+        error_exit(f"Unknown wrapper {building_container.wrapper} for container: {building_container.name}")
+
+    log_info(f"Building {building_container.name} using wrapper: {wrapper.name}")
+
+    wrapper_build_script = str(wrapper.build_script_path()) if wrapper.build_script_path().exists() else None
+
+    # First build the wrapper's base container.
+    base_context = BuildContext(
+        build_context.stack,
+        ContainerSpec(wrapper.base_container, build=wrapper_build_script),
+        build_context.default_container_base_dir,
+        dict(build_context.container_build_env),
+        build_context.dev_root_path,
+    )
+    if not process_container(base_context):
+        return False
+
+    # Now wrap the app source, using the same build script but with the
+    # wrapper's containerfile and the app source repo as the build context.
+    if building_container.ref:
+        app_source_dir = fs_path_for_repo(building_container.ref)
+    else:
+        app_source_dir = build_context.stack.repo_path
+    if building_container.path and building_container.path != ".":
+        app_source_dir = Path(app_source_dir).joinpath(building_container.path)
+
+    app_build_env = dict(build_context.container_build_env)
+    app_build_env["STACK_WEBAPP_BUILD_RUNNING"] = "true"
+    app_build_env["STACK_CONTAINER_BUILD_WORK_DIR"] = str(app_source_dir)
+    app_build_env["STACK_CONTAINER_BUILD_CONTAINERFILE"] = str(wrapper.containerfile_path())
+    app_build_env["STACK_CONTAINER_BUILD_TAG"] = f"{building_container.name}:stack"
+
+    app_context = BuildContext(
+        build_context.stack,
+        ContainerSpec(building_container.name, build=wrapper_build_script),
+        build_context.default_container_base_dir,
+        app_build_env,
+        build_context.dev_root_path,
+    )
+    return process_container(app_context)
 
 
 def build_containers(parent_stack,
@@ -245,7 +299,8 @@ def build_containers(parent_stack,
             container_was_pulled = False
             container_needs_pulled = False
             container_tag = None
-            container_spec = ContainerSpec(stack_container.name, stack_container.ref, path=stack_container.path)
+            container_spec = ContainerSpec(stack_container.name, stack_container.ref, path=stack_container.path,
+                                           wrapper=stack_container.wrapper)
             stack_local_tag = f"{container_spec.name}:stack"
             stack_legacy_tag = f"{container_spec.name}:local"
             image_registry_to_pull_this_container = image_registry
@@ -268,7 +323,7 @@ def build_containers(parent_stack,
                     container_lock_file_path = os.path.join(fs_path_for_container_specs, stack_container.path, container_lock_file_name)
 
                 if os.path.exists(container_spec_yml_path):
-                    container_spec = ContainerSpec().init_from_file(container_spec_yml_path)
+                    container_spec = ContainerSpec(wrapper=stack_container.wrapper).init_from_file(container_spec_yml_path)
 
                 if container_spec.ref:
                     locked_hash = None
