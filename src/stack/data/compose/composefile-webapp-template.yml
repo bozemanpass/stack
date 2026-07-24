@@ -1,8 +1,0 @@
-services:
-  webapp:
-    image: bozemanpass/webapp-container:stack
-    restart: always
-    environment:
-      STACK_SCRIPT_DEBUG: ${STACK_SCRIPT_DEBUG}
-    ports:
-      - "80"

@@ -16,11 +16,11 @@
 
 import click
 import os
+import shutil
 from pathlib import Path
 from urllib.parse import urlparse
-from tempfile import NamedTemporaryFile
+from tempfile import NamedTemporaryFile, mkdtemp
 
-from stack import constants
 from stack.util import error_exit, global_options2
 from stack.deploy.deployment_create import init_operation, create_operation
 from stack.deploy.deploy import create_deploy_context
@@ -28,88 +28,101 @@ from stack.deploy.deploy_types import DeployCommandContext
 from stack.deploy.spec import Spec
 from stack.log import log_warn
 
-
-def _fixup_container_tag(deployment_dir: str, image: str):
-    deployment_dir_path = Path(deployment_dir)
-    compose_file = deployment_dir_path.joinpath("compose", f"{constants.compose_file_prefix}-webapp-template.yml")
-    # replace "bozemanpass/webapp-container:stack" in the file with our image tag
-    with open(compose_file) as rfile:
-        contents = rfile.read()
-        contents = contents.replace("bozemanpass/webapp-container:stack", image)
-    with open(compose_file, "w") as wfile:
-        wfile.write(contents)
+WEBAPP_PORT = 80
 
 
-def _fixup_url_spec(spec_file_name: str, url: str):
-    # url is like: https://example.com/path
-    parsed_url = urlparse(url)
-    http_proxy_spec = f"""
-  http-proxy:
-    - host-name: {parsed_url.hostname}
-      routes:
-        - path: '{parsed_url.path if parsed_url.path else "/"}'
-          proxy-to: webapp:80
-    """
-    spec_file_path = Path(spec_file_name)
-    with open(spec_file_path) as rfile:
-        contents = rfile.read()
-        contents = contents + http_proxy_spec
-    with open(spec_file_path, "w") as wfile:
-        wfile.write(contents)
+def _generate_stack(parent_dir: Path, image: str) -> Path:
+    # Generate a single-pod stack serving the specified image.  The stack and compose
+    # files are copied into the deployment during create, so the generated stack
+    # itself can be discarded afterwards.
+    stack_dir = parent_dir.joinpath("stack-files", "stacks", "webapp")
+    compose_dir = parent_dir.joinpath("stack-files", "compose")
+    os.makedirs(stack_dir)
+    os.makedirs(compose_dir)
+
+    with open(stack_dir.joinpath("stack.yml"), "w") as stack_file:
+        stack_file.write(
+            """version: "1.0"
+name: webapp
+description: "webapp deployment"
+containers: []
+pods:
+  - webapp
+"""
+        )
+
+    with open(compose_dir.joinpath("composefile-webapp.yml"), "w") as compose_file:
+        compose_file.write(
+            f"""services:
+  webapp:
+    image: {image}
+    restart: always
+    environment:
+      STACK_SCRIPT_DEBUG: ${{STACK_SCRIPT_DEBUG}}
+    ports:
+      - "{WEBAPP_PORT}"
+"""
+        )
+
+    return stack_dir
 
 
 def create_deployment(ctx, deployment_dir, image, url, kube_config, image_registry, env_file):
-    # Do the equivalent of:
-    # 1. stack --stack webapp-template deploy --deploy-to k8s init --output webapp-spec.yml
-    #   --config (eqivalent of the contents of my-config.env)
-    # 2. stack  --stack webapp-template deploy --deploy-to k8s create --deployment-dir test-deployment
-    #   --spec-file webapp-spec.yml
-    # 3. Replace the container image tag with the specified image
     deployment_dir_path = Path(deployment_dir)
     # Check the deployment dir does not exist
     if deployment_dir_path.exists():
         error_exit(f"Deployment dir {deployment_dir} already exists")
-    # Generate a temporary file name for the spec file
-    tf = NamedTemporaryFile(prefix="webapp-", suffix=".yml", delete=False)
-    spec_file_name = tf.name
-    # Specify the webapp template stack
-    stack = "webapp-template"
 
     deployment_type = "compose"
     if kube_config:
         deployment_type = "k8s"
 
-    deploy_command_context: DeployCommandContext = create_deploy_context(
-        global_options2(ctx),
-        None,
-        stack,
-        None,
-        None,
-        None,
-        env_file,
-        deployment_type,
-    )
-    init_operation(
-        deploy_command_context,
-        stack,
-        deployment_type,
-        None,
-        env_file,
-        kube_config,
-        image_registry,
-        None,
-        None,
-        None,
-        spec_file_name,
-        None,
-    )
-    # Add the TLS and DNS spec
-    _fixup_url_spec(spec_file_name, url)
-    spec = Spec().init_from_file(spec_file_name)
-    create_operation(deploy_command_context, spec, deployment_dir)
-    # Fix up the container tag inside the deployment compose file
-    _fixup_container_tag(deployment_dir, image)
-    os.remove(spec_file_name)
+    http_proxy_fqdn = None
+    http_proxy_targets = None
+    if url:
+        # url is like: https://example.com/path
+        parsed_url = urlparse(url)
+        http_proxy_fqdn = parsed_url.hostname
+        http_proxy_targets = [
+            {"path": parsed_url.path if parsed_url.path else "/", "service": "webapp", "port": WEBAPP_PORT}
+        ]
+
+    # Generate a temporary file name for the spec file
+    tf = NamedTemporaryFile(prefix="webapp-", suffix=".yml", delete=False)
+    spec_file_name = tf.name
+    stack_parent_dir = mkdtemp(prefix="webapp-stack-")
+    try:
+        stack = str(_generate_stack(Path(stack_parent_dir), image))
+
+        deploy_command_context: DeployCommandContext = create_deploy_context(
+            global_options2(ctx),
+            None,
+            stack,
+            None,
+            None,
+            None,
+            env_file,
+            deployment_type,
+        )
+        init_operation(
+            deploy_command_context,
+            stack,
+            deployment_type,
+            None,
+            env_file,
+            kube_config,
+            image_registry,
+            http_proxy_fqdn,
+            None,
+            http_proxy_targets,
+            spec_file_name,
+            None,
+        )
+        spec = Spec().init_from_file(spec_file_name)
+        create_operation(deploy_command_context, spec, deployment_dir)
+    finally:
+        os.remove(spec_file_name)
+        shutil.rmtree(stack_parent_dir)
 
 
 @click.command()
