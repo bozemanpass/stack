@@ -1,7 +1,0 @@
-version: "1.0"
-name: internal-stack-webapp-template
-description: "webapp template stack"
-containers:
-  - bozemanpass/webapp-template-container
-pods:
-  - webapp-template

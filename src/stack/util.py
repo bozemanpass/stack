@@ -194,10 +194,7 @@ def get_parsed_deployment_spec(spec_file):
 
 
 def stack_is_external(stack):
-    if isinstance(stack, str) and stack == "webapp-template":
-        # hack for the webapp template
-        return False
-    elif STACK_USE_BUILTIN_STACK and isinstance(stack, str):
+    if STACK_USE_BUILTIN_STACK and isinstance(stack, str):
         stack_path = Path(__file__).absolute().parent.joinpath("data", "stacks", stack)
         return not stack_path.exists()
     return True
