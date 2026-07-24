@@ -17,6 +17,8 @@ These options can be used with any command:
 | `--profile` | TEXT | Configuration profile to use | `config` |
 | `--verbose` | FLAG | Log extra details | False |
 | `--quiet` | FLAG | Suppress unnecessary log output | False |
+| `--log-timestamps` | FLAG | Prefix each log line with a UTC timestamp | False |
+| `--log-elapsed` | FLAG | Prefix each log line with step/total elapsed time (handy for timing/debugging) | False |
 | `-h`, `--help` | FLAG | Show help message | - |
 
 ## Environment Variables

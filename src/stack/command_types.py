@@ -25,3 +25,5 @@ class CommandOptions:
     dry_run: bool = False
     debug: bool = False
     quiet: bool = False
+    log_timestamps: bool = False
+    log_elapsed: bool = False

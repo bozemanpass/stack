@@ -32,16 +32,21 @@ class _TimedLogger:
         self.start = datetime.datetime.now()
         self.last = self.start
 
-    def log(self, msg, file, end=None, show_step_time=False, show_total_time=False):
-        prefix = f"{datetime.datetime.utcnow()}"
-        if show_step_time:
-            prefix += f" - {datetime.datetime.now() - self.last} (step)"
-        if show_total_time:
-            prefix += f" - {datetime.datetime.now() - self.start} (total)"
-        print(f"{prefix}: {msg}", file=file, end=end)
+    def log(self, msg, file, end=None):
+        prefix = ""
+        if opts.o.log_timestamps:
+            prefix = f"{datetime.datetime.utcnow()}"
+        if opts.o.log_elapsed:
+            now = datetime.datetime.now()
+            if prefix:
+                prefix += " - "
+            prefix += f"{now - self.last} (step) - {now - self.start} (total)"
+            self.last = now
+        if prefix:
+            msg = f"{prefix}: {msg}"
+        print(msg, file=file, end=end)
         if file:
             file.flush()
-        self.last = datetime.datetime.now()
 
 
 _logger = _TimedLogger()
