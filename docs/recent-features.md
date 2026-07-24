@@ -1,5 +1,6 @@
 # Recent New Features
 
+  - [#163](https://github.com/bozemanpass/stack/pull/163) Prebuilt wrapper base images pulled from ghcr; `wrapper-ref` pinning and `wrapper.lock` for repeatable wrapped builds
   - [#161](https://github.com/bozemanpass/stack/pull/161) Deploy wrapped repositories (e.g. pure static HTML) directly from a stack via the `wrapper` field in stack.yml
   - [#160](https://github.com/bozemanpass/stack/pull/160) Generic [container wrappers](./wrappers.md), discoverable from external repositories; static content hosting with nginx
   - [#100](https://github.com/bozemanpass/stack/pull/100) TLS support for Docker http ingress

@@ -30,7 +30,14 @@ from stack.base import get_npm_registry_url
 from stack.build.build_types import BuildContext
 from stack.build.build_util import ContainerSpec, get_containers_in_scope, container_exists_locally, container_exists_remotely, local_container_arch
 from stack.build.publish import publish_image
-from stack.build.wrappers import fetch_default_wrapper_repos, resolve_wrapper
+from stack.build.wrappers import (
+    fetch_default_wrapper_repos,
+    fetch_wrapper_repo,
+    read_wrapper_locks,
+    resolve_wrapper,
+    wrapper_repo_info,
+    write_wrapper_locks,
+)
 from stack.config.util import get_config_setting, get_dev_root_path, debug_enabled
 from stack.constants import container_file_name, container_lock_file_name
 from stack.deploy.stack import get_parsed_stack_config, resolve_stack
@@ -185,21 +192,36 @@ def process_container(build_context: BuildContext) -> bool:
         return True
 
 
-def _process_wrapped_container(build_context: BuildContext) -> bool:
-    building_container = build_context.container
+def prepare_wrapper_base_container(wrapper, build_context: BuildContext) -> bool:
+    """Make the wrapper's base container image available, tagged <base-container>:stack.
 
-    wrapper = resolve_wrapper(building_container.wrapper)
-    if not wrapper:
-        fetch_default_wrapper_repos()
-        wrapper = resolve_wrapper(building_container.wrapper)
-    if not wrapper:
-        error_exit(f"Unknown wrapper {building_container.wrapper} for container: {building_container.name}")
+    A prebuilt image tagged with the wrapper repo's commit hash is used from the local
+    store or pulled from the wrapper repo's image registry when possible; otherwise the
+    base container is built locally."""
+    force_rebuild = build_context.container_build_env.get("STACK_FORCE_REBUILD") == "true"
+    stack_tag = f"{wrapper.base_container}:stack"
 
-    log_info(f"Building {building_container.name} using wrapper: {wrapper.name}")
+    wrapper_repo_ref, wrapper_hash, wrapper_repo_dirty = wrapper_repo_info(wrapper)
+    hash_tag = f"{wrapper.base_container}:{wrapper_hash}" if wrapper_hash else None
+
+    if hash_tag and not wrapper_repo_dirty and not force_rebuild:
+        if container_exists_locally(hash_tag):
+            log_info(f"Base container {hash_tag} exists locally.")
+            docker.image.tag(hash_tag, stack_tag)
+            return True
+        if wrapper_repo_ref:
+            registries = [r for r in [image_registry_for_repo(wrapper_repo_ref)] if r]
+            exists_remotely, registry = container_exists_remotely(hash_tag, registries)
+            if exists_remotely:
+                pull_tag = f"{registry}/{hash_tag}" if registry else hash_tag
+                log_info(f"Base container {pull_tag} exists remotely.")
+                run_shell_command(f"docker pull {pull_tag}", quiet=opts.o.quiet)
+                if registry:
+                    docker.image.tag(pull_tag, hash_tag)
+                docker.image.tag(hash_tag, stack_tag)
+                return True
 
     wrapper_build_script = str(wrapper.build_script_path()) if wrapper.build_script_path().exists() else None
-
-    # First build the wrapper's base container.
     base_context = BuildContext(
         build_context.stack,
         ContainerSpec(wrapper.base_container, build=wrapper_build_script),
@@ -207,8 +229,84 @@ def _process_wrapped_container(build_context: BuildContext) -> bool:
         dict(build_context.container_build_env),
         build_context.dev_root_path,
     )
-    if not process_container(base_context):
+    ok = process_container(base_context)
+    if ok and hash_tag and not wrapper_repo_dirty:
+        # Tag the local build with the hash so subsequent builds skip this step.
+        docker.image.tag(stack_tag, hash_tag)
+    return ok
+
+
+def _resolve_wrapper_for_container(building_container, locked: dict):
+    wrapper_name = building_container.wrapper
+    wrapper_ref = building_container.wrapper_ref or locked.get("ref")
+    locked_hash = locked.get("hash")
+
+    if wrapper_ref:
+        # An explicit (or locked) wrapper repo: fetch it and resolve only within it.
+        fetch_ref = wrapper_ref
+        if locked_hash:
+            fetch_ref = f"{wrapper_ref.split('@')[0]}@{locked_hash}"
+        repo_fs_path = fetch_wrapper_repo(fetch_ref)
+        wrapper = resolve_wrapper(wrapper_name, search_root=repo_fs_path)
+        if not wrapper:
+            error_exit(f"Wrapper {wrapper_name} not found in {wrapper_ref} for container: {building_container.name}")
+        return wrapper
+
+    wrapper = resolve_wrapper(wrapper_name)
+    if not wrapper:
+        fetch_default_wrapper_repos()
+        wrapper = resolve_wrapper(wrapper_name)
+    if not wrapper:
+        error_exit(f"Unknown wrapper {wrapper_name} for container: {building_container.name}")
+    return wrapper
+
+
+def _update_wrapper_lock(stack, building_container, wrapper, wrapper_locks: dict):
+    # Mirrors the container.lock behavior: lock the wrapper repo hash on first successful
+    # build, and warn (rather than fail) when the local wrapper repo has drifted.
+    wrapper_name = building_container.wrapper
+    locked_hash = wrapper_locks.get(wrapper_name, {}).get("hash")
+    wrapper_repo_ref, current_hash, wrapper_repo_dirty = wrapper_repo_info(wrapper)
+
+    if wrapper_repo_dirty:
+        log_warn(f"WARN: wrapper repo for {wrapper_name} has local modifications, not locking.")
+        return
+    if not current_hash:
+        return
+
+    if locked_hash:
+        if locked_hash != current_hash:
+            log_warn(f"WARN: wrapper {wrapper_name} hash {current_hash} does not match locked hash {locked_hash}.")
+        return
+
+    lock_ref = building_container.wrapper_ref or wrapper_repo_ref
+    if not lock_ref:
+        # e.g. a wrapper repo with a local-path remote: not reproducible, so don't lock it.
+        return
+    wrapper_locks[wrapper_name] = {"ref": lock_ref.split("@")[0], "hash": current_hash}
+    log_info(f"Locking wrapper {wrapper_name} to {current_hash}")
+    write_wrapper_locks(Path(stack.file_path).parent, wrapper_locks)
+
+
+def _process_wrapped_container(build_context: BuildContext) -> bool:
+    building_container = build_context.container
+    stack = build_context.stack
+
+    # Wrapper locks live beside the stack.yml of the stack being built (if any).
+    stack_dir = None
+    wrapper_locks = {}
+    if stack and stack.name != "None" and getattr(stack, "file_path", None):
+        stack_dir = Path(stack.file_path).parent
+        wrapper_locks = read_wrapper_locks(stack_dir)
+
+    wrapper = _resolve_wrapper_for_container(building_container, wrapper_locks.get(building_container.wrapper, {}))
+
+    log_info(f"Building {building_container.name} using wrapper: {wrapper.name}")
+
+    if not prepare_wrapper_base_container(wrapper, build_context):
         return False
+
+    wrapper_build_script = str(wrapper.build_script_path()) if wrapper.build_script_path().exists() else None
 
     # Now wrap the app source, using the same build script but with the
     # wrapper's containerfile and the app source repo as the build context.
@@ -232,7 +330,12 @@ def _process_wrapped_container(build_context: BuildContext) -> bool:
         app_build_env,
         build_context.dev_root_path,
     )
-    return process_container(app_context)
+    if not process_container(app_context):
+        return False
+
+    if stack_dir:
+        _update_wrapper_lock(stack, building_container, wrapper, wrapper_locks)
+    return True
 
 
 def build_containers(parent_stack,
@@ -300,7 +403,7 @@ def build_containers(parent_stack,
             container_needs_pulled = False
             container_tag = None
             container_spec = ContainerSpec(stack_container.name, stack_container.ref, path=stack_container.path,
-                                           wrapper=stack_container.wrapper)
+                                           wrapper=stack_container.wrapper, wrapper_ref=stack_container.wrapper_ref)
             stack_local_tag = f"{container_spec.name}:stack"
             stack_legacy_tag = f"{container_spec.name}:local"
             image_registry_to_pull_this_container = image_registry
@@ -323,7 +426,8 @@ def build_containers(parent_stack,
                     container_lock_file_path = os.path.join(fs_path_for_container_specs, stack_container.path, container_lock_file_name)
 
                 if os.path.exists(container_spec_yml_path):
-                    container_spec = ContainerSpec(wrapper=stack_container.wrapper).init_from_file(container_spec_yml_path)
+                    container_spec = ContainerSpec(wrapper=stack_container.wrapper,
+                                                   wrapper_ref=stack_container.wrapper_ref).init_from_file(container_spec_yml_path)
 
                 if container_spec.ref:
                     locked_hash = None

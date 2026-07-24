@@ -41,6 +41,7 @@ import os
 
 from pathlib import Path
 
+from stack import constants
 from stack.config.util import get_dev_root_path
 from stack.util import get_yaml, error_exit
 
@@ -134,12 +135,77 @@ def fetch_default_wrapper_repos(git_ssh=False):
         process_repo(False, False, git_ssh, get_dev_root_path(), [], repo_ref)
 
 
-def get_available_wrappers():
+def fetch_wrapper_repo(wrapper_ref: str, git_ssh=False) -> Path:
+    # Fetch the wrapper repo (if not already present) and return its filesystem path.
+    # Deferred import to avoid a circular dependency.
+    from stack.repos.repo_util import fs_path_for_repo, process_repo
+
+    repo_fs_path = fs_path_for_repo(wrapper_ref, get_dev_root_path())
+    if not repo_fs_path:
+        error_exit(f"Cannot parse wrapper repo ref: {wrapper_ref}")
+    if not repo_fs_path.exists():
+        process_repo(False, False, git_ssh, get_dev_root_path(), [], wrapper_ref)
+    return repo_fs_path
+
+
+def read_wrapper_locks(stack_dir: Path) -> dict:
+    lock_file_path = Path(stack_dir).joinpath(constants.wrapper_lock_file_name)
+    if lock_file_path.exists():
+        return get_yaml().load(open(lock_file_path, "r")) or {}
+    return {}
+
+
+def write_wrapper_locks(stack_dir: Path, locks: dict):
+    lock_file_path = Path(stack_dir).joinpath(constants.wrapper_lock_file_name)
+    with open(lock_file_path, "w") as output_file:
+        get_yaml().dump(locks, output_file)
+
+
+def wrapper_repo_info(wrapper: Wrapper):
+    """Return (repo_ref, current_hash, is_dirty) for the repo containing the wrapper.
+
+    repo_ref is like github.com/org/repo, or None if it cannot be derived (e.g. the
+    repo has a local-path remote)."""
+    # Deferred import to avoid a circular dependency.
+    from stack.repos.repo_util import find_repo_root, get_repo_current_hash, is_repo_dirty
+    import git
+
+    repo_root = find_repo_root(wrapper.dir)
+    if not repo_root:
+        return None, None, True
+
+    repo_ref = None
+    try:
+        repo_url = git.Repo(repo_root).remotes[0].url
+        if repo_url.startswith("https://") or repo_url.startswith("http://"):
+            repo_url = repo_url.split("://", 2)[1]
+            repo_host, repo_name = repo_url.split("/", 1)
+        elif repo_url.startswith("git@"):
+            repo_host, repo_name = repo_url.split(":", 1)
+            repo_host = repo_host[4:]
+        else:
+            repo_host = None
+        if repo_host:
+            if repo_name.endswith(".git"):
+                repo_name = repo_name[:-4]
+            repo_ref = f"{repo_host}/{repo_name}"
+    except (IndexError, git.exc.GitError):
+        pass
+
+    return repo_ref, get_repo_current_hash(repo_root), is_repo_dirty(repo_root)
+
+
+def get_available_wrappers(search_root: Path = None):
     manifest_paths = []
-    dev_root_path = get_dev_root_path()
-    if dev_root_path and dev_root_path.exists():
-        manifest_paths.extend(sorted(dev_root_path.rglob("wrapper.yml")))
-    manifest_paths.extend(sorted(_builtin_container_build_dir().glob("*/wrapper.yml")))
+    if search_root:
+        # Restrict the search to a specific location (e.g. an explicitly referenced wrapper repo).
+        if Path(search_root).exists():
+            manifest_paths.extend(sorted(Path(search_root).rglob("wrapper.yml")))
+    else:
+        dev_root_path = get_dev_root_path()
+        if dev_root_path and dev_root_path.exists():
+            manifest_paths.extend(sorted(dev_root_path.rglob("wrapper.yml")))
+        manifest_paths.extend(sorted(_builtin_container_build_dir().glob("*/wrapper.yml")))
 
     # External wrappers (earlier in the list) shadow built-in ones with the same name.
     wrappers = []
@@ -152,10 +218,10 @@ def get_available_wrappers():
     return wrappers
 
 
-def resolve_wrapper(name: str):
+def resolve_wrapper(name: str, search_root: Path = None):
     # Accept either the wrapper name or its base container name (for
     # backwards compatibility with --base-container).
-    for wrapper in get_available_wrappers():
+    for wrapper in get_available_wrappers(search_root):
         if name in (wrapper.name, wrapper.base_container):
             return wrapper
     return None

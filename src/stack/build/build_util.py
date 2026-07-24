@@ -37,18 +37,21 @@ class StackContainer:
     ref: str
     path: str
     wrapper: str
+    wrapper_ref: str
 
-    def __init__(self, name: str=None, ref=None, path=None, wrapper=None):
+    def __init__(self, name: str=None, ref=None, path=None, wrapper=None, wrapper_ref=None):
         self.name = name
         self.ref = ref
         self.path = path
         self.wrapper = wrapper
+        self.wrapper_ref = wrapper_ref
 
     def __repr__(self):
         return str(self)
 
     def __str__(self):
-        ret = { "name": self.name, "ref": self.ref, "path": self.path, "wrapper": self.wrapper }
+        ret = { "name": self.name, "ref": self.ref, "path": self.path,
+                "wrapper": self.wrapper, "wrapper-ref": self.wrapper_ref }
         return json.dumps(ret)
 
 
@@ -58,15 +61,17 @@ class ContainerSpec:
     build: str
     path: str
     wrapper: str
+    wrapper_ref: str
     file_path: str
     repo_path: Path
 
-    def __init__(self, name: str=None, ref=None, build=None, path=None, wrapper=None):
+    def __init__(self, name: str=None, ref=None, build=None, path=None, wrapper=None, wrapper_ref=None):
         self.name = name
         self.ref = ref
         self.build = build
         self.path = path
         self.wrapper = wrapper
+        self.wrapper_ref = wrapper_ref
         self.file_path = None
         self.repo_path = None
 
@@ -75,7 +80,7 @@ class ContainerSpec:
 
     def __str__(self):
         ret = { "name": self.name, "ref": self.ref, "build": self.build, "path": self.path,
-                "wrapper": self.wrapper, "file_path": self.file_path }
+                "wrapper": self.wrapper, "wrapper-ref": self.wrapper_ref, "file_path": self.file_path }
         return json.dumps(ret)
 
     def init_from_file(self, file_path: Path):
@@ -91,6 +96,7 @@ class ContainerSpec:
         self.ref = y["container"].get("ref")
         self.build = y["container"].get("build")
         self.wrapper = y["container"].get("wrapper", self.wrapper)
+        self.wrapper_ref = y["container"].get("wrapper-ref", self.wrapper_ref)
         self.repo_path = find_repo_root(self.path)
         return self
 
@@ -149,7 +155,8 @@ def get_containers_in_scope(stack):
             containers_in_scope.append(StackContainer(container))
         else:
             containers_in_scope.append(StackContainer(container["name"], ref=container.get("ref"), path=container.get("path"),
-                                                      wrapper=container.get("wrapper")))
+                                                      wrapper=container.get("wrapper"),
+                                                      wrapper_ref=container.get("wrapper-ref")))
 
     log_debug(f"Containers: {containers_in_scope}")
     if stack:
