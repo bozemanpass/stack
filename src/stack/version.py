@@ -15,9 +15,25 @@
 # along with this program.  If not, see <http:#www.gnu.org/licenses/>.
 
 import click
+import json
+
 from importlib import resources, metadata
 
 from stack.log import output_main
+
+
+def _installed_commit_hash():
+    # When installed from a git URL (e.g. uv tool install git+https://...),
+    # PEP 610 direct_url.json in the dist-info records the source commit.
+    try:
+        direct_url_text = metadata.distribution("stack").read_text("direct_url.json")
+        if direct_url_text:
+            commit_id = json.loads(direct_url_text).get("vcs_info", {}).get("commit_id")
+            if commit_id:
+                return commit_id[:7]
+    except Exception:
+        pass
+    return None
 
 
 @click.command()
@@ -33,6 +49,7 @@ def command(ctx):
             # TODO: code better version that skips comment lines
             version_string = version_file.read().splitlines()[1]
     else:
-        version_string = metadata.version("stack") + "-unknown"
+        commit_hash = _installed_commit_hash()
+        version_string = metadata.version("stack") + "-" + (commit_hash if commit_hash else "unknown")
 
     output_main(version_string)
