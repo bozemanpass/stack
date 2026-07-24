@@ -38,6 +38,9 @@ containers:
   - name: bozemanpass/my-static-site
     ref: myorg/my-static-site
     wrapper: static-content
+    # An (optional) reference to the wrapper's repository, same format as `ref`.  When omitted,
+    # the wrapper is resolved from already-fetched repos (or the default wrapper repos).
+    wrapper-ref: bozemanpass/stack-wrapper-static-content@main
 # Pods are groups of containers that are deployed together.  Each pod corresponds to one composefile.yml.
 pods:
     # The name of the pod.
@@ -92,6 +95,13 @@ repeatable in the future, and when the repository is pulled by `stack` the appro
 
 > Note: Even when `container.lock` is present, any local code changes will be included when building the container,
 > since the hash is used only when the repository is cloned or pulled.
+
+## wrapper.lock
+
+The `wrapper.lock` file records the git commit hash of the wrapper repository for each wrapper used by the stack
+(see [wrappers.md](./wrappers.md)).  It is generated next to `stack.yml` when a wrapped container is built, and can be
+committed to the repo to make wrapped builds repeatable: the locked commit is checked out when the wrapper repo is
+cloned, and it identifies the exact prebuilt base image to pull.
 
 ## composefile.yml
 

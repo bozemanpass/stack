@@ -57,8 +57,46 @@ The image is built through the normal container pipeline (content-hash tagging, 
 fetching and locking all apply) and is referenced from the pod's composefile like any other
 container image, e.g. `image: bozemanpass/my-static-site:stack`.
 
+For a complete working example, see
+[stack-test-static-content](https://github.com/bozemanpass/stack-test-static-content) (a
+repository containing only static HTML, with no container build files) and the
+`test-static-content` stack in
+[stack-test-stacks](https://github.com/bozemanpass/stack-test-stacks) that builds and deploys
+it via the `static-content` wrapper.
+
 A repository may instead declare its own wrapping in its `container.yml` with the same
 `wrapper` field (see [stack-files.md](./stack-files.md)).
+
+## Prebuilt base images
+
+Wrapper repositories publish their base images to a container registry (ghcr for github-hosted
+repos) via their own CI, tagged with the commit hash of the wrapper repo that produced them.
+When a base image is needed, `stack` first looks for `<base-container>:<wrapper-repo-hash>`
+locally, then in the registry, and only builds the base locally when neither is available (or
+when the local wrapper repo checkout has uncommitted changes, or `--force-rebuild` is given).
+
+## Pinning and locking wrapper versions
+
+By default the wrapper is used at whatever version has been fetched.  To pin a specific
+wrapper repository (or branch/commit), use `wrapper-ref` in stack.yml:
+
+```yaml
+containers:
+  - name: bozemanpass/my-static-site
+    ref: myorg/my-static-site
+    wrapper: static-content
+    wrapper-ref: bozemanpass/stack-wrapper-static-content@main
+```
+
+or `--wrapper-ref` with `stack webapp build`.  This is also useful for testing an unmerged
+wrapper branch end to end, since wrapper CI publishes a base image for every pushed commit.
+
+When a wrapped container is built from a stack, the wrapper repo's commit hash is recorded in
+a `wrapper.lock` file next to the stack.yml (analogous to `container.lock`).  When present,
+the locked commit is checked out when the wrapper repo is freshly cloned — and it names the
+exact prebuilt base image to pull — making the build repeatable.  Commit `wrapper.lock` to the
+stack's repo to pin the wrapper version for everyone.  A warning is issued if the local
+wrapper repo drifts from the locked hash; remove the lock entry to re-lock at a newer version.
 
 ## Authoring a wrapper
 
@@ -112,6 +150,11 @@ scripts should `source ${STACK_CONTAINER_BASE_DIR}/build-base.sh` to pick up sta
 of forced rebuilds and extra build arguments.  See
 [stack-wrapper-static-content](https://github.com/bozemanpass/stack-wrapper-static-content) for
 a minimal complete example.
+
+A wrapper repository should also provide a CI workflow that publishes its base image(s) to a
+registry on every push, named `<registry>/<base-container>` and tagged with the full commit
+hash (see `.github/workflows/publish-images.yml` in the existing wrapper repos) — this is what
+allows `stack` to pull prebuilt bases instead of building them locally.
 
 The app containerfile builds with the app source repository as its context.  A two-stage build
 is recommended so that unwanted files (e.g. `.git`) are excluded from the final image:
