@@ -15,12 +15,12 @@
 # along with this program.  If not, see <http:#www.gnu.org/licenses/>.
 
 import hashlib
-import json
 import os
 import random
 import sys
 import tempfile
 
+from stack.build.wrappers import detect_wrapper, fetch_default_wrapper_repos, resolve_wrapper
 from stack.util import run_shell_command, error_exit
 from stack.log import log_error, log_info
 
@@ -47,17 +47,19 @@ def determine_base_container(clone_dir, app_type="webapp"):
     if not app_type or not app_type.startswith("webapp"):
         raise Exception(f"Unsupported app_type {app_type}")
 
-    base_container = "bozemanpass/webapp-base"
-    if app_type == "webapp/next":
-        base_container = "bozemanpass/nextjs-base"
-    elif app_type == "webapp":
-        pkg_json_path = os.path.join(clone_dir, "package.json")
-        if os.path.exists(pkg_json_path):
-            pkg_json = json.load(open(pkg_json_path))
-            if "next" in pkg_json.get("dependencies", {}):
-                base_container = "bozemanpass/nextjs-base"
+    def find_wrapper():
+        if app_type == "webapp/next":
+            return resolve_wrapper("nextjs")
+        return detect_wrapper(clone_dir)
 
-    return base_container
+    wrapper = find_wrapper()
+    if not wrapper:
+        fetch_default_wrapper_repos()
+        wrapper = find_wrapper()
+    if not wrapper:
+        raise Exception(f"Unable to determine a wrapper for app_type {app_type} in {clone_dir}")
+
+    return wrapper.base_container
 
 
 def build_container_image(app_record, tag, extra_build_args=None):

@@ -17,8 +17,10 @@
 import click
 
 from stack.build.build_webapp import command as build_webapp
+from stack.build.wrappers import get_available_wrappers
 from stack.deploy.webapp.deploy_webapp import create as deploy_webapp
 from stack.deploy.webapp.run_webapp import command as run_webapp
+from stack.log import output_main
 
 
 @click.group()
@@ -28,6 +30,16 @@ def command(ctx):
     pass
 
 
+@click.command()
+@click.pass_context
+def list_wrappers(ctx):
+    """list the available container wrapper schemes"""
+    for wrapper in get_available_wrappers():
+        source = "builtin" if wrapper.is_builtin() else str(wrapper.dir)
+        output_main(f"{wrapper.name.ljust(16)} {wrapper.base_container.ljust(36)} {source.ljust(24)} {wrapper.description}")
+
+
 command.add_command(build_webapp, "build")
 command.add_command(deploy_webapp, "deploy")
 command.add_command(run_webapp, "run")
+command.add_command(list_wrappers, "wrappers")

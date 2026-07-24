@@ -126,6 +126,12 @@ def process_container(build_context: BuildContext) -> bool:
                 build_script_filename = build_dir.joinpath("build.sh")
                 build_envs["STACK_BUILD_DIR"] = build_dir
 
+    # A container spec (e.g. from a wrapper) may carry an absolute path to its build script.
+    if not build_dir and building_container.build and Path(building_container.build).is_absolute():
+        build_script_filename = Path(building_container.build)
+        build_dir = build_script_filename.parent
+        build_envs["STACK_BUILD_DIR"] = build_dir
+
     if not build_dir:
         build_dir = build_context.default_container_base_dir.joinpath(building_container.name.replace("/", "-"))
         build_script_filename = build_dir.joinpath("build.sh")
