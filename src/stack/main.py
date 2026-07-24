@@ -50,10 +50,12 @@ CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 )
 @click.option("--verbose", is_flag=True, default=False, help="Log extra details")
 @click.option("--quiet", is_flag=True, default=False, help="Suppress unnecessary log output")
+@click.option("--log-timestamps", is_flag=True, default=False, help="Prefix log output with timestamps")
+@click.option("--log-elapsed", is_flag=True, default=False, help="Prefix log output with step/total elapsed time")
 # TEL: Hide these for now, until we make sure they are consistently implemented.
 @click.option("--dry-run", is_flag=True, default=False, hidden=True)
 @click.pass_context
-def cli(ctx, profile, quiet, verbose, log_file, dry_run, debug):
+def cli(ctx, profile, quiet, verbose, log_file, dry_run, debug, log_timestamps, log_elapsed):
     """BPI stack"""
 
     if log_file:
@@ -67,7 +69,9 @@ def cli(ctx, profile, quiet, verbose, log_file, dry_run, debug):
     elif quiet:
         log_level = LOG_LEVELS["warn"]
 
-    command_options = CommandOptions(profile, None, log_level, log_file, dry_run, debug, quiet)
+    command_options = CommandOptions(
+        profile, None, log_level, log_file, dry_run, debug, quiet, log_timestamps, log_elapsed
+    )
     opts.o = command_options
     ctx.obj = command_options
 
