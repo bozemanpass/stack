@@ -23,28 +23,28 @@
 
 import click
 import os
-import sys
 
 from pathlib import Path
 
 from stack.build import build_containers
 from stack.build.build_types import BuildContext
 from stack.build.build_util import ContainerSpec
+from stack.build.wrappers import detect_wrapper, fetch_default_wrapper_repos, resolve_wrapper
 from stack.config.util import get_dev_root_path
 from stack.deploy.stack import Stack
-from stack.deploy.webapp.util import determine_base_container
 from stack.util import error_exit
-from stack.log import log_debug, output_main
+from stack.log import log_debug, log_info, output_main
 
 
 @click.command()
-@click.option("--base-container")
+@click.option("--wrapper", help="wrapper scheme to use (default: auto-detect from the app source)")
+@click.option("--base-container", help="wrapper base container (deprecated: use --wrapper)")
 @click.option("--source-repo", help="directory containing the webapp to build", required=True)
 @click.option("--force-rebuild", is_flag=True, default=False, help="Override dependency checking -- always rebuild")
 @click.option("--extra-build-args", help="Supply extra arguments to build")
 @click.option("--tag", help="Container tag (default: bozemanpass/<app_name>:stack)")
 @click.pass_context
-def command(ctx, base_container, source_repo, force_rebuild, extra_build_args, tag):
+def command(ctx, wrapper, base_container, source_repo, force_rebuild, extra_build_args, tag):
     '''build the specified webapp container'''
 
     # See: https://stackoverflow.com/questions/25389095/python-get-path-of-root-project-structure
@@ -54,8 +54,29 @@ def command(ctx, base_container, source_repo, force_rebuild, extra_build_args, t
 
     log_debug(f"Dev Root is: {dev_root_path}")
 
-    if not base_container:
-        base_container = determine_base_container(source_repo)
+    def find_wrapper():
+        if wrapper or base_container:
+            return resolve_wrapper(wrapper if wrapper else base_container)
+        return detect_wrapper(source_repo)
+
+    wrapper_spec = find_wrapper()
+    if not wrapper_spec:
+        log_info("No matching wrapper found, fetching default wrapper repositories.")
+        fetch_default_wrapper_repos()
+        wrapper_spec = find_wrapper()
+    if not wrapper_spec:
+        if wrapper or base_container:
+            error_exit(f"Unknown wrapper: {wrapper if wrapper else base_container}")
+        else:
+            error_exit(f"Unable to determine a wrapper for: {source_repo}")
+
+    base_container = wrapper_spec.base_container
+    log_debug(f"Using wrapper: {wrapper_spec.name} with base container: {base_container}")
+
+    base_container_spec = ContainerSpec(
+        base_container,
+        build=str(wrapper_spec.build_script_path()) if wrapper_spec.build_script_path().exists() else None,
+    )
 
     # First build the base container.
     container_build_env = build_containers.make_container_build_env(dev_root_path, container_build_dir,
@@ -65,7 +86,7 @@ def command(ctx, base_container, source_repo, force_rebuild, extra_build_args, t
 
     build_context_1 = BuildContext(
         Stack(),
-        ContainerSpec(base_container),
+        base_container_spec,
         container_build_dir,
         container_build_env,
         dev_root_path,
@@ -79,9 +100,7 @@ def command(ctx, base_container, source_repo, force_rebuild, extra_build_args, t
     # Now build the target webapp.  We use the same build script, but with a different Dockerfile and work dir.
     container_build_env["STACK_WEBAPP_BUILD_RUNNING"] = "true"
     container_build_env["STACK_CONTAINER_BUILD_WORK_DIR"] = os.path.abspath(source_repo)
-    container_build_env["STACK_CONTAINER_BUILD_CONTAINERFILE"] = os.path.join(container_build_dir,
-                                                                          base_container.replace("/", "-"),
-                                                                          "Containerfile.webapp")
+    container_build_env["STACK_CONTAINER_BUILD_CONTAINERFILE"] = str(wrapper_spec.containerfile_path())
     if not tag:
         webapp_name = os.path.abspath(source_repo).split(os.path.sep)[-1]
         tag = f"bozemanpass/{webapp_name}:stack"
@@ -92,7 +111,7 @@ def command(ctx, base_container, source_repo, force_rebuild, extra_build_args, t
 
     build_context_2 = BuildContext(
         Stack(),
-        ContainerSpec(base_container),
+        base_container_spec,
         container_build_dir,
         container_build_env,
         dev_root_path,

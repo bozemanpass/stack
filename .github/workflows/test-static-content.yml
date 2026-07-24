@@ -1,0 +1,27 @@
+name: Static Content Test
+
+on:
+  pull_request:
+    branches:
+      - '*'
+  push:
+    branches:
+      - '*'
+
+jobs:
+  test:
+    name: "Run static content test suite"
+    runs-on: ubuntu-24.04
+    steps:
+      - name: "Clone project repository"
+        uses: actions/checkout@v5
+      - name: "Install uv"
+        uses: astral-sh/setup-uv@v8.2.0
+        with:
+          python-version: '3.12'
+      - name: "Generate build version file"
+        run: ./scripts/create_build_tag_file.sh
+      - name: "Build local shiv package"
+        run: ./scripts/build_shiv_package.sh
+      - name: "Run static content tests"
+        run: ./tests/static-content-test/run-static-content-test.sh
