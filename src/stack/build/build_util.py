@@ -36,17 +36,19 @@ class StackContainer:
     name: str
     ref: str
     path: str
+    wrapper: str
 
-    def __init__(self, name: str=None, ref=None, path=None):
+    def __init__(self, name: str=None, ref=None, path=None, wrapper=None):
         self.name = name
         self.ref = ref
         self.path = path
+        self.wrapper = wrapper
 
     def __repr__(self):
         return str(self)
 
     def __str__(self):
-        ret = { "name": self.name, "ref": self.ref, "path": self.path }
+        ret = { "name": self.name, "ref": self.ref, "path": self.path, "wrapper": self.wrapper }
         return json.dumps(ret)
 
 
@@ -55,14 +57,16 @@ class ContainerSpec:
     ref: str
     build: str
     path: str
+    wrapper: str
     file_path: str
     repo_path: Path
 
-    def __init__(self, name: str=None, ref=None, build=None, path=None):
+    def __init__(self, name: str=None, ref=None, build=None, path=None, wrapper=None):
         self.name = name
         self.ref = ref
         self.build = build
         self.path = path
+        self.wrapper = wrapper
         self.file_path = None
         self.repo_path = None
 
@@ -70,7 +74,8 @@ class ContainerSpec:
         return str(self)
 
     def __str__(self):
-        ret = { "name": self.name, "ref": self.ref, "build": self.build, "path": self.path, "file_path": self.file_path }
+        ret = { "name": self.name, "ref": self.ref, "build": self.build, "path": self.path,
+                "wrapper": self.wrapper, "file_path": self.file_path }
         return json.dumps(ret)
 
     def init_from_file(self, file_path: Path):
@@ -85,6 +90,7 @@ class ContainerSpec:
             error_exit(f"Missing required property 'name' in 'container' section of {file_path}.")
         self.ref = y["container"].get("ref")
         self.build = y["container"].get("build")
+        self.wrapper = y["container"].get("wrapper", self.wrapper)
         self.repo_path = find_repo_root(self.path)
         return self
 
@@ -99,6 +105,9 @@ class ContainerSpec:
         elif repo_url.startswith("git@"):
             repo_host, repo_name = repo_url.split(":", 1)
             repo_host = repo_host[4:]
+        else:
+            # Some other URL form (e.g. a local path) from which no ref can be derived.
+            return None
 
         if repo_name.endswith(".git"):
             repo_name = repo_name[:-4]
@@ -139,7 +148,8 @@ def get_containers_in_scope(stack):
         if isinstance(container, str):
             containers_in_scope.append(StackContainer(container))
         else:
-            containers_in_scope.append(StackContainer(container["name"], ref=container.get("ref"), path=container.get("path")))
+            containers_in_scope.append(StackContainer(container["name"], ref=container.get("ref"), path=container.get("path"),
+                                                      wrapper=container.get("wrapper")))
 
     log_debug(f"Containers: {containers_in_scope}")
     if stack:

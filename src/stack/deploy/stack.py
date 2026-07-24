@@ -107,6 +107,9 @@ class Stack:
         elif repo_url.startswith("git@"):
             repo_host, repo_name = repo_url.split(":", 1)
             repo_host = repo_host[4:]
+        else:
+            # Some other URL form (e.g. a local path) from which no ref can be derived.
+            return None
 
         if repo_name.endswith(".git"):
             repo_name = repo_name[:-4]

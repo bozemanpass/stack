@@ -91,4 +91,64 @@ fi
 
 rm -f test.index test.subdir test.css test.git
 
+# Now test deploying static content as a stack component, via the wrapper field in stack.yml
+echo "Running static content deployment test"
+
+set -e
+
+# Overridable for local testing against an unpushed stacks repo
+if [ -n "$STACK_TEST_STACKS_REPO" ]; then
+    git clone $STACK_TEST_STACKS_REPO $STACK_REPO_BASE_DIR/github.com/bozemanpass/stack-test-stacks
+else
+    $TEST_TARGET_SO fetch repo bozemanpass/stack-test-stacks
+fi
+
+$TEST_TARGET_SO prepare --stack test-static-content
+
+test_deployment_dir=$STACK_REPO_BASE_DIR/test-deployment-dir
+test_deployment_spec=$STACK_REPO_BASE_DIR/test-deployment-spec.yml
+
+$TEST_TARGET_SO init --stack test-static-content --output $test_deployment_spec --map-ports-to-host localhost-same
+if [ ! -f "$test_deployment_spec" ]; then
+    echo "DEPLOY-INIT: FAILED"
+    exit 1
+fi
+echo "DEPLOY-INIT: PASSED"
+
+$TEST_TARGET_SO deploy --spec-file $test_deployment_spec --deployment-dir $test_deployment_dir
+if [ ! -d "$test_deployment_dir" ]; then
+    echo "DEPLOY-CREATE: FAILED"
+    exit 1
+fi
+echo "DEPLOY-CREATE: PASSED"
+
+delete_cluster_exit () {
+    $TEST_TARGET_SO manage --dir $test_deployment_dir stop --delete-volumes
+}
+trap delete_cluster_exit EXIT
+
+$TEST_TARGET_SO manage --dir $test_deployment_dir start
+
+set +e
+
+wget --tries 20 --retry-connrefused --waitretry=3 -O test.deployed http://localhost:80/
+grep "STACK_STATIC_CONTENT_TEST_INDEX_MARKER" test.deployed > /dev/null
+if [ $? -ne 0 ]; then
+  echo "DEPLOY-INDEX: FAILED"
+  exit 1
+else
+  echo "DEPLOY-INDEX: PASSED"
+fi
+
+wget -O test.deployed-subdir http://localhost:80/pages/about.html
+grep "STACK_STATIC_CONTENT_TEST_SUBDIR_MARKER" test.deployed-subdir > /dev/null
+if [ $? -ne 0 ]; then
+  echo "DEPLOY-SUBDIR: FAILED"
+  exit 1
+else
+  echo "DEPLOY-SUBDIR: PASSED"
+fi
+
+rm -f test.deployed test.deployed-subdir
+
 exit 0

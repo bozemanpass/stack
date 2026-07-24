@@ -1,5 +1,7 @@
 # Recent New Features
 
+  - [#161](https://github.com/bozemanpass/stack/pull/161) Deploy wrapped repositories (e.g. pure static HTML) directly from a stack via the `wrapper` field in stack.yml
+  - [#160](https://github.com/bozemanpass/stack/pull/160) Generic [container wrappers](./wrappers.md), discoverable from external repositories; static content hosting with nginx
   - [#100](https://github.com/bozemanpass/stack/pull/100) TLS support for Docker http ingress
   - [#88](https://github.com/bozemanpass/stack/pull/88) Automatic HTTP ingress/reverse proxying for Docker (for small demo/production deployments without the need to host on k8s)
   - [#87](https://github.com/bozemanpass/stack/pull/87) Shell command line completion

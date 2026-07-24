@@ -12,43 +12,13 @@ not their build environment.
 ## Wrappers
 
 Webapp images are built using a *wrapper*: a recipe that pairs a base container image with a
-containerfile that knows how to build the app source into a servable image.  Each wrapper is
-described by a `wrapper.yml` manifest located with the base container's build files in a
-wrapper repository, for example:
+containerfile that knows how to build the app source into a servable image.  By default the
+wrapper is auto-detected from the app source, and a specific wrapper can be selected with
+`--wrapper`, e.g. `stack webapp build --wrapper nextjs --source-repo ~/my-app`.  The available
+wrappers can be listed with `stack webapp wrappers`.
 
-```yaml
-wrapper:
-  name: nextjs
-  description: Next.js webapp with runtime environment variable support
-  base-container: bozemanpass/nextjs-base
-  containerfile: Containerfile.webapp
-  port: 80
-  detect:
-    package-json-dependency: next
-```
-
-By default the wrapper is auto-detected from the app source (using the manifest `detect` rules,
-falling back to the wrapper marked `default`).  A specific wrapper can be selected with
-`--wrapper`, e.g. `stack webapp build --wrapper nextjs --source-repo ~/my-app`.
-
-Wrappers live in their own repositories, e.g.
-[stack-wrapper-webapp](https://github.com/bozemanpass/stack-wrapper-webapp) and
-[stack-wrapper-static-content](https://github.com/bozemanpass/stack-wrapper-static-content).
-Any `wrapper.yml` found in a repository fetched beneath the repo base directory is discovered
-automatically.  If no suitable wrapper has been fetched, `stack webapp build` fetches the
-default wrapper repositories itself, so it works with no prior setup.  Wrapper repositories
-can also be fetched explicitly:
-
-```
-$ stack fetch repo bozemanpass/stack-wrapper-static-content
-$ stack webapp build --wrapper static-content --source-repo ~/my-static-site
-```
-
-The available wrappers can be listed with:
-
-```
-$ stack webapp wrappers
-```
+See [wrappers.md](./wrappers.md) for how wrappers work, how they are discovered, how to use
+them in a stack, and how to author new ones.
 
 ## Building
 
