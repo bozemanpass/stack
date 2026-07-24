@@ -98,6 +98,9 @@ chmod +x ~/bin/stack
 Detailed documentation on the installation of stack and its prerequisites as well as how to update stack can be found [here](./docs/install.md).
 ## Learn More
  - [Stack commands](./docs/commands.md)
+ - [Stack files](./docs/stack-files.md)
+ - [Container wrappers](./docs/wrappers.md)
+ - [Building and running webapps](./docs/webapp.md)
  - [Recent New Features](./docs/recent-features.md)
 ## Contributing
 

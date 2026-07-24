@@ -31,7 +31,7 @@ containers:
   - name: bozemanpass/gitea
     ref: bozemanpass/gitea-containers
     path: ./gitea
-    # An (optional) container wrapper scheme (see docs/webapp.md).  When specified, the container image is built by
+    # An (optional) container wrapper scheme (see docs/wrappers.md).  When specified, the container image is built by
     # wrapping the contents of the repo at `ref` using the named wrapper, e.g. `static-content` serves the repo
     # contents with nginx, and `nextjs` builds and serves a Next.js webapp.  The repo does not need to contain any
     # container build files.  Available wrappers can be listed with `stack webapp wrappers`.
