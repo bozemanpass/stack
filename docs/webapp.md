@@ -28,9 +28,9 @@ can be overidden with the build arguments `STACK_NEXTJS_VERSION` and `STACK_BUIL
 
 **Example**:
 ```
-$ cd ~/bpi
+$ cd ~/work
 $ git clone https://github.com/bozemanpass/test-progressive-web-app
-$ stack webapp build --source-repo ~/bozemanpass/test-progressive-web-app
+$ stack webapp build --source-repo ~/work/test-progressive-web-app
 ...
 
 Built host container for ~/bozemanpass/test-progressive-web-app with tag:
