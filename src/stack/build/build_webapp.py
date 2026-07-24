@@ -109,8 +109,9 @@ def command(ctx, wrapper, wrapper_ref, base_container, source_repo, force_rebuil
 
     log_debug(f"Building app container: {tag}")
 
+    app_container_name = tag.split(":")[0]
     app_container_spec = ContainerSpec(
-        base_container,
+        app_container_name,
         build=str(wrapper_spec.build_script_path()) if wrapper_spec.build_script_path().exists() else None,
     )
     build_context_2 = BuildContext(
@@ -124,5 +125,5 @@ def command(ctx, wrapper, wrapper_ref, base_container, source_repo, force_rebuil
     if not ok:
         error_exit("Build failed.")
 
-    log_debug(f"App container {base_container} build finished.")
+    log_debug(f"App container {app_container_name} build finished.")
     output_main("webapp build complete")
