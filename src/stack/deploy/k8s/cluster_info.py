@@ -42,7 +42,7 @@ from stack.deploy.deploy_util import (
 )
 from stack.deploy.deploy_types import DeployEnvVars
 from stack.deploy.deploy_util import convert_to_seconds
-from stack.deploy.k8s.helpers import env_var_name_for_service, DEFAULT_K8S_NAMESPACE
+from stack.deploy.k8s.helpers import DEFAULT_K8S_NAMESPACE
 from stack.deploy.spec import Spec, Resources, ResourceLimits
 from stack.deploy.images import remote_tag_for_image_unique
 
@@ -95,19 +95,10 @@ class ClusterInfo:
         self.k8s_namespace = deployment_name
         self.spec = spec
 
-        # Set the dynamic service ENV
-        service_env = {}
-        for svc in self.get_services():
-            if "ClusterIP" == svc.spec.type:
-                service_env[env_var_name_for_service(svc)] = f"{svc.metadata.name}.{self.k8s_namespace}.svc.cluster.local"
-
         # Load the shared static ENV (raw)
         env_vars_from_file = env_var_map_from_file(compose_env_file, expand=False)
 
-        self.environment_variables = DeployEnvVars(
-            # Now expand the static ENV using the dynamic ENV
-            merge_envs(envs_from_compose_file(env_vars_from_file, service_env), service_env)
-        )
+        self.environment_variables = DeployEnvVars(envs_from_compose_file(env_vars_from_file, {}))
 
         log_debug(f"Env vars: {self.environment_variables.map}")
 

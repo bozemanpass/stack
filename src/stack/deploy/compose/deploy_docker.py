@@ -151,29 +151,12 @@ class DockerDeployer(Deployer):
                 raise DeployerException(e)
 
 
-def env_var_name_for_service(svc_name):
-    return f"STACK_SVC_{svc_name.upper()}".replace("-", "_")
-
-
 class DockerDeployerConfigGenerator(DeployerConfigGenerator):
     def __init__(self, type: str, deployment_context: DeploymentContext) -> None:
         super().__init__()
         self.deployment_context = deployment_context
 
     def generate(self, deployment_dir: Path):
-        yaml = get_yaml()
-        compose_files = self.deployment_context.get_compose_files()
-
-        all_service_names = []
-        for f in compose_files:
-            compose = yaml.load(open(f, "r"))
-            if "services" in compose:
-                services = compose["services"]
-                for svc in services:
-                    all_service_names.append(svc)
-
         with open(self.deployment_context.get_env_file(), "ta") as env_file:
-            for svc_name in all_service_names:
-                print(f'{env_var_name_for_service(svc_name)}="{svc_name}"', file=env_file)
             print(f'STACK_HOST_UID="{os.getuid()}"', file=env_file)
             print(f'STACK_HOST_GID="{os.getgid()}"', file=env_file)
