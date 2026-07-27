@@ -14,17 +14,15 @@
 # along with this program.  If not, see <http:#www.gnu.org/licenses/>.
 
 import click
-import git
 import os
 import sys
 
-from stack import constants
 from stack.build.build_util import (
     get_containers_in_scope,
+    compute_image_identity,
     container_exists_locally,
     container_exists_remotely,
     local_container_arch,
-    ContainerSpec,
 )
 from stack.config.util import get_config_setting
 from stack.config.util import get_dev_root_path
@@ -34,12 +32,7 @@ from stack.opts import opts
 from stack.repos.repo_util import (
     fs_path_for_repo,
     image_registry_for_repo,
-    get_repo_current_hash,
-    is_repo_dirty,
-    get_container_tag_for_repo,
-    host_and_path_for_repo,
 )
-from stack.util import get_yaml
 
 
 def container_disposition(parent_stack, image_registry, git_ssh):
@@ -60,76 +53,33 @@ def container_disposition(parent_stack, image_registry, git_ssh):
             if (not stack_container.ref or stack_container.ref == ".") and stack.get_repo_ref():
                 stack_container.ref = stack.get_repo_ref()
 
-            container_repo_fs_path = fs_path_for_repo(stack_container.ref, get_dev_root_path())
-            if not os.path.exists(container_repo_fs_path):
-                log_debug(f"Missing ref {stack_container.ref} needed by {stack_container.name}.")
-                ret[stack_container.ref] = "missing"
-                continue
+            if stack_container.ref:
+                container_repo_fs_path = fs_path_for_repo(stack_container.ref, get_dev_root_path())
+                if not os.path.exists(container_repo_fs_path):
+                    log_debug(f"Missing ref {stack_container.ref} needed by {stack_container.name}.")
+                    ret[stack_container.ref] = "missing"
+                    continue
 
-            container_spec_yml_path = os.path.join(container_repo_fs_path, constants.container_file_name)
-            container_lock_file_path = os.path.join(container_repo_fs_path, constants.container_lock_file_name)
-            if stack_container.path:
-                container_spec_yml_path = os.path.join(container_repo_fs_path, stack_container.path, constants.container_file_name)
-                container_lock_file_path = os.path.join(
-                    container_repo_fs_path, stack_container.path, constants.container_lock_file_name
-                )
-
-            tag = "stack"
-            if os.path.exists(container_lock_file_path):
-                tag = get_yaml().load(open(container_lock_file_path, "r")).get("hash")
-                log_debug(f"{stack_container.name}: Read locked hash {tag} from {container_lock_file_path}")
-            else:
-                local_repo_path_to_check = container_repo_fs_path
-                if os.path.exists(container_spec_yml_path):
-                    container_spec = ContainerSpec().init_from_file(container_spec_yml_path)
-                    if container_spec.ref and container_spec.ref != ".":
-                        ref_fs_path = fs_path_for_repo(container_spec.ref, get_dev_root_path())
-                        if not os.path.exists(ref_fs_path):
-                            local_repo_path_to_check = None
-                            repo_host, repo_path, branch_or_hash_from_spec = host_and_path_for_repo(container_spec.ref)
-                            log_debug("Branch or hash from spec is: " + str(branch_or_hash_from_spec))
-                            repo = f"https://{repo_host}/{repo_path}"
-                            if git_ssh:
-                                repo = f"git@{repo_host}:{repo_path}"
-                            git_client = git.cmd.Git()
-                            result = git_client.ls_remote(repo, branch_or_hash_from_spec)
-                            if result:
-                                tag = result.split()[0]
-                                log_debug(f"{stack_container.name}: Using remote hash {tag} from {repo}.")
-                        else:
-                            local_repo_path_to_check = ref_fs_path
-
-                if local_repo_path_to_check:
-                    if is_repo_dirty(local_repo_path_to_check):
-                        tag = get_container_tag_for_repo(local_repo_path_to_check)
-                        log_debug(
-                            f"{stack_container.name}: No lock file, repo {local_repo_path_to_check} has local modifications {tag}."
-                        )
-                    else:
-                        git_hash = get_repo_current_hash(local_repo_path_to_check)
-                        if git_hash:
-                            tag = git_hash
-                            log_debug(
-                                f"{stack_container.name}: No lock file, using git HEAD hash {tag} from {local_repo_path_to_check}."
-                            )
-                        else:
-                            log_debug(f"{stack_container.name}: No lock file, using 'stack' as image tag.")
-
-            container_tag = f"{stack_container.name}:{tag}"
+            # The image is identified by the recipe repo's commit hash (see ImageIdentity).
+            identity = compute_image_identity(stack, stack_container, get_dev_root_path())
+            container_tag = f"{identity.container_spec.name}:{identity.tag_version or 'stack'}"
             exists_locally = container_exists_locally(container_tag)
             if exists_locally:
                 log_debug(f"{container_tag} exists locally: {exists_locally}")
                 ret[container_tag] = "local"
-            else:
-                image_registries_to_check = [r for r in [image_registry, image_registry_for_repo(stack_container.ref)] if r]
+            elif identity.tag_version and not identity.tag_version.startswith("stackdev-"):
+                image_registries_to_check = [r for r in [image_registry, image_registry_for_repo(identity.recipe_ref)] if r]
                 exists_remotely, image_registry_to_pull_this_container = container_exists_remotely(
                     container_tag, image_registries_to_check, local_container_arch()
                 )
                 if exists_remotely:
                     log_debug(f"{container_tag} exists remotely: {exists_remotely}")
-                    ret[container_tag] = "remote:" + image_registry_to_pull_this_container
+                    ret[container_tag] = "remote:" + (image_registry_to_pull_this_container or "")
                 else:
                     ret[container_tag] = "needs-built"
+            else:
+                # A stackdev or unpinned identity can never exist remotely.
+                ret[container_tag] = "needs-built"
 
     return ret
 

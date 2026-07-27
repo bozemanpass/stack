@@ -17,14 +17,20 @@ Other build policies include:
 * `fetch-repos`   -   Don't build anything, just clone repos.
 
 When building, the resulting containers can be published to the image registry with `--publish-images`.  They will be
-published remotely with the form `<image-name>:<git_hash_of_container_repo>` such as `bozemanpass/gitea:ae0af8ea5b2de99a49add2b7f7b76dde62a8a617`.
+published remotely with the form `<image-name>:<git_hash_of_recipe_repo>` such as `bozemanpass/gitea:ae0af8ea5b2de99a49add2b7f7b76dde62a8a617`,
+where the *recipe repo* is the repository hosting the container's build declaration (see
+[stack-files.md](./stack-files.md#image-identity-and-lock-files)) — for the common case of a repo that carries its own
+stack or container files, simply that repo.  The same computation is used when checking for prebuilt images, so knowing
+a repository and branch tells you where the corresponding image is and which tag to pull, and an image tag leads back to
+the commit (and, via its committed lock files, to every source commit) that produced it.  Images built from uncommitted
+or unpinned inputs get a `stackdev-` tag and are never published.
 
 ## Registry auto-detection
 
 When checking for prebuilt images, the registry to search is determined per container: the registry given
-with `--image-registry` (if any) is tried first, then a registry inferred from the container's source repo
-ref — `ghcr.io` for repos hosted on `github.com`, otherwise the repo host itself.  So for github-hosted
-containers, prebuilt images are discovered at `ghcr.io/<image-name>:<git-hash>` with no configuration at all.
+with `--image-registry` (if any) is tried first, then a registry inferred from the container's recipe repo —
+`ghcr.io` for repos hosted on `github.com`, otherwise the repo host itself.  So for github-hosted
+containers, prebuilt images are discovered at `ghcr.io/<image-name>:<recipe-repo-hash>` with no configuration at all.
 Note that auto-detection applies only to *pulling*: publishing with `--publish-images` always requires an
 explicit `--image-registry`.
 

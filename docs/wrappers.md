@@ -141,25 +141,35 @@ or `--wrapper-ref` with `stack webapp build`.  This is also useful for testing a
 wrapper branch end to end, since wrapper CI publishes a base image for every pushed commit.
 
 When a wrapped container is built from a stack, the wrapper repo's commit hash is recorded in
-a `wrapper.lock` file next to the stack.yml (analogous to `container.lock`).  When present,
-the locked commit is checked out when the wrapper repo is freshly cloned — and it names the
-exact prebuilt base image to pull — making the build repeatable.  Commit `wrapper.lock` to the
-stack's repo to pin the wrapper version for everyone.  A warning is issued if the local
-wrapper repo drifts from the locked hash; remove the lock entry to re-lock at a newer version.
+the `wrappers` section of a `stack.lock` file next to the stack.yml (see
+[stack-files.md](./stack-files.md#stacklock); it supersedes the earlier `wrapper.lock`).  When
+present, the locked commit is checked out when the wrapper repo is freshly cloned — and it
+names the exact prebuilt base image to pull — making the build repeatable.  Commit
+`stack.lock` to the stack's repo to pin the wrapper version for everyone; remove the lock
+entry and rebuild to re-lock at a newer version.
+
+The lock also feeds the image identity: a wrapped container's image tag is the commit hash of
+the repo hosting its build declaration, whose committed locks pin the wrapper (and, for a
+source repo other than the stack's own, the payload).  Building against a wrapper checkout
+that has drifted from the locked hash produces a warning and a `stackdev-` tagged image
+rather than one bearing a commit hash that would not reproduce it.
 
 ## Prebuilt app images
 
 Wrapped app images can themselves be published and fetched prebuilt, exactly like any other
 container image — image discovery does not care how an image was built.  When `stack prepare`
 runs with a policy that allows prebuilt images (e.g. the default `as-needed`), it looks for
-`<container-name>:<commit-hash>` — where the hash is the app source repo's current commit —
-locally and then in the repo's image registry (ghcr for github-hosted repos), *before* any
+`<container-name>:<commit-hash>` — where the hash is the current commit of the *recipe repo*,
+the repository hosting the stack.yml (or container.yml) that declares the wrapped container —
+locally and then in that repo's image registry (ghcr for github-hosted repos), *before* any
 wrapper machinery is engaged.  On a hit the image is simply pulled and tagged; the wrapper
 repo is not consulted or even fetched.  See [fetching-containers.md](./fetching-containers.md)
 for the general discovery rules.
 
-This means an application repository that carries its own stack files can publish its wrapped
-image from CI, and consumers (in particular k8s deployments) never need to build it:
+This means the repository carrying the stack files — whether that is the application repo
+itself, or a separate stack repo wrapping an application repo it does not control — can
+publish the wrapped image from CI, and consumers (in particular k8s deployments) never need
+to build it:
 
 ```
 $ docker login ghcr.io ...
@@ -171,15 +181,14 @@ consumer's `stack prepare` will compute, so discovery matches.  Note that the re
 given explicitly when pushing (auto-detection applies only to pulls), and the container name in
 `stack.yml` must start with the registry organization (e.g. `bozemanpass/my-static-site`).
 
-Consumers only get a registry hit when their checkout matches a published commit and has no
-local modifications — a dirty tree produces a synthetic `stackdev-` tag that never matches a
-published image, falling back to a local build, which is the behavior a developer iterating on
-the app wants.
-
-Although the image tag records only the app repo's commit, a committed `wrapper.lock` (above)
-is part of that commit — so the tag transitively pins the wrapper version too.  Updating the
-wrapper means regenerating the lock file, which produces a new app commit and hence a new
-image tag.
+A publishable identity requires a committed `stack.lock` pinning the wrapper (and the app
+source repo, when it is not the stack's own repo).  Anything else — unpinned inputs, an
+uncommitted lock file, a dirty recipe or source checkout — produces a synthetic `stackdev-`
+tag that is never published and never matched remotely, so such builds fall back to local
+images, which is the behavior a developer iterating on the app wants.  The first build
+generates the missing lock entries; committing them is what stabilizes the image tag, and
+updating the wrapper or ingesting new app content means regenerating the lock, which produces
+a new recipe commit and hence a new image tag.
 
 ## Authoring a wrapper
 

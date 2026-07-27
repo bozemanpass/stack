@@ -259,21 +259,40 @@ containers:
     ref: myorg/my-static-site
 ```
 
+## Image identity and lock files
+
+A container image is identified by the commit hash of its *recipe repo* — the repository hosting the container's
+build declaration: the repo carrying its `container.yml` when there is one, otherwise the repo carrying the
+`stack.yml` that declares it.  When the recipe and the source it builds are the same repository (the common,
+colocated case) that is simply the source repo's hash.  When they are different repositories, lock files committed
+in the recipe repo pin the other build inputs — the source ("payload") repo and the wrapper — so that a recipe
+commit fully determines image content.  An image built from unpinned or deviating inputs, or from a recipe checkout
+with uncommitted changes (including a not-yet-committed lock file), gets a synthetic `stackdev-` tag instead, which
+is never published or matched remotely: committing the lock file is what stabilizes the image identity.
+
+Lock files exist to make builds reproducible.  To move a pin to a newer version, delete the lock file (or the
+relevant entry) and rebuild to regenerate it.
+
 ## container.lock
 
-The `container.lock` file contains the git commit hash of the target repo.  If not already present, the file is
-automatically generated when the container is built.  It can be committed to the repo to ensure the build will be
-repeatable in the future, and when the repository is pulled by `stack` the appropriate commit will be checked out.
+The `container.lock` file lives beside a `container.yml` whose `ref` names a different source repository, and pins
+that source: `hash` records the source repo commit (and `wrapper` records the wrapper repo, when one is used).  If
+not already present, the file is automatically generated when the container is built, and when the source repository
+is cloned by `stack` the pinned commit is checked out.  Commit it to make the build repeatable.
 
 > Note: Even when `container.lock` is present, any local code changes will be included when building the container,
 > since the hash is used only when the repository is cloned or pulled.
 
-## wrapper.lock
+## stack.lock
 
-The `wrapper.lock` file records the git commit hash of the wrapper repository for each wrapper used by the stack
-(see [wrappers.md](./wrappers.md)).  It is generated next to `stack.yml` when a wrapped container is built, and can be
-committed to the repo to make wrapped builds repeatable: the locked commit is checked out when the wrapper repo is
-cloned, and it identifies the exact prebuilt base image to pull.
+The `stack.lock` file is generated next to `stack.yml` when a container declared there is built from inputs the
+stack's repo does not itself contain: a source repository other than the stack's own, and/or a wrapper (see
+[wrappers.md](./wrappers.md)).  It has a `containers` section pinning each such container's source repo commit,
+and a `wrappers` section pinning each wrapper repo commit (which also identifies the exact prebuilt base image to
+pull).  Commit it to make the stack's builds repeatable and its image tags stable.
+
+> Note: `stack.lock` supersedes the earlier `wrapper.lock`; an existing `wrapper.lock` is still read (as the
+> `wrappers` section) when no `stack.lock` is present, and can be deleted once a `stack.lock` has been generated.
 
 ## composefile.yml
 

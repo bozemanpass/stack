@@ -41,7 +41,6 @@ import os
 
 from pathlib import Path
 
-from stack import constants
 from stack.config.util import get_dev_root_path
 from stack.util import get_yaml, error_exit
 
@@ -146,19 +145,6 @@ def fetch_wrapper_repo(wrapper_ref: str, git_ssh=False) -> Path:
     if not repo_fs_path.exists():
         process_repo(False, False, git_ssh, get_dev_root_path(), [], wrapper_ref)
     return repo_fs_path
-
-
-def read_wrapper_locks(stack_dir: Path) -> dict:
-    lock_file_path = Path(stack_dir).joinpath(constants.wrapper_lock_file_name)
-    if lock_file_path.exists():
-        return get_yaml().load(open(lock_file_path, "r")) or {}
-    return {}
-
-
-def write_wrapper_locks(stack_dir: Path, locks: dict):
-    lock_file_path = Path(stack_dir).joinpath(constants.wrapper_lock_file_name)
-    with open(lock_file_path, "w") as output_file:
-        get_yaml().dump(locks, output_file)
 
 
 def wrapper_repo_info(wrapper: Wrapper):
