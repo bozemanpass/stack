@@ -20,7 +20,7 @@
 # STACK_REPO_BASE_DIR defaults to ~/.config/stack/repos
 
 import click
-import git
+import hashlib
 import os
 
 from pathlib import Path
@@ -28,22 +28,31 @@ from python_on_whales import DockerClient
 
 from stack.base import get_npm_registry_url
 from stack.build.build_types import BuildContext
-from stack.build.build_util import ContainerSpec, get_containers_in_scope, container_exists_locally, container_exists_remotely, local_container_arch
+from stack.build.build_util import (
+    ContainerSpec,
+    compute_image_identity,
+    container_exists_locally,
+    container_exists_remotely,
+    get_containers_in_scope,
+    local_container_arch,
+    read_container_locks,
+    read_stack_locks,
+    recipe_repo_version,
+    write_stack_locks,
+)
 from stack.build.publish import publish_image
 from stack.build.wrappers import (
     fetch_default_wrapper_repos,
     fetch_wrapper_repo,
-    read_wrapper_locks,
     resolve_wrapper,
     wrapper_repo_info,
-    write_wrapper_locks,
 )
 from stack.config.util import get_config_setting, get_dev_root_path, debug_enabled
-from stack.constants import container_file_name, container_lock_file_name
+from stack.constants import container_lock_file_name
 from stack.deploy.stack import get_parsed_stack_config, resolve_stack
 from stack.log import log_info, log_debug, log_warn, output_main
 from stack.opts import opts
-from stack.repos.repo_util import host_and_path_for_repo, image_registry_for_repo, fs_path_for_repo, process_repo, get_repo_current_hash, is_repo_dirty, get_container_tag_for_repo
+from stack.repos.repo_util import image_registry_for_repo, fs_path_for_repo, process_repo, get_container_tag_for_repo
 from stack.util import include_exclude_check, stack_is_external, error_exit, get_yaml
 from stack.util import run_shell_command
 from stack import constants
@@ -235,10 +244,10 @@ def prepare_wrapper_base_container(wrapper, build_context: BuildContext) -> bool
     return ok
 
 
-def _resolve_wrapper_for_container(building_container, locked: dict):
+def _resolve_wrapper_for_container(building_container, wrapper_pin: dict):
     wrapper_name = building_container.wrapper
-    wrapper_ref = building_container.wrapper_ref or locked.get("ref")
-    locked_hash = locked.get("hash")
+    wrapper_ref = building_container.wrapper_ref or wrapper_pin.get("ref")
+    locked_hash = wrapper_pin.get("hash")
 
     if wrapper_ref:
         # An explicit (or locked) wrapper repo: fetch it and resolve only within it.
@@ -258,48 +267,6 @@ def _resolve_wrapper_for_container(building_container, locked: dict):
     if not wrapper:
         error_exit(f"Unknown wrapper {wrapper_name} for container: {building_container.name}")
     return wrapper
-
-
-def _update_wrapper_lock(stack, building_container, wrapper, wrapper_locks: dict):
-    # Mirrors the container.lock behavior: lock the wrapper repo hash on first successful
-    # build, and warn (rather than fail) when the local wrapper repo has drifted.
-    wrapper_name = building_container.wrapper
-    locked_hash = wrapper_locks.get(wrapper_name, {}).get("hash")
-    wrapper_repo_ref, current_hash, wrapper_repo_dirty = wrapper_repo_info(wrapper)
-
-    if wrapper_repo_dirty:
-        log_warn(f"WARN: wrapper repo for {wrapper_name} has local modifications, not locking.")
-        return
-    if not current_hash:
-        return
-
-    if locked_hash:
-        if locked_hash != current_hash:
-            log_warn(f"WARN: wrapper {wrapper_name} hash {current_hash} does not match locked hash {locked_hash}.")
-        return
-
-    lock_ref = building_container.wrapper_ref or wrapper_repo_ref
-    if not lock_ref:
-        # e.g. a wrapper repo with a local-path remote: not reproducible, so don't lock it.
-        return
-    wrapper_locks[wrapper_name] = {"ref": lock_ref.split("@")[0], "hash": current_hash}
-    log_info(f"Locking wrapper {wrapper_name} to {current_hash}")
-    write_wrapper_locks(Path(stack.file_path).parent, wrapper_locks)
-
-
-def _default_content_root(stack_container, spec_ref=None):
-    """The content root for a stack.yml container entry that doesn't give one.
-
-    `path` locates the container's build info within the repo at `ref`.  When no container.yml
-    redirects the build at a different source repo, the recipe and the source it builds are
-    colocated, so `path` also names the content root.  When the build is redirected, `path`
-    describes the layout of the specs repo and says nothing about the source repo, so the
-    content root stays at the source repo's root."""
-    if stack_container.content_root:
-        return stack_container.content_root
-    if spec_ref and spec_ref not in (".", stack_container.ref):
-        return None
-    return stack_container.path
 
 
 def _source_repo_dir(building_container, stack):
@@ -330,16 +297,19 @@ def _process_wrapped_container(build_context: BuildContext) -> bool:
     building_container = build_context.container
     stack = build_context.stack
 
-    # Wrapper locks live beside the stack.yml of the stack being built (if any).
-    stack_dir = None
-    wrapper_locks = {}
-    if stack and stack.name != "None" and getattr(stack, "file_path", None):
-        stack_dir = Path(stack.file_path).parent
-        wrapper_locks = read_wrapper_locks(stack_dir)
-
-    wrapper = _resolve_wrapper_for_container(building_container, wrapper_locks.get(building_container.wrapper, {}))
+    wrapper = _resolve_wrapper_for_container(building_container, build_context.notes.get("wrapper_pin") or {})
 
     log_info(f"Building {building_container.name} using wrapper: {wrapper.name}")
+
+    # Report the wrapper version actually used, so the caller can compare it
+    # against the pin and record a missing pin after a successful build.
+    wrapper_repo_ref, wrapper_hash, wrapper_repo_dirty = wrapper_repo_info(wrapper)
+    build_context.notes["wrapper"] = {
+        "name": building_container.wrapper,
+        "ref": building_container.wrapper_ref or wrapper_repo_ref,
+        "hash": wrapper_hash,
+        "dirty": wrapper_repo_dirty,
+    }
 
     if not prepare_wrapper_base_container(wrapper, build_context):
         return False
@@ -365,12 +335,48 @@ def _process_wrapped_container(build_context: BuildContext) -> bool:
         app_build_env,
         build_context.dev_root_path,
     )
-    if not process_container(app_context):
-        return False
+    return process_container(app_context)
 
-    if stack_dir:
-        _update_wrapper_lock(stack, building_container, wrapper, wrapper_locks)
-    return True
+
+def _write_missing_pins(identity, payload_version, wrapper_used):
+    """After a successful build, record any input pins the recipe repo was missing.
+
+    Only clean, reproducible versions are ever pinned.  Writing a pin dirties the recipe
+    repo, so images built before the pins are committed keep a stackdev identity;
+    committing the lock file is what stabilizes the image tag."""
+    if opts.o.dry_run:
+        return
+
+    payload_pin_needed = (identity.payload_ref and not identity.payload_is_recipe and not identity.payload_pin
+                          and payload_version and not payload_version.startswith("stackdev-"))
+    wrapper_pin_needed = bool(wrapper_used and not identity.wrapper_pin and wrapper_used.get("hash")
+                              and not wrapper_used.get("dirty") and wrapper_used.get("ref"))
+    if wrapper_used and wrapper_used.get("dirty"):
+        log_warn(f"WARN: wrapper repo for {wrapper_used['name']} has local modifications, not locking.")
+    if not (payload_pin_needed or wrapper_pin_needed):
+        return
+
+    if identity.stack_dir:
+        locks = read_stack_locks(identity.stack_dir)
+        if payload_pin_needed:
+            locks["containers"][identity.container_spec.name] = {"ref": identity.payload_ref.split("@")[0], "hash": payload_version}
+            log_info(f"Locking {identity.container_spec.name} payload to {payload_version}")
+        if wrapper_pin_needed:
+            locks["wrappers"][wrapper_used["name"]] = {"ref": wrapper_used["ref"].split("@")[0], "hash": wrapper_used["hash"]}
+            log_info(f"Locking wrapper {wrapper_used['name']} to {wrapper_used['hash']}")
+        write_stack_locks(identity.stack_dir, locks)
+    elif identity.container_lock_dir:
+        locks = read_container_locks(identity.container_lock_dir)
+        if payload_pin_needed:
+            locks["hash"] = payload_version
+            log_info(f"Locking {identity.container_spec.name} payload to {payload_version}")
+        if wrapper_pin_needed:
+            locks["wrapper"] = {"ref": wrapper_used["ref"].split("@")[0], "hash": wrapper_used["hash"]}
+            log_info(f"Locking wrapper {wrapper_used['name']} to {wrapper_used['hash']}")
+        lock_file_path = Path(identity.container_lock_dir).joinpath(container_lock_file_name)
+        with open(lock_file_path, "w") as output_file:
+            log_info(f"Writing lock file {lock_file_path}")
+            get_yaml().dump(locks, output_file)
 
 
 def build_containers(parent_stack,
@@ -425,27 +431,11 @@ def build_containers(parent_stack,
         containers_in_scope = [c for c in get_containers_in_scope(stack) if include_exclude_check(c.name, include, exclude)]
         for stack_container in containers_in_scope:
 
+            log_info(f"Preparing {stack_container.name} ({len(finished_containers)+1} of {len(all_containers_in_scope)})", bold=True)
+
             # No container ref means use the stack repo.
             if (not stack_container.ref or stack_container.ref == ".") and stack.get_repo_ref():
                 stack_container.ref = stack.get_repo_ref()
-
-            container_spec_yml_path = None
-            container_lock_file_path = None
-            target_hash = None
-            container_needs_built = True
-            container_was_built = False
-            container_was_pulled = False
-            container_needs_pulled = False
-            container_tag = None
-            container_spec = ContainerSpec(stack_container.name, stack_container.ref, path=stack_container.path,
-                                           wrapper=stack_container.wrapper, wrapper_ref=stack_container.wrapper_ref,
-                                           content_root=_default_content_root(stack_container))
-            stack_local_tag = f"{container_spec.name}:stack"
-            stack_legacy_tag = f"{container_spec.name}:local"
-            image_registry_to_pull_this_container = image_registry
-            image_registry_to_push_this_container = image_registry
-
-            log_info(f"Preparing {container_spec.name} ({len(finished_containers)+1} of {len(all_containers_in_scope)})", bold=True)
 
             if stack_container.ref:
                 fs_path_for_container_specs = fs_path_for_repo(stack_container.ref, dev_root_path)
@@ -453,130 +443,45 @@ def build_containers(parent_stack,
                     process_repo(git_pull, False, git_ssh, dev_root_path, [], stack_container.ref)
                     dont_pull_repo_fs_paths.append(fs_path_for_container_specs)
 
-                image_registries_to_check = [r for r in [image_registry, image_registry_for_repo(stack_container.ref)] if r]
+            # The image is identified by the recipe repo's commit hash, with locks in the
+            # recipe repo pinning the other build inputs (see ImageIdentity).
+            identity = compute_image_identity(stack, stack_container, dev_root_path)
+            container_spec = identity.container_spec
 
-                container_spec_yml_path = os.path.join(fs_path_for_container_specs, container_file_name)
-                container_lock_file_path = os.path.join(fs_path_for_container_specs, container_lock_file_name)
-                if stack_container.path:
-                    container_spec_yml_path = os.path.join(fs_path_for_container_specs, stack_container.path, container_file_name)
-                    container_lock_file_path = os.path.join(fs_path_for_container_specs, stack_container.path, container_lock_file_name)
+            container_needs_built = True
+            container_was_built = False
+            container_was_pulled = False
+            container_needs_pulled = False
+            container_tag = f"{container_spec.name}:{identity.tag_version}"[:128] if identity.tag_version else None
+            stack_local_tag = f"{container_spec.name}:stack"
+            stack_legacy_tag = f"{container_spec.name}:local"
+            image_registry_to_pull_this_container = image_registry
+            image_registry_to_push_this_container = image_registry
+            image_registries_to_check = [r for r in [image_registry, image_registry_for_repo(identity.recipe_ref)] if r]
 
-                if os.path.exists(container_spec_yml_path):
-                    container_spec = ContainerSpec(wrapper=stack_container.wrapper,
-                                                   wrapper_ref=stack_container.wrapper_ref,
-                                                   content_root=stack_container.content_root).init_from_file(container_spec_yml_path)
-                    if not container_spec.ref:
-                        # `ref` omitted in a container.yml means "the repo this descriptor lives
-                        # in", which is the repo the stack entry already named.  Naming it keeps
-                        # these containers in the normal hashing/locking path.
-                        container_spec.ref = stack_container.ref
-                    if not container_spec.content_root:
-                        container_spec.content_root = _default_content_root(stack_container, container_spec.ref)
-
-                if container_spec.ref:
-                    locked_hash = None
-                    if os.path.exists(container_lock_file_path):
-                        locked_hash = get_yaml().load(open(container_lock_file_path, "r")).get("hash")
-                    log_debug("Locked hash is: " + str(locked_hash))
-
-                    target_hash = locked_hash
-                    repo_host, repo_path, branch_or_hash_from_spec = host_and_path_for_repo(container_spec.ref)
-                    log_debug("Branch or hash from spec is: " + str(branch_or_hash_from_spec))
-                    repo = f"https://{repo_host}/{repo_path}"
-                    if git_ssh:
-                        repo = f"git@{repo_host}:{repo_path}"
-                    target_fs_repo_path = fs_path_for_repo(container_spec.ref, dev_root_path)
-                    # does the ref include a hash?
-                    if (
-                            branch_or_hash_from_spec
-                            and len(branch_or_hash_from_spec) == 40
-                            and all(c in string.hexdigits for c in branch_or_hash_from_spec)
-                    ):
-                        if not locked_hash:
-                            target_hash = branch_or_hash_from_spec
-                            log_debug(f"Using specified hash {target_hash} from {container_spec.ref}")
-
-                            git_hash = get_repo_current_hash(target_fs_repo_path)
-                            if git_hash != target_hash:
-                                error_exit(
-                                    f"Specified hash {branch_or_hash_from_spec} does not match current hash {git_hash}."
-                                )
-                        elif locked_hash != branch_or_hash_from_spec:
-                            error_exit(
-                                f"Specified hash {target_hash} does not match {container_lock_file_name} hash {locked_hash}.  Remove {container_lock_file_path}?"
-                            )
-                    else:
-                        if not os.path.exists(target_fs_repo_path):
-                            git_client = git.cmd.Git()
-                            result = git_client.ls_remote(repo, branch_or_hash_from_spec)
-                            if result:
-                                git_hash = result.split()[0]
-                                if locked_hash:
-                                    if git_hash != locked_hash:
-                                        log_warn(
-                                            f"WARN: Locked hash {locked_hash} from {container_lock_file_path} behind remote hash {git_hash} for {container_spec.ref}.  You may want to update."
-                                        )
-                                else:
-                                    target_hash = git_hash
-                        else:
-                            if git_pull:
-                                if locked_hash:
-                                    log_warn(f"WARN: Locked hash {locked_hash} from {container_lock_file_path} prevents pulling.")
-                                elif not target_fs_repo_path not in dont_pull_repo_fs_paths:
-                                    process_repo(git_pull, False, git_ssh, dev_root_path, [], container_spec.ref)
-                                    dont_pull_repo_fs_paths.append(target_fs_repo_path)
-                            git_hash = get_repo_current_hash(target_fs_repo_path)
-                            if locked_hash:
-                                if locked_hash != git_hash:
-                                    log_warn(
-                                        f"WARN: Locked hash {locked_hash} from {container_lock_file_path} does not match local hash {git_hash}."
-                                    )
+            if container_tag:
+                exists_locally = container_exists_locally(container_tag)
+                if exists_locally and build_policy in ["as-needed", "prebuilt", "prebuilt-local"]:
+                    log_info(f"Container {container_tag} exists locally.")
+                    container_needs_pulled = False
+                    container_needs_built = False
+                    # Tag the local copy to point at it.
+                    docker.image.tag(container_tag, stack_local_tag)
+                elif not identity.tag_version.startswith("stackdev-"):
+                    # A stackdev version is never published, so don't look for it remotely.
+                    if build_policy in ["as-needed", "prebuilt", "prebuilt-remote"]:
+                        exists_remotely, image_registry_to_pull_this_container = container_exists_remotely(container_tag, image_registries_to_check, target_arch)
+                        if exists_remotely:
+                            if image_registry_to_pull_this_container:
+                                log_info(f"Container {image_registry_to_pull_this_container}/{container_tag} exists remotely.")
                             else:
-                                target_hash = git_hash
-
-                    if is_repo_dirty(target_fs_repo_path):
-                        target_hash = get_container_tag_for_repo(target_fs_repo_path)
-                        log_warn(f"WARN: {target_fs_repo_path} has local modifications.  Using generated hash: {target_hash}", bold=True)
-
-                    container_tag = f"{container_spec.name}:{target_hash}"[:128]
-                    exists_remotely = None
-                    exists_locally = container_exists_locally(container_tag)
-
-                    if exists_locally and build_policy in ["as-needed", "prebuilt", "prebuilt-local"]:
-                        log_info(f"Container {container_tag} exists locally.")
-                        container_needs_pulled = False
-                        container_needs_built = False
-                        # Tag the local copy to point at it.
-                        docker.image.tag(container_tag, stack_local_tag)
-                    else:
-                        if build_policy in [ "as-needed", "prebuilt", "prebuilt-remote", ]:
-                            exists_remotely, image_registry_to_pull_this_container = container_exists_remotely(container_tag, image_registries_to_check, target_arch)
-                            if exists_remotely:
-                                if image_registry_to_pull_this_container:
-                                    log_info(f"Container {image_registry_to_pull_this_container}:{container_tag} exists remotely.")
-                                else:
-                                    log_info(f"Container {container_tag} exists remotely.")
-                                container_needs_pulled = not dont_pull_images
-                                container_needs_built = False
-
-                    if container_needs_built:
-                        if build_policy in ["prebuilt", "prebuilt-local", "prebuilt-remote"]:
-                            error_exit(f"Container {container_tag} not available prebuilt.")
-                        else:
-                            log_info(f"Container {container_tag} needs to be built.")
-                            container_needs_pulled = False
-                            container_needs_built = True
-                            # DBDB add comment explaining what this code below is doing.
-                            if not os.path.exists(target_fs_repo_path) or (git_pull and target_fs_repo_path not in dont_pull_repo_fs_paths):
-                                reconstructed_ref = f"{container_spec.ref.split('@')[0]}@{target_hash}"
-                                process_repo(git_pull, False, git_ssh, dev_root_path, [], reconstructed_ref)
-                                dont_pull_repo_fs_paths.append(target_fs_repo_path)
-                            else:
-                                log_info(f"Building {container_tag} from {target_fs_repo_path}")
+                                log_info(f"Container {container_tag} exists remotely.")
+                            container_needs_pulled = not dont_pull_images
+                            container_needs_built = False
+            elif identity.unpinned:
+                log_info(f"Container {container_spec.name} has unpinned build inputs, so it must be built.")
 
             if container_needs_pulled:
-                if not container_tag:
-                    error_exit(f"Cannot pull container: tag missing.")
                 # Pull the remote image
                 if image_registry_to_pull_this_container:
                     run_shell_command(f"docker pull {image_registry_to_pull_this_container}/{container_tag}", quiet=opts.o.quiet)
@@ -591,41 +496,73 @@ def build_containers(parent_stack,
                 if build_policy in ["prebuilt", "prebuilt-local", "prebuilt-remote"]:
                     error_exit(f"No prebuilt image available for: {container_spec.name}")
 
+                if container_tag:
+                    log_info(f"Container {container_tag} needs to be built.")
+
+                # Make sure the payload source is present, at the pinned version when there is one.
+                payload_version = None
+                deviating_inputs = []
+                if identity.payload_ref:
+                    target_fs_repo_path = fs_path_for_repo(identity.payload_ref, dev_root_path)
+                    if not os.path.exists(target_fs_repo_path) or (git_pull and target_fs_repo_path not in dont_pull_repo_fs_paths):
+                        fetch_ref = identity.payload_ref
+                        if identity.payload_pin:
+                            fetch_ref = f"{identity.payload_ref.split('@')[0]}@{identity.payload_pin}"
+                        process_repo(git_pull, False, git_ssh, dev_root_path, [], fetch_ref)
+                        dont_pull_repo_fs_paths.append(target_fs_repo_path)
+                    else:
+                        log_info(f"Building {container_spec.name} from {target_fs_repo_path}")
+                    payload_version = get_container_tag_for_repo(target_fs_repo_path)
+                    if not identity.payload_is_recipe:
+                        if not identity.payload_pin:
+                            deviating_inputs.append(f"payload:{payload_version}")
+                        elif payload_version != identity.payload_pin:
+                            log_warn(f"WARN: {identity.payload_ref} checkout {payload_version} does not match locked hash {identity.payload_pin}.", bold=True)
+                            deviating_inputs.append(f"payload:{payload_version}")
+
                 container_build_env = make_container_build_env(
                     dev_root_path, default_container_base_dir, "build-force" == build_policy, extra_build_args
                 )
 
                 build_context = BuildContext(stack, container_spec, default_container_base_dir, container_build_env, dev_root_path)
+                build_context.notes["wrapper_pin"] = identity.wrapper_pin
 
                 for tag in [stack_legacy_tag, stack_local_tag, container_tag]:
+                    if not tag:
+                        continue
                     try:
                         docker.image.remove(tag)
                     except:
                         pass
 
                 result = process_container(build_context)
-                if result:
-                    container_was_built = True
-                    # Handle legacy build scripts
-                    if container_exists_locally(stack_legacy_tag) and not container_exists_locally(stack_local_tag):
-                        docker.image.tag(stack_legacy_tag, stack_local_tag)
-
-                    # Only write the lock file if:
-                    #   (1) the build succeeded
-                    #   (2) there is a container.yml
-                    #   (3) it references a git repo other than its own
-                    if container_lock_file_path and container_spec_yml_path and os.path.exists(container_spec_yml_path):
-                        # never lock a local dev version
-                        if target_hash and not target_hash.startswith("stackdev-"):
-                            repo_host, repo_path, _ = host_and_path_for_repo(container_spec.ref)
-                            if container_spec.ref and container_spec.ref != ".":
-                                repo_host, repo_path, _ = host_and_path_for_repo(container_spec.ref)
-                                if f"{repo_host}/{repo_path}" != container_spec.get_repo_ref():
-                                    with open(container_lock_file_path, "w") as output_file:
-                                        log_info(f"Writing lock file {container_lock_file_path} with hash: {target_hash}")
-                                        get_yaml().dump({"hash": target_hash}, output_file)
-                else:
+                if not result:
                     error_exit(f"container build failed for: {build_context.container}")
+
+                container_was_built = True
+                # Handle legacy build scripts
+                if container_exists_locally(stack_legacy_tag) and not container_exists_locally(stack_local_tag):
+                    docker.image.tag(stack_legacy_tag, stack_local_tag)
+
+                wrapper_used = build_context.notes.get("wrapper")
+                if wrapper_used:
+                    if not identity.wrapper_pin:
+                        deviating_inputs.append(f"wrapper:{wrapper_used['hash']}{'-dirty' if wrapper_used['dirty'] else ''}")
+                    elif wrapper_used["dirty"] or (wrapper_used["hash"] and wrapper_used["hash"] != identity.wrapper_pin.get("hash")):
+                        log_warn(f"WARN: wrapper {wrapper_used['name']} at {wrapper_used['hash']} does not match locked hash {identity.wrapper_pin.get('hash')}.", bold=True)
+                        deviating_inputs.append(f"wrapper:{wrapper_used['hash']}{'-dirty' if wrapper_used['dirty'] else ''}")
+
+                # The actual inputs are known now, so settle the image identity.
+                if identity.recipe_fs_path and Path(identity.recipe_fs_path).exists():
+                    built_version = recipe_repo_version(identity.recipe_fs_path, identity.lock_file_path)
+                    if deviating_inputs:
+                        # The content deviates from what the recipe commit pins, so the recipe
+                        # hash must not name it: generate a dev version from the actual inputs.
+                        built_version = "stackdev-" + hashlib.sha1(":".join([built_version] + deviating_inputs).encode()).hexdigest()
+                        log_warn(f"WARN: {container_spec.name} was built from unpinned or deviating inputs.  Using generated version: {built_version}", bold=True)
+                    container_tag = f"{container_spec.name}:{built_version}"[:128]
+
+                _write_missing_pins(identity, payload_version, wrapper_used)
 
             if container_tag:
                 # We won't have a local copy with prebuilt-remote and --no-pull
@@ -644,8 +581,11 @@ def build_containers(parent_stack,
                 if not image_registry_to_push_this_container:
                     error_exit(f"No image registry specified to push {container_tag}")
                 container_version = container_tag.split(":")[-1]
-                log_info(f"Publishing {container_tag} to {image_registry_to_push_this_container}")
-                publish_image(stack_local_tag, image_registry_to_push_this_container, container_version)
+                if container_version.startswith("stackdev-"):
+                    log_warn(f"WARN: not publishing {container_tag}: it was not built from committed, pinned inputs.", bold=True)
+                else:
+                    log_info(f"Publishing {container_tag} to {image_registry_to_push_this_container}")
+                    publish_image(stack_local_tag, image_registry_to_push_this_container, container_version)
 
             log_debug(f"Finished {container_spec.name} ({len(finished_containers)+1} of {len(all_containers_in_scope)})", bold=True)
             final_status = "built" if container_was_built else "pulled" if container_was_pulled else "existing-image"

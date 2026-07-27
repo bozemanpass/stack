@@ -15,11 +15,13 @@
 # along with this program.  If not, see <http:#www.gnu.org/licenses/>.
 
 import base64
+import hashlib
 import importlib.resources
 import git
 import json
 import os
 import platform
+import string
 import subprocess
 
 from pathlib import Path
@@ -27,6 +29,7 @@ from python_on_whales import DockerClient
 
 import stack.deploy.stack as stack_util
 
+from stack import constants
 from stack.log import log_debug, log_info
 from stack.repos.repo_util import find_repo_root
 from stack.util import warn_exit, get_yaml, error_exit
@@ -152,6 +155,241 @@ class ContainerSpec:
             repo = git.Repo(self.repo_path)
             return repo.remotes[0].url
         return None
+
+
+def default_content_root(stack_container, spec_ref=None):
+    """The content root for a stack.yml container entry that doesn't give one.
+
+    `path` locates the container's build info within the repo at `ref`.  When no container.yml
+    redirects the build at a different source repo, the recipe and the source it builds are
+    colocated, so `path` also names the content root.  When the build is redirected, `path`
+    describes the layout of the specs repo and says nothing about the source repo, so the
+    content root stays at the source repo's root."""
+    if stack_container.content_root:
+        return stack_container.content_root
+    if spec_ref and spec_ref not in (".", stack_container.ref):
+        return None
+    return stack_container.path
+
+
+def read_stack_locks(stack_dir) -> dict:
+    """Read the stack.lock beside a stack.yml: the pinned versions of the stack's build inputs.
+
+    Format: {containers: {<container-name>: {ref, hash}}, wrappers: {<wrapper-name>: {ref, hash}}}.
+    A legacy wrapper.lock is read as the wrappers section when no stack.lock exists."""
+    locks = None
+    lock_file_path = Path(stack_dir).joinpath(constants.stack_lock_file_name)
+    if lock_file_path.exists():
+        locks = get_yaml().load(open(lock_file_path, "r")) or {}
+    else:
+        legacy_lock_file_path = Path(stack_dir).joinpath(constants.wrapper_lock_file_name)
+        if legacy_lock_file_path.exists():
+            locks = {"wrappers": get_yaml().load(open(legacy_lock_file_path, "r")) or {}}
+    if locks is None:
+        locks = {}
+    locks.setdefault("containers", {})
+    locks.setdefault("wrappers", {})
+    return locks
+
+
+def write_stack_locks(stack_dir, locks: dict):
+    lock_file_path = Path(stack_dir).joinpath(constants.stack_lock_file_name)
+    with open(lock_file_path, "w") as output_file:
+        get_yaml().dump({section: dict(pins) for section, pins in locks.items() if pins}, output_file)
+    legacy_lock_file_path = Path(stack_dir).joinpath(constants.wrapper_lock_file_name)
+    if legacy_lock_file_path.exists():
+        log_info(f"{legacy_lock_file_path} has been superseded by {lock_file_path} and can be deleted.")
+
+
+def read_container_locks(container_spec_dir) -> dict:
+    """Read the container.lock beside a container.yml: {hash: <payload pin>, wrapper: {ref, hash}}."""
+    lock_file_path = Path(container_spec_dir).joinpath(constants.container_lock_file_name)
+    if lock_file_path.exists():
+        return get_yaml().load(open(lock_file_path, "r")) or {}
+    return {}
+
+
+def recipe_repo_version(recipe_fs_path, lock_file_path=None):
+    """The version (image tag) named by the recipe repo checkout: its HEAD hash when clean,
+    a stackdev- hash otherwise.
+
+    An existing but uncommitted (or modified) lock file also produces a stackdev- version,
+    even though git does not count an untracked file as dirty: the pins it holds are not
+    covered by the HEAD commit, so the HEAD hash alone would not reproduce the image.  The
+    stackdev- hash is derived from the lock content, so it is stable across runs; committing
+    the lock file is what stabilizes the version to a plain commit hash."""
+    # Deferred import to avoid a circular dependency.
+    from stack.repos.repo_util import get_container_tag_for_repo
+
+    version = get_container_tag_for_repo(recipe_fs_path)
+    if version and not version.startswith("stackdev-") and lock_file_path and Path(lock_file_path).exists():
+        status = git.Repo(recipe_fs_path).git.status("--porcelain", str(lock_file_path))
+        if status.strip():
+            lock_digest = hashlib.sha1(open(lock_file_path, "rb").read()).hexdigest()
+            version = "stackdev-" + hashlib.sha1(f"{version}:lock:{lock_digest}".encode()).hexdigest()
+    return version
+
+
+def _same_repo(ref_a, ref_b):
+    if not ref_a or not ref_b:
+        return False
+    return ref_a.split("@")[0] == ref_b.split("@")[0]
+
+
+def _embedded_pin(ref):
+    # A ref of the form org/repo@<full-hash> pins that repo in the recipe file itself.
+    if ref and "@" in ref:
+        branch_or_hash = ref.split("@", 1)[1]
+        if len(branch_or_hash) == 40 and all(c in string.hexdigits for c in branch_or_hash):
+            return branch_or_hash
+    return None
+
+
+class ImageIdentity:
+    """Where a container image's identity is anchored, and what that identity is.
+
+    The image tag is the commit hash of the *recipe repo* -- the repo hosting the container's
+    build declaration: the repo carrying its container.yml when there is one, otherwise the
+    repo carrying the stack.yml that declares it.  Locks committed in the recipe repo
+    (container.lock beside a container.yml, stack.lock beside a stack.yml) pin every other
+    build input -- the payload source checkout and the wrapper -- so a clean recipe checkout
+    fully determines image content.  That preserves the source<->image bijection when a build
+    spans repos: the expected image registry, path and tag are computable from the recipe repo
+    alone, and an image tag leads back through the recipe commit and its locks to every source
+    commit that produced it.
+
+    tag_version is the recipe repo's HEAD hash; a stackdev- hash when the recipe checkout is
+    dirty; or None when there is no computable identity -- no recipe repo ref, or an input
+    that is not yet pinned (unpinned is set in that case; building will generate the missing
+    pins, and committing them stabilizes the identity)."""
+
+    container_spec: "ContainerSpec"
+    recipe_ref: str
+    recipe_fs_path: Path
+    tag_version: str
+    unpinned: bool
+    payload_ref: str
+    payload_pin: str
+    payload_is_recipe: bool
+    wrapper_name: str
+    wrapper_pin: dict
+    stack_dir: Path
+    container_lock_dir: Path
+    lock_file_path: Path
+
+    def __init__(self):
+        self.container_spec = None
+        self.recipe_ref = None
+        self.recipe_fs_path = None
+        self.tag_version = None
+        self.unpinned = False
+        self.payload_ref = None
+        self.payload_pin = None
+        self.payload_is_recipe = False
+        self.wrapper_name = None
+        self.wrapper_pin = None
+        self.stack_dir = None
+        self.container_lock_dir = None
+        self.lock_file_path = None
+
+    def __repr__(self):
+        return str(self)
+
+    def __str__(self):
+        ret = {"recipe_ref": self.recipe_ref, "tag_version": self.tag_version, "unpinned": self.unpinned,
+               "payload_ref": self.payload_ref, "payload_pin": self.payload_pin,
+               "wrapper_name": self.wrapper_name, "wrapper_pin": self.wrapper_pin}
+        return json.dumps(ret)
+
+
+def compute_image_identity(stack, stack_container, dev_root_path) -> ImageIdentity:
+    """Determine the recipe repo, pins and expected image tag for one stack container entry.
+
+    Expects the repo named by stack_container.ref (if any) to be present locally already.
+    May default stack_container.ref to the stack's own repo, mirroring the historic behavior."""
+    # Deferred import to avoid a circular dependency.
+    from stack.repos.repo_util import fs_path_for_repo
+
+    # No container ref means use the stack repo.
+    if (not stack_container.ref or stack_container.ref == ".") and stack and stack.get_repo_ref():
+        stack_container.ref = stack.get_repo_ref()
+
+    ident = ImageIdentity()
+    container_spec = ContainerSpec(stack_container.name, stack_container.ref, path=stack_container.path,
+                                   wrapper=stack_container.wrapper, wrapper_ref=stack_container.wrapper_ref,
+                                   content_root=default_content_root(stack_container))
+
+    spec_dir = None
+    if stack_container.ref:
+        fs_path_for_container_specs = Path(fs_path_for_repo(stack_container.ref, dev_root_path))
+        candidate_dir = fs_path_for_container_specs
+        if stack_container.path:
+            candidate_dir = candidate_dir.joinpath(stack_container.path)
+        if candidate_dir.joinpath(constants.container_file_name).exists():
+            spec_dir = candidate_dir
+
+    if spec_dir:
+        # The ref'd repo hosts a container.yml: it is the recipe repo.
+        container_spec = ContainerSpec(wrapper=stack_container.wrapper, wrapper_ref=stack_container.wrapper_ref,
+                                       content_root=stack_container.content_root).init_from_file(
+            spec_dir.joinpath(constants.container_file_name))
+        if not container_spec.ref:
+            # `ref` omitted in a container.yml means "the repo this descriptor lives in",
+            # which is the repo the stack entry already named.
+            container_spec.ref = stack_container.ref
+        if not container_spec.content_root:
+            container_spec.content_root = default_content_root(stack_container, container_spec.ref)
+        ident.recipe_ref = stack_container.ref
+        ident.recipe_fs_path = fs_path_for_container_specs
+        ident.container_lock_dir = spec_dir
+        ident.lock_file_path = spec_dir.joinpath(constants.container_lock_file_name)
+        locks = read_container_locks(spec_dir)
+        ident.payload_pin = locks.get("hash")
+        ident.wrapper_pin = locks.get("wrapper")
+    elif stack:
+        # No container.yml: the stack.yml declaring the container is the recipe.
+        ident.recipe_ref = stack.get_repo_ref()
+        ident.recipe_fs_path = stack.repo_path
+        if getattr(stack, "file_path", None) and stack.name != "None":
+            ident.stack_dir = Path(stack.file_path).parent
+            ident.lock_file_path = ident.stack_dir.joinpath(constants.stack_lock_file_name)
+            if not ident.lock_file_path.exists():
+                legacy_lock_file_path = ident.stack_dir.joinpath(constants.wrapper_lock_file_name)
+                if legacy_lock_file_path.exists():
+                    ident.lock_file_path = legacy_lock_file_path
+            locks = read_stack_locks(ident.stack_dir)
+            ident.payload_pin = locks["containers"].get(stack_container.name, {}).get("hash")
+            if container_spec.wrapper:
+                ident.wrapper_pin = locks["wrappers"].get(container_spec.wrapper)
+
+    ident.container_spec = container_spec
+    ident.payload_ref = container_spec.ref
+    ident.wrapper_name = container_spec.wrapper
+    ident.payload_is_recipe = _same_repo(ident.payload_ref, ident.recipe_ref)
+    embedded_payload_pin = _embedded_pin(ident.payload_ref)
+    if not ident.payload_pin:
+        ident.payload_pin = embedded_payload_pin
+    elif embedded_payload_pin and embedded_payload_pin != ident.payload_pin:
+        error_exit(f"Hash in ref {ident.payload_ref} does not match locked hash {ident.payload_pin}.  Remove the lock file?")
+    if not ident.wrapper_pin:
+        embedded_wrapper_pin = _embedded_pin(container_spec.wrapper_ref)
+        if embedded_wrapper_pin:
+            ident.wrapper_pin = {"ref": container_spec.wrapper_ref.split("@")[0], "hash": embedded_wrapper_pin}
+
+    payload_pinned = ident.payload_is_recipe or bool(ident.payload_pin)
+    wrapper_pinned = not ident.wrapper_name or bool(ident.wrapper_pin)
+
+    if ident.recipe_fs_path and Path(ident.recipe_fs_path).exists():
+        version = recipe_repo_version(ident.recipe_fs_path, ident.lock_file_path)
+        if version and not version.startswith("stackdev-") and not (payload_pinned and wrapper_pinned):
+            # An unpinned input: the recipe commit does not determine image content,
+            # so its hash must not be used as the image identity.
+            ident.unpinned = True
+            version = None
+        ident.tag_version = version
+
+    log_debug(f"Image identity for {stack_container.name}: {ident}")
+    return ident
 
 
 def get_containers_in_scope(stack):

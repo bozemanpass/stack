@@ -1,5 +1,6 @@
 # Recent New Features
 
+  - [#174](https://github.com/bozemanpass/stack/pull/174) Image identity anchored at the recipe repo: tags are the recipe repo's commit hash, `stack.lock` (superseding `wrapper.lock`) pins source and wrapper inputs, and unpinned/uncommitted builds get unpublishable `stackdev-` tags
   - [#163](https://github.com/bozemanpass/stack/pull/163) Prebuilt wrapper base images pulled from ghcr; `wrapper-ref` pinning and `wrapper.lock` for repeatable wrapped builds
   - [#161](https://github.com/bozemanpass/stack/pull/161) Deploy wrapped repositories (e.g. pure static HTML) directly from a stack via the `wrapper` field in stack.yml
   - [#160](https://github.com/bozemanpass/stack/pull/160) Generic [container wrappers](./wrappers.md), discoverable from external repositories; static content hosting with nginx
