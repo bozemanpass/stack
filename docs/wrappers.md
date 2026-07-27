@@ -147,6 +147,40 @@ exact prebuilt base image to pull — making the build repeatable.  Commit `wrap
 stack's repo to pin the wrapper version for everyone.  A warning is issued if the local
 wrapper repo drifts from the locked hash; remove the lock entry to re-lock at a newer version.
 
+## Prebuilt app images
+
+Wrapped app images can themselves be published and fetched prebuilt, exactly like any other
+container image — image discovery does not care how an image was built.  When `stack prepare`
+runs with a policy that allows prebuilt images (e.g. the default `as-needed`), it looks for
+`<container-name>:<commit-hash>` — where the hash is the app source repo's current commit —
+locally and then in the repo's image registry (ghcr for github-hosted repos), *before* any
+wrapper machinery is engaged.  On a hit the image is simply pulled and tagged; the wrapper
+repo is not consulted or even fetched.  See [fetching-containers.md](./fetching-containers.md)
+for the general discovery rules.
+
+This means an application repository that carries its own stack files can publish its wrapped
+image from CI, and consumers (in particular k8s deployments) never need to build it:
+
+```
+$ docker login ghcr.io ...
+$ stack prepare --stack <path-to-stack> --publish-images --image-registry ghcr.io
+```
+
+The publish step pushes `ghcr.io/<container-name>:<commit-hash>` with the same commit hash a
+consumer's `stack prepare` will compute, so discovery matches.  Note that the registry must be
+given explicitly when pushing (auto-detection applies only to pulls), and the container name in
+`stack.yml` must start with the registry organization (e.g. `bozemanpass/my-static-site`).
+
+Consumers only get a registry hit when their checkout matches a published commit and has no
+local modifications — a dirty tree produces a synthetic `stackdev-` tag that never matches a
+published image, falling back to a local build, which is the behavior a developer iterating on
+the app wants.
+
+Although the image tag records only the app repo's commit, a committed `wrapper.lock` (above)
+is part of that commit — so the tag transitively pins the wrapper version too.  Updating the
+wrapper means regenerating the lock file, which produces a new app commit and hence a new
+image tag.
+
 ## Authoring a wrapper
 
 A wrapper repository contains one directory per wrapper (or a single wrapper at the top level),

@@ -19,6 +19,21 @@ Other build policies include:
 When building, the resulting containers can be published to the image registry with `--publish-images`.  They will be
 published remotely with the form `<image-name>:<git_hash_of_container_repo>` such as `bozemanpass/gitea:ae0af8ea5b2de99a49add2b7f7b76dde62a8a617`.
 
+## Registry auto-detection
+
+When checking for prebuilt images, the registry to search is determined per container: the registry given
+with `--image-registry` (if any) is tried first, then a registry inferred from the container's source repo
+ref — `ghcr.io` for repos hosted on `github.com`, otherwise the repo host itself.  So for github-hosted
+containers, prebuilt images are discovered at `ghcr.io/<image-name>:<git-hash>` with no configuration at all.
+Note that auto-detection applies only to *pulling*: publishing with `--publish-images` always requires an
+explicit `--image-registry`.
+
+A remote image only counts as available if its manifest includes the local machine's architecture (or the
+`--target-arch` architecture, when given).  If no matching architecture is published the image is treated as
+unavailable and, under the `as-needed` policy, built locally instead.
+
+## Checking image availability
+
 It is sometimes useful to check if remote images are available without pulling them.  This is especially useful if you
 need to check if images are available a deployment which does not match the current machine architecture (eg, running 
 stack from an `arm64` laptop but intending to deploy to an `x64` Kubernetes cluster).  The options `--no-pull` and
