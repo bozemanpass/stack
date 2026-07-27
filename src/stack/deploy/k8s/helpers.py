@@ -335,10 +335,6 @@ def envs_from_environment_variables_map(map: Mapping[str, str]) -> List[client.V
     return result
 
 
-def env_var_name_for_service(svc):
-    return f"STACK_SVC_{svc.metadata.labels["service"].upper()}".replace("-", "_")
-
-
 # This needs to know:
 # The service ports for the cluster
 # The bind mounted volumes for the cluster

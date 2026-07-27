@@ -291,7 +291,7 @@ services:
     privileged: true
     environment:
       - CONFIG_FILE=/config/act-runner-config.yml
-      - GITEA_INSTANCE_URL=http://${STACK_SVC_GITEA}:3000
+      - GITEA_INSTANCE_URL=http://gitea:3000
     volumes:
       - act-runner-data:/data
       - act-runner-config:/config:ro
@@ -303,10 +303,11 @@ volumes:
   act-runner-config:
 ```
 
-### Environment Variables for Service Hostnames
+### Service Hostnames
 
-When using `stack` to manage a pod, the service hostnames are automatically set in the environment variables for
-each service.  This allows for easy access to the hostnames of other services within the same deployment.  The variables
-are in the form `$STACK_SVC_<NAME>`, where `<NAME>` is the uppercase name of the service name as it appears in the
-`composefile.yml`.  In the example above, `$STACK_SVC_GITEA` would contain the hostname of the `gitea` service (located
-in another pod in the same deployment), and `$STACK_SVC_RUNNER` would be set to the hostname of the `runner` service.
+Every service in a deployment is reachable from every other service by its service name as it appears in the
+`composefile.yml`, regardless of which pod it belongs to.  In the example above, the `runner` service reaches the
+`gitea` service (located in another pod in the same deployment) at the hostname `gitea`.
+
+This works the same way whether the deployment target is Docker Compose or Kubernetes: on Kubernetes each deployment
+gets its own namespace, so the unqualified service name resolves within it.
