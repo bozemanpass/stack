@@ -27,6 +27,7 @@ containers:
     #   - Dockerfile
     #        The container will be built using the Dockerfile in this directory similar to:
     #             docker build -t ${STACK_DEFAULT_CONTAINER_IMAGE_TAG} .
+    # This directory is also what gets built, unless `content-root` says otherwise.
     path: ./act-runner
   - name: bozemanpass/gitea
     ref: bozemanpass/gitea-containers
@@ -41,6 +42,10 @@ containers:
     # An (optional) reference to the wrapper's repository, same format as `ref`.  When omitted,
     # the wrapper is resolved from already-fetched repos (or the default wrapper repos).
     wrapper-ref: bozemanpass/stack-wrapper-static-content@main
+    # An (optional) subdirectory of the source repo holding what is actually built: the content
+    # wrapped by `wrapper`, or the build context of the default build.  Not wrapper-specific.
+    # When omitted it defaults to `path`.  See "path vs content-root" below.
+    content-root: site
 # Pods are groups of containers that are deployed together.  Each pod corresponds to one composefile.yml.
 pods:
     # The name of the pod.
@@ -59,6 +64,147 @@ pods:
     pre_start_command: "pre_start.sh"
     post_start_command: "post_start.sh"
 ```
+
+### path vs content-root
+
+A container entry answers two questions that are easy to confuse:
+
+- **Where is the recipe?** — `path`, the directory holding the container build info
+  (`container.yml`, `build.sh`, or a `Dockerfile`).  A pod's `path` means the same kind of
+  thing: where its composefile lives.
+- **What gets built?** — the source repo, narrowed by `content-root` to a subdirectory of it.
+  This is the docker build context: the content a wrapper wraps, or what the default build
+  builds.
+
+|                | `path`                                      | `content-root`                                              |
+|----------------|---------------------------------------------|-------------------------------------------------------------|
+| Answers        | where the recipe lives                      | what gets built                                             |
+| Relative to    | the repo at the entry's `ref`               | the source repo (example 4 -- not always the same repo)      |
+| Names          | `container.yml` / `build.sh` / `Dockerfile` | the docker build context                                    |
+| When omitted   | the repo root                               | `path`, except in example 4                                 |
+| In the build   | `${STACK_BUILD_DIR}`                        | `${STACK_CONTENT_ROOT_DIR}`                                 |
+
+They coincide for a repository that carries a `Dockerfile` beside the code it builds, which is
+why `path` alone was enough for a long time.  They come apart whenever the recipe lives
+somewhere other than the source.  The four shapes:
+
+#### 1. Recipe and source together
+
+The common case: build info sits in the same directory as what it builds.
+
+```
+gitea-containers/           <- ref
+└── act-runner/             <- path, and the build context
+    ├── build.sh
+    └── Dockerfile
+```
+
+```yaml
+containers:
+  - name: bozemanpass/act-runner
+    ref: bozemanpass/gitea-containers
+    path: ./act-runner
+```
+
+`content-root` is not needed: it defaults to `path`, so `./act-runner` is what gets built — the
+build context for the `Dockerfile`, and `${STACK_CONTENT_ROOT_DIR}` for the `build.sh`.
+
+#### 2. Wrapper, whole repo is the content
+
+The repo contains no build files at all — the recipe comes from the wrapper repo (see
+[wrappers.md](./wrappers.md)), so there is nothing for `path` to point at.
+
+```
+my-static-site/             <- ref, and the build context
+├── index.html
+└── css/
+```
+
+```yaml
+containers:
+  - name: bozemanpass/my-static-site
+    ref: myorg/my-static-site
+    wrapper: static-content
+```
+
+#### 3. Wrapper, content in a subdirectory
+
+The same, but the repo holds more than the site: the content is one directory within it.
+
+```
+my-static-site/             <- ref
+├── README.md
+├── stack-files/            <- the stack.yml itself lives here
+└── site/                   <- content-root, and the build context
+    ├── index.html
+    └── pages/
+```
+
+```yaml
+containers:
+  - name: bozemanpass/my-static-site
+    ref: myorg/my-static-site
+    wrapper: static-content
+    content-root: site
+```
+
+Only `./site` is sent to the container build, so `README.md` and `stack-files/` are not baked
+into the image.
+
+#### 4. Recipe in one repo, source in another
+
+A `container.yml` whose `ref` names a different repo builds source the entry's own repo doesn't
+contain.  Here the two fields refer to two different repositories:
+
+```
+gitea-containers/           <- the entry's ref
+└── act-runner/             <- path (recipe only)
+    ├── container.yml       <- ref: gitea.com/gitea/act_runner
+    └── build.sh
+
+act_runner/                 <- the source repo, named by container.yml
+└── src/                    <- content-root, and the build context
+```
+
+```yaml
+# stack.yml
+containers:
+  - name: bozemanpass/act-runner
+    ref: bozemanpass/gitea-containers
+    path: ./act-runner
+```
+
+```yaml
+# gitea-containers/act-runner/container.yml
+container:
+  name: bozemanpass/act-runner
+  ref: gitea.com/gitea/act_runner
+  content-root: src
+```
+
+This is the one case where `content-root` does **not** default to `path`: `./act-runner`
+describes the layout of `gitea-containers` and says nothing about the layout of `act_runner`,
+so leaving `content-root` out builds the source repo's root.  Set it explicitly to build from a
+subdirectory of the source.
+
+> Note: `content-root` may be given in either file.  In `stack.yml` it applies to the entry; in
+> `container.yml` it travels with the repo that declares it, and takes precedence.
+
+#### In the build environment
+
+A `build.sh` is free to build whatever it likes, so `content-root` does not constrain it — it is
+handed over instead, along with the other locations resolved for the container:
+
+| Variable                     | Directory                                                          |
+|------------------------------|--------------------------------------------------------------------|
+| `STACK_BUILD_DIR`            | the recipe: where `build.sh` was found (the default build's context)|
+| `STACK_CONTENT_ROOT_DIR`     | the content root: the source repo narrowed by `content-root`        |
+| `STACK_REPO_SOURCE_DIR`      | the source repo, unnarrowed                                         |
+| `STACK_REPO_CONTAINER_DIR`   | the repo holding the container build info                           |
+| `STACK_REPO_STACK_DIR`       | the repo holding the stack.yml                                      |
+
+In example 1 `STACK_BUILD_DIR` and `STACK_CONTENT_ROOT_DIR` are the same directory.  In example
+4 every one of them is different.
 
 ## container.yml
 
@@ -85,6 +231,32 @@ container:
   # Optional path to the container build script or command.  This path is relative to the `container.yml` file.
   # If no build script is provided, the default build command will be used.
   build: ./build.sh
+  # An optional subdirectory of the repo at `ref` to build, rather than the whole repo.
+  content-root: src
+```
+
+### Example: a self-describing wrapped repo
+
+A repository can also declare that it is built by wrapping, rather than being named as a wrapper
+in every stack that uses it (see [wrappers.md](./wrappers.md)).  A `container.yml` at the root of
+a static site whose pages live in `./site`:
+
+```yaml
+container:
+  name: bozemanpass/my-static-site
+  wrapper: static-content
+  # Optional: pin the wrapper repo, same format as `ref`.
+  wrapper-ref: bozemanpass/stack-wrapper-static-content@main
+  # Serve ./site, not the whole repo.
+  content-root: site
+```
+
+A stack then needs only the name and the repo:
+
+```yaml
+containers:
+  - name: bozemanpass/my-static-site
+    ref: myorg/my-static-site
 ```
 
 ## container.lock
