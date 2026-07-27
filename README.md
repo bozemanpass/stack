@@ -36,19 +36,17 @@ stack manage --dir ~/deployments/todo-docker stop
 ### Kubernetes
 
 ```
-# set some defaults for the k8s instance
-stack config set image-registry registry.myexample.com/myimages
-stack config set kube-config /path/to/.kube/config
-
 # clone / build
 stack fetch repo bozemanpass/example-todo-list
-stack prepare --stack todo --publish-images
+stack prepare --stack todo --publish-images --image-registry registry.myexample.com/myimages
 
 # init
 stack init \
     --stack todo \
     --output todo.yml \
     --deploy-to k8s \
+    --kube-config /path/to/.kube/config \
+    --image-registry registry.myexample.com/myimages \
     --http-proxy-fqdn example-todo.myexample.com \
     --config REACT_APP_API_URL=https://example-todo.myexample.com/api/todos
 
@@ -56,7 +54,7 @@ stack init \
 stack deploy --spec-file todo.yml --deployment-dir ~/deployments/todo-k8s
 
 # push image tags for this deployment to the image registry used by Kubernetes
-stack manage --dir ~/deployments/todo push-images
+stack manage --dir ~/deployments/todo-k8s push-images
 
 # start / status / logs / stop
 stack manage --dir ~/deployments/todo-k8s start
