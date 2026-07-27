@@ -37,6 +37,31 @@ stack build containers [OPTIONS]
 | `--image-registry` | TEXT | Specify the remote image registry | From config |
 | `--target-arch` | TEXT | Specify a target architecture (only for use with --dont-pull-images) | - |
 
+##### Specifying the Stack
+
+`--stack` accepts either:
+
+- a filesystem path to a directory containing a `stack.yml`, or
+- a bare stack name, which is matched against the `name` of every stack found beneath
+  `$STACK_REPO_BASE_DIR`. The name must match exactly one stack.
+
+A stack name has **no** branch or tag component — there is no `--stack name@branch` form.
+The build uses whatever ref is currently checked out in the cloned repository, so select
+the branch or tag when you fetch:
+
+```bash
+stack fetch repo bozemanpass/example-todo-list@my-branch
+stack build containers --stack my-stack
+```
+
+See [stack fetch](fetch.md) for the locator syntax and for how to move an existing clone to
+a different ref. If you need to build two refs of the same stack side by side, clone them
+into separate directories and pass the paths to `--stack`.
+
+Note that the `@tag_or_branch` suffixes appearing inside `stack.yml` (`repository`, `ref`,
+`wrapper-ref`) pin the repositories that individual *containers* are built from; they do not
+affect which ref of the stack's own repository is used.
+
 ##### Build Policies
 
 Available build policies:
