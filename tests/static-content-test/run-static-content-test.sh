@@ -91,6 +91,48 @@ fi
 
 rm -f test.index test.subdir test.css test.git
 
+set -e
+
+# Test wrapping only a subdirectory of the source repo, with --content-root
+subdir_image_name="bozemanpass/stack-test-static-content-content-root:stack"
+$TEST_TARGET_SO webapp build --wrapper static-content \
+  --source-repo $STACK_REPO_BASE_DIR/stack-test-static-content \
+  --content-root pages \
+  --tag ${subdir_image_name}
+
+set +e
+
+CONTAINER_ID=$(docker run -p 3000:80 -d ${subdir_image_name})
+if [ $? -ne 0 ]; then
+  echo "Failed to start container from image ${subdir_image_name}"
+  exit 1
+fi
+sleep 3
+# ./pages/about.html is the document root now ...
+wget --tries 20 --retry-connrefused --waitretry=3 -O test.content-root http://localhost:3000/about.html
+# ... and the content above it is not in the image at all.
+wget -O test.content-root-index http://localhost:3000/index.html
+index_rc=$?
+
+docker stop $CONTAINER_ID > /dev/null
+
+grep "STACK_STATIC_CONTENT_TEST_SUBDIR_MARKER" test.content-root > /dev/null
+if [ $? -ne 0 ]; then
+  echo "CONTENT-ROOT: FAILED"
+  exit 1
+else
+  echo "CONTENT-ROOT: PASSED"
+fi
+
+if [ $index_rc -eq 0 ]; then
+  echo "CONTENT-ROOT-NARROWED: FAILED"
+  exit 1
+else
+  echo "CONTENT-ROOT-NARROWED: PASSED"
+fi
+
+rm -f test.content-root test.content-root-index
+
 # Now test deploying static content as a stack component, via the wrapper field in stack.yml
 echo "Running static content deployment test"
 
@@ -150,5 +192,31 @@ else
 fi
 
 rm -f test.deployed test.deployed-subdir
+
+# Finally, build a stack whose container entry uses content-root in stack.yml.
+set -e
+$TEST_TARGET_SO build containers --stack test-static-content-subdir
+set +e
+
+stack_subdir_image_name="bozemanpass/stack-test-static-content-subdir:stack"
+CONTAINER_ID=$(docker run -p 3001:80 -d ${stack_subdir_image_name})
+if [ $? -ne 0 ]; then
+  echo "Failed to start container from image ${stack_subdir_image_name}"
+  exit 1
+fi
+sleep 3
+wget --tries 20 --retry-connrefused --waitretry=3 -O test.stack-content-root http://localhost:3001/about.html
+
+docker stop $CONTAINER_ID > /dev/null
+
+grep "STACK_STATIC_CONTENT_TEST_SUBDIR_MARKER" test.stack-content-root > /dev/null
+if [ $? -ne 0 ]; then
+  echo "STACK-CONTENT-ROOT: FAILED"
+  exit 1
+else
+  echo "STACK-CONTENT-ROOT: PASSED"
+fi
+
+rm -f test.stack-content-root
 
 exit 0

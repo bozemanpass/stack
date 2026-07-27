@@ -41,17 +41,25 @@ from stack.log import log_debug, log_info, output_main
 @click.option("--wrapper-ref", help="wrapper repository to use, [host/]org/repo[@branch-or-hash]")
 @click.option("--base-container", help="wrapper base container (deprecated: use --wrapper)")
 @click.option("--source-repo", help="directory containing the webapp to build", required=True)
+@click.option("--content-root", help="subdirectory of the source repo holding the content to wrap (default: the repo root)")
 @click.option("--force-rebuild", is_flag=True, default=False, help="Override dependency checking -- always rebuild")
 @click.option("--extra-build-args", help="Supply extra arguments to build")
 @click.option("--tag", help="Container tag (default: bozemanpass/<app_name>:stack)")
 @click.pass_context
-def command(ctx, wrapper, wrapper_ref, base_container, source_repo, force_rebuild, extra_build_args, tag):
+def command(ctx, wrapper, wrapper_ref, base_container, source_repo, content_root, force_rebuild, extra_build_args, tag):
     '''build the specified webapp container'''
 
     # See: https://stackoverflow.com/questions/25389095/python-get-path-of-root-project-structure
     container_build_dir = Path(__file__).absolute().parent.parent.joinpath("data", "container-build")
 
     dev_root_path = get_dev_root_path()
+
+    # The app source that gets wrapped: the repo itself, or the content root within it.
+    app_source_dir = Path(source_repo).absolute()
+    if content_root:
+        app_source_dir = app_source_dir.joinpath(str(content_root).lstrip("/"))
+    if not app_source_dir.exists():
+        error_exit(f"Content root {app_source_dir} does not exist.")
 
     log_debug(f"Dev Root is: {dev_root_path}")
 
@@ -64,7 +72,7 @@ def command(ctx, wrapper, wrapper_ref, base_container, source_repo, force_rebuil
     def find_wrapper():
         if wrapper or base_container:
             return resolve_wrapper(wrapper if wrapper else base_container, search_root=wrapper_search_root)
-        return detect_wrapper(source_repo)
+        return detect_wrapper(app_source_dir)
 
     wrapper_spec = find_wrapper()
     if not wrapper_spec and not wrapper_ref:
@@ -99,7 +107,7 @@ def command(ctx, wrapper, wrapper_ref, base_container, source_repo, force_rebuil
 
     # Now build the target webapp.  We use the same build script, but with a different Dockerfile and work dir.
     container_build_env["STACK_WEBAPP_BUILD_RUNNING"] = "true"
-    container_build_env["STACK_CONTAINER_BUILD_WORK_DIR"] = os.path.abspath(source_repo)
+    container_build_env["STACK_CONTAINER_BUILD_WORK_DIR"] = str(app_source_dir)
     container_build_env["STACK_CONTAINER_BUILD_CONTAINERFILE"] = str(wrapper_spec.containerfile_path())
     if not tag:
         webapp_name = os.path.abspath(source_repo).split(os.path.sep)[-1]

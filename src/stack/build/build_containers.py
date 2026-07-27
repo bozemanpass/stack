@@ -154,13 +154,8 @@ def process_container(build_context: BuildContext) -> bool:
         build_command = build_script_filename.as_posix()
     else:
         log_debug(f"No script file found: {build_script_filename}, using default build script")
-        if building_container.ref:
-            repo_full_path = fs_path_for_repo(building_container.ref)
-        else:
-            repo_full_path = stack.repo_path
-
-        if building_container.path:
-            repo_full_path = repo_full_path.joinpath(building_container.path)
+        # The default build gets the source repo, narrowed to the content root, as its context.
+        repo_full_path = _content_root_path(building_container, _source_repo_dir(building_container, stack))
         repo_dir_or_build_dir = repo_full_path if repo_full_path and repo_full_path.exists() else build_dir
         build_command = (
             os.path.join(build_context.default_container_base_dir, "default-build.sh")
@@ -173,6 +168,10 @@ def process_container(build_context: BuildContext) -> bool:
     build_envs["STACK_REPO_STACK_DIR"] = str(stack.repo_path) if stack.repo_path else ""
     build_envs["STACK_REPO_CONTAINER_DIR"] = str(build_context.container.repo_path) if building_container.repo_path else build_envs["STACK_REPO_STACK_DIR"]
     build_envs["STACK_REPO_SOURCE_DIR"] = str(fs_path_for_repo(building_container.ref)) if building_container.ref else build_envs["STACK_REPO_CONTAINER_DIR"]
+
+    # The default build uses this as its context; a build script has to opt in, so hand it over.
+    content_root_dir = _content_root_path(building_container, _source_repo_dir(building_container, stack))
+    build_envs["STACK_CONTENT_ROOT_DIR"] = str(content_root_dir) if content_root_dir else build_envs["STACK_REPO_SOURCE_DIR"]
 
     if not opts.o.dry_run:
         # No PATH at all causes failures with podman.
@@ -288,6 +287,45 @@ def _update_wrapper_lock(stack, building_container, wrapper, wrapper_locks: dict
     write_wrapper_locks(Path(stack.file_path).parent, wrapper_locks)
 
 
+def _default_content_root(stack_container, spec_ref=None):
+    """The content root for a stack.yml container entry that doesn't give one.
+
+    `path` locates the container's build info within the repo at `ref`.  When no container.yml
+    redirects the build at a different source repo, the recipe and the source it builds are
+    colocated, so `path` also names the content root.  When the build is redirected, `path`
+    describes the layout of the specs repo and says nothing about the source repo, so the
+    content root stays at the source repo's root."""
+    if stack_container.content_root:
+        return stack_container.content_root
+    if spec_ref and spec_ref not in (".", stack_container.ref):
+        return None
+    return stack_container.path
+
+
+def _source_repo_dir(building_container, stack):
+    """The repo whose source this container is built from.
+
+    `ref` names it.  A container.yml that omits `ref` means "the repo this descriptor lives
+    in", which is what `repo_path` records.  Failing both, the stack's own repo."""
+    if building_container.ref:
+        return fs_path_for_repo(building_container.ref)
+    if building_container.repo_path:
+        return building_container.repo_path
+    return stack.repo_path
+
+
+def _content_root_path(building_container, source_dir):
+    """`source_dir` narrowed to the container's content root.
+
+    The content root is the subdirectory of the source repo that is actually built (wrapped,
+    or handed to the default build as its context).  It defaults to the whole repo.  See the
+    ContainerSpec docstring for how it differs from `path`."""
+    if not source_dir:
+        return source_dir
+    content_root = str(building_container.content_root or ".").lstrip("/")
+    return Path(source_dir).joinpath(content_root)
+
+
 def _process_wrapped_container(build_context: BuildContext) -> bool:
     building_container = build_context.container
     stack = build_context.stack
@@ -310,12 +348,9 @@ def _process_wrapped_container(build_context: BuildContext) -> bool:
 
     # Now wrap the app source, using the same build script but with the
     # wrapper's containerfile and the app source repo as the build context.
-    if building_container.ref:
-        app_source_dir = fs_path_for_repo(building_container.ref)
-    else:
-        app_source_dir = build_context.stack.repo_path
-    if building_container.path and building_container.path != ".":
-        app_source_dir = Path(app_source_dir).joinpath(building_container.path)
+    app_source_dir = _content_root_path(building_container, _source_repo_dir(building_container, stack))
+    if not app_source_dir or not app_source_dir.exists():
+        error_exit(f"Content root {app_source_dir} for container {building_container.name} does not exist.")
 
     app_build_env = dict(build_context.container_build_env)
     app_build_env["STACK_WEBAPP_BUILD_RUNNING"] = "true"
@@ -403,7 +438,8 @@ def build_containers(parent_stack,
             container_needs_pulled = False
             container_tag = None
             container_spec = ContainerSpec(stack_container.name, stack_container.ref, path=stack_container.path,
-                                           wrapper=stack_container.wrapper, wrapper_ref=stack_container.wrapper_ref)
+                                           wrapper=stack_container.wrapper, wrapper_ref=stack_container.wrapper_ref,
+                                           content_root=_default_content_root(stack_container))
             stack_local_tag = f"{container_spec.name}:stack"
             stack_legacy_tag = f"{container_spec.name}:local"
             image_registry_to_pull_this_container = image_registry
@@ -427,7 +463,15 @@ def build_containers(parent_stack,
 
                 if os.path.exists(container_spec_yml_path):
                     container_spec = ContainerSpec(wrapper=stack_container.wrapper,
-                                                   wrapper_ref=stack_container.wrapper_ref).init_from_file(container_spec_yml_path)
+                                                   wrapper_ref=stack_container.wrapper_ref,
+                                                   content_root=stack_container.content_root).init_from_file(container_spec_yml_path)
+                    if not container_spec.ref:
+                        # `ref` omitted in a container.yml means "the repo this descriptor lives
+                        # in", which is the repo the stack entry already named.  Naming it keeps
+                        # these containers in the normal hashing/locking path.
+                        container_spec.ref = stack_container.ref
+                    if not container_spec.content_root:
+                        container_spec.content_root = _default_content_root(stack_container, container_spec.ref)
 
                 if container_spec.ref:
                     locked_hash = None

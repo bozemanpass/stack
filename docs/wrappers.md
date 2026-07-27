@@ -67,6 +67,55 @@ it via the `static-content` wrapper.
 A repository may instead declare its own wrapping in its `container.yml` with the same
 `wrapper` field (see [stack-files.md](./stack-files.md)).
 
+## Content root
+
+By default the whole source repository is wrapped: it is the build context for the wrapper's
+containerfile, so for `static-content` the repository root becomes the document root.  That
+suits a repository that holds nothing but the site.  A repository that also holds a README, CI
+config, or its own stack files needs to say which directory is the content:
+
+```
+my-static-site/             <- ref
+├── README.md
+├── stack-files/
+│   └── stacks/my-site/stack.yml
+└── site/                   <- content-root: this is what gets served
+    ├── index.html
+    └── pages/about.html
+```
+
+```yaml
+containers:
+  - name: bozemanpass/my-static-site
+    ref: myorg/my-static-site
+    wrapper: static-content
+    content-root: site
+```
+
+`http://<host>/pages/about.html` then serves `site/pages/about.html`.  Only the content root is
+sent to the container build, so everything outside it is absent from the image entirely — not
+merely unreferenced.
+
+The same field works in a repository's own `container.yml`, so a self-describing repo carries
+its layout with it:
+
+```yaml
+container:
+  name: bozemanpass/my-static-site
+  wrapper: static-content
+  content-root: site
+```
+
+and on the command line:
+
+```
+$ stack webapp build --wrapper static-content --source-repo ~/my-static-site --content-root site
+```
+
+`content-root` is not wrapper-specific: it narrows the build context of an ordinary container
+build the same way.  See [stack-files.md](./stack-files.md#path-vs-content-root) for how it
+relates to `path`, with worked examples of each combination.
+
 ## Prebuilt base images
 
 Wrapper repositories publish their base images to a container registry (ghcr for github-hosted

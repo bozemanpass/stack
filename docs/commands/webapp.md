@@ -26,8 +26,11 @@ stack webapp build [OPTIONS]
 
 | Option | Type | Description | Default |
 |--------|------|-------------|---------|
-| `--base-container` | TEXT | Base container image to use | - |
+| `--wrapper` | TEXT | Wrapper scheme to use (see [wrappers.md](../wrappers.md)) | auto-detected from the app source |
+| `--wrapper-ref` | TEXT | Wrapper repository to use, `[host/]org/repo[@branch-or-hash]` | already-fetched wrapper repos |
+| `--base-container` | TEXT | Wrapper base container (deprecated: use `--wrapper`) | - |
 | `--source-repo` | TEXT | Directory containing the webapp to build (required) | - |
+| `--content-root` | TEXT | Subdirectory of the source repo holding the content to build | the whole repo |
 | `--force-rebuild` | FLAG | Override dependency checking -- always rebuild | False |
 | `--extra-build-args` | TEXT | Supply extra arguments to build | - |
 | `--tag` | TEXT | Container tag | `bozemanpass/<app_name>:stack` |
@@ -96,8 +99,11 @@ Supported webapp frameworks:
 # Build a webapp from source
 stack webapp build --source-repo ./my-react-app
 
-# Build with custom base image
-stack webapp build --source-repo ./my-app --base-container node:18-alpine
+# Build with a specific wrapper
+stack webapp build --source-repo ./my-static-site --wrapper static-content
+
+# Build from a subdirectory of the source repo, e.g. a site whose pages live in ./site
+stack webapp build --source-repo ./my-static-site --wrapper static-content --content-root site
 
 # Force rebuild
 stack webapp build --source-repo ./my-app --force-rebuild

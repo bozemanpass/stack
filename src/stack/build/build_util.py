@@ -38,41 +38,60 @@ class StackContainer:
     path: str
     wrapper: str
     wrapper_ref: str
+    content_root: str
 
-    def __init__(self, name: str=None, ref=None, path=None, wrapper=None, wrapper_ref=None):
+    def __init__(self, name: str=None, ref=None, path=None, wrapper=None, wrapper_ref=None, content_root=None):
         self.name = name
         self.ref = ref
         self.path = path
         self.wrapper = wrapper
         self.wrapper_ref = wrapper_ref
+        self.content_root = content_root
 
     def __repr__(self):
         return str(self)
 
     def __str__(self):
         ret = { "name": self.name, "ref": self.ref, "path": self.path,
-                "wrapper": self.wrapper, "wrapper-ref": self.wrapper_ref }
+                "wrapper": self.wrapper, "wrapper-ref": self.wrapper_ref, "content-root": self.content_root }
         return json.dumps(ret)
 
 
 class ContainerSpec:
+    """How one container is built.
+
+    Two locations matter, and they are not the same thing:
+
+      - `path` (and `spec_dir`, its resolved form) is where the *recipe* lives: the directory
+        holding this container.yml, or the build.sh/Dockerfile named by the stack entry.
+      - `ref` plus `content_root` is what gets *built*: the source repository, narrowed to a
+        subdirectory of it when `content_root` is given.
+
+    They coincide for a repo that carries its own Dockerfile beside the code it builds, which
+    is why one field served both for a long time.  They come apart whenever the recipe lives
+    elsewhere -- a wrapper, or a container.yml in a separate specs repo."""
+
     name: str
     ref: str
     build: str
     path: str
     wrapper: str
     wrapper_ref: str
+    content_root: str
     file_path: str
+    spec_dir: Path
     repo_path: Path
 
-    def __init__(self, name: str=None, ref=None, build=None, path=None, wrapper=None, wrapper_ref=None):
+    def __init__(self, name: str=None, ref=None, build=None, path=None, wrapper=None, wrapper_ref=None, content_root=None):
         self.name = name
         self.ref = ref
         self.build = build
         self.path = path
         self.wrapper = wrapper
         self.wrapper_ref = wrapper_ref
+        self.content_root = content_root
         self.file_path = None
+        self.spec_dir = None
         self.repo_path = None
 
     def __repr__(self):
@@ -80,12 +99,13 @@ class ContainerSpec:
 
     def __str__(self):
         ret = { "name": self.name, "ref": self.ref, "build": self.build, "path": self.path,
-                "wrapper": self.wrapper, "wrapper-ref": self.wrapper_ref, "file_path": self.file_path }
+                "wrapper": self.wrapper, "wrapper-ref": self.wrapper_ref, "content-root": self.content_root,
+                "file_path": self.file_path, "spec_dir": str(self.spec_dir) if self.spec_dir else None }
         return json.dumps(ret)
 
     def init_from_file(self, file_path: Path):
         self.file_path = Path(file_path).as_posix()
-        self.path = Path(self.file_path).parent.as_posix()
+        self.spec_dir = Path(self.file_path).parent
 
         y = get_yaml().load(open(file_path, "r"))
         if "container" not in y:
@@ -97,7 +117,8 @@ class ContainerSpec:
         self.build = y["container"].get("build")
         self.wrapper = y["container"].get("wrapper", self.wrapper)
         self.wrapper_ref = y["container"].get("wrapper-ref", self.wrapper_ref)
-        self.repo_path = find_repo_root(self.path)
+        self.content_root = y["container"].get("content-root", self.content_root)
+        self.repo_path = find_repo_root(self.spec_dir)
         return self
 
     def get_repo_ref(self):
@@ -156,7 +177,8 @@ def get_containers_in_scope(stack):
         else:
             containers_in_scope.append(StackContainer(container["name"], ref=container.get("ref"), path=container.get("path"),
                                                       wrapper=container.get("wrapper"),
-                                                      wrapper_ref=container.get("wrapper-ref")))
+                                                      wrapper_ref=container.get("wrapper-ref"),
+                                                      content_root=container.get("content-root")))
 
     log_debug(f"Containers: {containers_in_scope}")
     if stack:
