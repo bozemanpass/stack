@@ -454,6 +454,15 @@ def container_exists_remotely(tag, registries=None, arch=None):
     return False, None
 
 
+def _is_loopback_registry(registry):
+    # A loopback registry speaks plain HTTP; docker treats it as implicitly insecure
+    # for push/pull, but `manifest inspect` has to be told explicitly.
+    if not registry:
+        return False
+    host = registry.split("/")[0].split(":")[0]
+    return host in ("localhost", "127.0.0.1", "::1")
+
+
 def _docker_manifest_inspect(tag, registry=None):
     manifest = None
     full_tag = tag
@@ -462,13 +471,15 @@ def _docker_manifest_inspect(tag, registry=None):
 
     log_debug(f"Checking for {full_tag}")
 
+    insecure_flag = "--insecure " if _is_loopback_registry(registry) else ""
+
     # Basic docker command
-    manifest_cmd = ["docker", "manifest", "inspect", "--verbose", full_tag]
+    manifest_cmd = ["docker", "manifest", "inspect"] + (["--insecure"] if insecure_flag else []) + ["--verbose", full_tag]
 
     # podman does not properly support the manifest command, so we cheat by having podman run the docker-cli
     docker_version = subprocess.run(["docker", "--version"], capture_output=True, text=True)
     if "podman" in docker_version.stdout:
-        inspect_str = f"docker manifest inspect --verbose {full_tag}"
+        inspect_str = f"docker manifest inspect {insecure_flag}--verbose {full_tag}"
         if registry:
             username = None
             password = None

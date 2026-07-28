@@ -166,6 +166,7 @@ echo "DEPLOY-CREATE: PASSED"
 
 delete_cluster_exit () {
     $TEST_TARGET_SO manage --dir $test_deployment_dir stop --delete-volumes
+    docker rm -f stack-test-registry > /dev/null 2>&1
 }
 trap delete_cluster_exit EXIT
 
@@ -218,5 +219,44 @@ else
 fi
 
 rm -f test.stack-content-root
+
+# Finally, test that a published prebuilt image is discovered and pulled rather
+# than rebuilt.  Publish the wrapped image to a throwaway local registry, remove
+# every local copy, then prepare again: the image's identity (the stack repo's
+# commit hash, whose committed stack.lock pins the app source and wrapper) must
+# match what was published, so it is fetched with no build.
+echo "Running prebuilt image fetch test"
+
+set -e
+
+docker rm -f stack-test-registry > /dev/null 2>&1 || true
+docker run -d --name stack-test-registry -p 5000:5000 registry:2
+
+# The deployment holds a running container using the image, which would block
+# image removal below; it has served its purpose, so stop it now.
+$TEST_TARGET_SO manage --dir $test_deployment_dir stop --delete-volumes
+
+# The deployment dir under STACK_REPO_BASE_DIR contains a copy of the stack
+# files, making resolution by stack name ambiguous from here on: use the path.
+static_content_stack_dir=$STACK_REPO_BASE_DIR/github.com/bozemanpass/stack-test-stacks/stack-files/stacks/test-static-content-stack
+
+$TEST_TARGET_SO prepare --stack $static_content_stack_dir --publish-images --image-registry localhost:5000
+
+# Remove every local tag of the app image so it can only come from the registry.
+docker images bozemanpass/stack-test-static-content -q | sort -u | xargs -r docker rmi -f
+
+$TEST_TARGET_SO prepare --stack $static_content_stack_dir --image-registry localhost:5000 | tee test.prepare-pull
+
+set +e
+
+grep -E "bozemanpass/stack-test-static-content +pulled" test.prepare-pull > /dev/null
+if [ $? -ne 0 ]; then
+  echo "PREBUILT-PULLED: FAILED"
+  exit 1
+else
+  echo "PREBUILT-PULLED: PASSED"
+fi
+
+rm -f test.prepare-pull
 
 exit 0
