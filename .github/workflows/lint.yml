@@ -23,3 +23,7 @@ jobs:
         run: uv sync
       - name: "Run flake8"
         run: uv run flake8 --config tox.ini
+      - name: "Check syntax against minimum supported Python"
+        # The zipapp runs on whatever python3 the target machine has, so the source
+        # must parse on the oldest version we claim to support (requires-python).
+        run: uv run --python 3.10 --no-project python -m compileall -q src/

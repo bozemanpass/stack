@@ -258,7 +258,7 @@ def _generate_kind_mounts(parsed_pod_files, deployment_dir, deployment_context):
                                     f"  - hostPath: {_make_absolute_host_path(volume_host_path_map[volume_name], deployment_dir)}\n"
                                     f"    containerPath: {get_kind_pv_bind_mount_path(volume_name)}\n"
                                 )
-    return "" if len(volume_definitions) == 0 else ("  extraMounts:\n" f"{"".join(volume_definitions)}")
+    return "" if len(volume_definitions) == 0 else ("  extraMounts:\n" f"{''.join(volume_definitions)}")
 
 
 # TODO: decide if we need this functionality
@@ -276,7 +276,7 @@ def _generate_kind_port_mappings_from_services(parsed_pod_files):
                         # TODO handle the complex cases
                         # Looks like: 80 or something more complicated
                         port_definitions.append(f"  - containerPort: {port_string}\n    hostPort: {port_string}\n")
-    return "" if len(port_definitions) == 0 else ("  extraPortMappings:\n" f"{"".join(port_definitions)}")
+    return "" if len(port_definitions) == 0 else ("  extraPortMappings:\n" f"{''.join(port_definitions)}")
 
 
 def _generate_kind_port_mappings(parsed_pod_files):
@@ -284,7 +284,7 @@ def _generate_kind_port_mappings(parsed_pod_files):
     # For now we just map port 80 for the nginx ingress controller we install in kind
     port_string = "80"
     port_definitions.append(f"  - containerPort: {port_string}\n    hostPort: {port_string}\n")
-    return "" if len(port_definitions) == 0 else ("  extraPortMappings:\n" f"{"".join(port_definitions)}")
+    return "" if len(port_definitions) == 0 else ("  extraPortMappings:\n" f"{''.join(port_definitions)}")
 
 
 # Note: this makes any duplicate definition in b overwrite a
