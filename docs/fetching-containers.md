@@ -57,6 +57,11 @@ Auto-detection applies only to *pulling*: publishing with `--publish-images` alw
 Some registries (Bitbucket's included, unlike ghcr) do not support anonymous pulls at all: `docker login`
 is required before either discovery or pulling can succeed.
 
+Registries also differ in whether a first push may create the image name: ghcr creates a package
+implicitly, but Bitbucket's registry requires the package to be created (and linked to a repository, whose
+permissions it inherits) in the Bitbucket UI before the first push, otherwise the push fails with "name
+unknown".  For an image named `<workspace>/<name>`, the package to create is `<name>`.
+
 A remote image only counts as available if its manifest includes the local machine's architecture (or the
 `--target-arch` architecture, when given).  If no matching architecture is published the image is treated as
 unavailable and, under the `as-needed` policy, built locally instead.
