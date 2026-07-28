@@ -128,6 +128,21 @@ class Stack:
             return repo.remotes[0].url
         return None
 
+    def repo_is_local_checkout(self):
+        """True when this stack was loaded from a checkout other than the dev-root clone
+        of its repo -- a developer tree or a CI checkout.  Colocated containers of such a
+        stack build directly from that checkout, and its repo is never cloned."""
+        if not self._determine_repo_path():
+            return False
+        ref = self.get_repo_ref()
+        if not ref:
+            # No derivable repo ref (e.g. no usable remote): the checkout is all there is.
+            return True
+        dev_clone_path = repo_util.fs_path_for_repo(ref, get_dev_root_path())
+        if not dev_clone_path:
+            return True
+        return Path(self.repo_path).resolve() != Path(dev_clone_path).resolve()
+
     def get_required_stacks(self):
         return self.get(constants.requires_key, {}).get(constants.stacks_key)
 

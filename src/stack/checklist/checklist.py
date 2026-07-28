@@ -23,6 +23,7 @@ from stack.build.build_util import (
     container_exists_locally,
     container_exists_remotely,
     local_container_arch,
+    same_repo_ref,
 )
 from stack.config.util import get_config_setting
 from stack.config.util import get_dev_root_path
@@ -53,7 +54,9 @@ def container_disposition(parent_stack, image_registry, git_ssh):
             if (not stack_container.ref or stack_container.ref == ".") and stack.get_repo_ref():
                 stack_container.ref = stack.get_repo_ref()
 
-            if stack_container.ref:
+            # A ref naming the stack's own repo resolves to the tree the stack was loaded
+            # from, which is present by definition; only other refs can be missing.
+            if stack_container.ref and not (stack.repo_path and same_repo_ref(stack_container.ref, stack.get_repo_ref())):
                 container_repo_fs_path = fs_path_for_repo(stack_container.ref, get_dev_root_path())
                 if not os.path.exists(container_repo_fs_path):
                     log_debug(f"Missing ref {stack_container.ref} needed by {stack_container.name}.")
