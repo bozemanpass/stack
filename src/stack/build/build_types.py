@@ -27,9 +27,8 @@ class BuildContext:
     stack: Stack
     container: ContainerSpec
     default_container_base_dir: Path
-    container_build_env: Mapping[str,str]
+    container_build_env: Mapping[str, str]
     dev_root_path: Path
     # Two-way side channel between the build orchestration and the container processors,
     # e.g. the wrapper pin going in, and the wrapper version actually used coming out.
     notes: dict = field(default_factory=dict)
-

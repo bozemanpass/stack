@@ -43,7 +43,7 @@ class StackContainer:
     wrapper_ref: str
     content_root: str
 
-    def __init__(self, name: str=None, ref=None, path=None, wrapper=None, wrapper_ref=None, content_root=None):
+    def __init__(self, name: str = None, ref=None, path=None, wrapper=None, wrapper_ref=None, content_root=None):
         self.name = name
         self.ref = ref
         self.path = path
@@ -55,8 +55,8 @@ class StackContainer:
         return str(self)
 
     def __str__(self):
-        ret = { "name": self.name, "ref": self.ref, "path": self.path,
-                "wrapper": self.wrapper, "wrapper-ref": self.wrapper_ref, "content-root": self.content_root }
+        ret = {"name": self.name, "ref": self.ref, "path": self.path,
+               "wrapper": self.wrapper, "wrapper-ref": self.wrapper_ref, "content-root": self.content_root}
         return json.dumps(ret)
 
 
@@ -85,7 +85,7 @@ class ContainerSpec:
     spec_dir: Path
     repo_path: Path
 
-    def __init__(self, name: str=None, ref=None, build=None, path=None, wrapper=None, wrapper_ref=None, content_root=None):
+    def __init__(self, name: str = None, ref=None, build=None, path=None, wrapper=None, wrapper_ref=None, content_root=None):
         self.name = name
         self.ref = ref
         self.build = build
@@ -101,9 +101,9 @@ class ContainerSpec:
         return str(self)
 
     def __str__(self):
-        ret = { "name": self.name, "ref": self.ref, "build": self.build, "path": self.path,
-                "wrapper": self.wrapper, "wrapper-ref": self.wrapper_ref, "content-root": self.content_root,
-                "file_path": self.file_path, "spec_dir": str(self.spec_dir) if self.spec_dir else None }
+        ret = {"name": self.name, "ref": self.ref, "build": self.build, "path": self.path,
+               "wrapper": self.wrapper, "wrapper-ref": self.wrapper_ref, "content-root": self.content_root,
+               "file_path": self.file_path, "spec_dir": str(self.spec_dir) if self.spec_dir else None}
         return json.dumps(ret)
 
     def init_from_file(self, file_path: Path):
@@ -414,7 +414,6 @@ def get_containers_in_scope(stack):
         with importlib.resources.open_text(data, "container-image-list.txt") as container_list_file:
             raw_containers = container_list_file.read().splitlines()
 
-
     for container in raw_containers:
         if isinstance(container, str):
             containers_in_scope.append(StackContainer(container))
@@ -503,7 +502,8 @@ def _docker_manifest_inspect(tag, registry=None):
                     username, password = base64.standard_b64decode(login_info).decode().split(":", 2)
 
             if username and password:
-                inspect_str = f"""docker login --username "{username}" --password "{password}" {registry} >/dev/null && {inspect_str}"""
+                inspect_str = (f'docker login --username "{username}" --password "{password}"'
+                               f" {registry} >/dev/null && {inspect_str}")
 
         manifest_cmd = ["podman", "run", "-q", "alpinelinux/docker-cli", "sh", "-c", inspect_str]
 
