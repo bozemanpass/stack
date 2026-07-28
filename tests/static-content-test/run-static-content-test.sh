@@ -16,7 +16,8 @@ else
     TEST_TARGET_SO=$( ls -t1 ./package/stack* | head -1 )
 fi
 # Set a non-default repo dir
-export STACK_REPO_BASE_DIR=~/stack-test/static-content-repo-base-dir
+STACK_TEST_DIR=~/stack-test/static-content-test-dir
+export STACK_REPO_BASE_DIR=${STACK_TEST_DIR}/repo-base-dir
 # Overridable for local testing against an unpushed content repo
 TEST_CONTENT_REPO=${STACK_TEST_STATIC_CONTENT_REPO:-https://github.com/bozemanpass/stack-test-static-content.git}
 echo "Testing this package: $TEST_TARGET_SO"
@@ -24,7 +25,7 @@ echo "Test version command"
 reported_version_string=$( $TEST_TARGET_SO version )
 echo "Version reported is: ${reported_version_string}"
 echo "Cloning repositories into: $STACK_REPO_BASE_DIR"
-rm -rf $STACK_REPO_BASE_DIR
+rm -rf $STACK_TEST_DIR
 mkdir -p $STACK_REPO_BASE_DIR
 git clone $TEST_CONTENT_REPO $STACK_REPO_BASE_DIR/stack-test-static-content
 
@@ -147,8 +148,10 @@ fi
 
 $TEST_TARGET_SO prepare --stack test-static-content
 
-test_deployment_dir=$STACK_REPO_BASE_DIR/test-deployment-dir
-test_deployment_spec=$STACK_REPO_BASE_DIR/test-deployment-spec.yml
+# Deployment artifacts live outside the repo base dir, so the deployment's copy
+# of the stack files is not seen when resolving stacks by name.
+test_deployment_dir=$STACK_TEST_DIR/test-deployment-dir
+test_deployment_spec=$STACK_TEST_DIR/test-deployment-spec.yml
 
 $TEST_TARGET_SO init --stack test-static-content --output $test_deployment_spec --map-ports-to-host localhost-same
 if [ ! -f "$test_deployment_spec" ]; then
@@ -236,8 +239,6 @@ docker run -d --name stack-test-registry -p 5000:5000 registry:2
 # image removal below; it has served its purpose, so stop it now.
 $TEST_TARGET_SO manage --dir $test_deployment_dir stop --delete-volumes
 
-# The deployment dir under STACK_REPO_BASE_DIR contains a copy of the stack
-# files, making resolution by stack name ambiguous from here on: use the path.
 static_content_stack_dir=$STACK_REPO_BASE_DIR/github.com/bozemanpass/stack-test-stacks/stack-files/stacks/test-static-content-stack
 
 $TEST_TARGET_SO prepare --stack $static_content_stack_dir --publish-images --image-registry localhost:5000

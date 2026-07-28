@@ -25,7 +25,7 @@ import stack.repos.repo_util as repo_util
 
 from stack import constants
 from stack.config.util import get_dev_root_path
-from stack.log import log_debug
+from stack.log import log_debug, log_warn
 from stack.util import get_yaml, get_stack_path, error_exit, resolve_compose_file, STACK_USE_BUILTIN_STACK
 
 
@@ -428,10 +428,24 @@ def pod_has_scripts(parsed_stack, pod_name: str):
     return result
 
 
+def _is_deployment_stack_copy(stack_file_path: Path, search_path: Path):
+    # A deployment directory contains a copy of the stack's files beside its
+    # deployment.yml; that copy belongs to the deployment, not to the set of
+    # stacks available to build or deploy from.
+    for ancestor in Path(stack_file_path).parents:
+        if ancestor.joinpath(constants.deployment_file_name).exists():
+            return True
+        if ancestor == search_path:
+            break
+    return False
+
+
 def locate_stacks_beneath(search_path=get_dev_root_path()):
     stacks = []
     if search_path.exists():
         for path in search_path.rglob("stack.yml"):
+            if _is_deployment_stack_copy(path, search_path):
+                continue
             stacks.append(Stack().init_from_file(path))
 
     return stacks
@@ -443,11 +457,13 @@ def locate_single_stack(stack_name, search_path=get_dev_root_path(), fail_on_mul
     if len(candidates) == 1:
         return candidates[0]
     elif len(candidates) > 1:
+        candidate_paths = ", ".join(str(s.file_path.parent) for s in candidates)
         if fail_on_multiple:
-            error_exit(f"multiple stacks named {stack_name} found")
+            error_exit(f"multiple stacks named {stack_name} found: {candidate_paths}")
         else:
-            # DBDB this means that if we asked to find a stack, found two or more stacks, and specified
-            # fail_on_multiple=False then it looks the same to the caller as if we found zero stacks.
+            # The caller treats this the same as finding no stack at all, so make the
+            # ambiguity visible rather than letting it surface as "stack not found".
+            log_warn(f"WARN: multiple stacks named {stack_name} found: {candidate_paths}")
             return None
 
     if fail_on_none:

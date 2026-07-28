@@ -59,19 +59,22 @@ delete_cluster_exit () {
 export STACK_USE_BUILTIN_STACK=true
 
 # Set a non-default repo dir
-export STACK_REPO_BASE_DIR=~/stack-test/repo-base-dir
+STACK_TEST_DIR=~/stack-test/k8s-deployment-control-test-dir
+export STACK_REPO_BASE_DIR=${STACK_TEST_DIR}/repo-base-dir
 echo "Testing this package: $TEST_TARGET_SO"
 echo "Test version command"
 reported_version_string=$( $TEST_TARGET_SO version )
 echo "Version reported is: ${reported_version_string}"
 echo "Cloning repositories into: $STACK_REPO_BASE_DIR"
-rm -rf $STACK_REPO_BASE_DIR
+rm -rf $STACK_TEST_DIR
 mkdir -p $STACK_REPO_BASE_DIR
 $TEST_TARGET_SO fetch repositories --stack test
 $TEST_TARGET_SO build containers --stack test
 # Test basic stack deploy to k8s
-test_deployment_dir=$STACK_REPO_BASE_DIR/test-deployment-dir
-test_deployment_spec=$STACK_REPO_BASE_DIR/test-deployment-spec.yml
+# Deployment artifacts live outside the repo base dir, so the deployment's copy
+# of the stack files is not seen when resolving stacks by name.
+test_deployment_dir=$STACK_TEST_DIR/test-deployment-dir
+test_deployment_spec=$STACK_TEST_DIR/test-deployment-spec.yml
 
 # Create a deployment that we can use to check our test cases
 $TEST_TARGET_SO --stack test deploy --deploy-to k8s-kind init --output $test_deployment_spec
