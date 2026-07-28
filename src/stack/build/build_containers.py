@@ -138,7 +138,9 @@ def process_container(build_context: BuildContext) -> bool:
             # If the build script filename is not explicitly provided, we try to infer it
             # DBDB this code seems not to work because we use the bare stack name rather than a directory
             # We go looking for a "containers" directory in the root of the container's repo.
-            container_build_script_dir = fs_path_for_repo(building_container.ref).joinpath(constants.stack_files_directory_name).joinpath(constants.containers_directory_name)
+            container_build_script_dir = (fs_path_for_repo(building_container.ref)
+                                          .joinpath(constants.stack_files_directory_name)
+                                          .joinpath(constants.containers_directory_name))
             log_debug(f"Looking for build script in this directory: {container_build_script_dir}")
             if os.path.exists(container_build_script_dir):
                 temp_build_dir = container_build_script_dir.joinpath(building_container.name.replace("/", "-"))
@@ -176,8 +178,10 @@ def process_container(build_context: BuildContext) -> bool:
     build_envs["STACK_IMAGE_NAME"] = building_container.name
 
     build_envs["STACK_REPO_STACK_DIR"] = str(stack.repo_path) if stack.repo_path else ""
-    build_envs["STACK_REPO_CONTAINER_DIR"] = str(build_context.container.repo_path) if building_container.repo_path else build_envs["STACK_REPO_STACK_DIR"]
-    build_envs["STACK_REPO_SOURCE_DIR"] = str(fs_path_for_repo(building_container.ref)) if building_container.ref else build_envs["STACK_REPO_CONTAINER_DIR"]
+    build_envs["STACK_REPO_CONTAINER_DIR"] = (str(build_context.container.repo_path) if building_container.repo_path
+                                              else build_envs["STACK_REPO_STACK_DIR"])
+    build_envs["STACK_REPO_SOURCE_DIR"] = (str(fs_path_for_repo(building_container.ref)) if building_container.ref
+                                           else build_envs["STACK_REPO_CONTAINER_DIR"])
 
     # The default build uses this as its context; a build script has to opt in, so hand it over.
     content_root_dir = _content_root_path(building_container, _source_repo_dir(building_container, stack))
@@ -385,7 +389,7 @@ def _write_missing_pins(identity, payload_version, wrapper_used):
             get_yaml().dump(locks, output_file)
 
 
-def build_containers(parent_stack,
+def build_containers(parent_stack,  # noqa: C901
                      build_policy=get_config_setting("build-policy", BUILD_POLICIES[0]),
                      image_registry=get_config_setting("image-registry"),
                      publish_images=get_config_setting("publish-images", False),
@@ -432,12 +436,12 @@ def build_containers(parent_stack,
             if build_policy != "prebuilt-remote":
                 error_exit("--target-arch requires --build-policy prebuilt-remote")
 
-
         # check if we have any repos that specify the container targets / build info
         containers_in_scope = [c for c in get_containers_in_scope(stack) if include_exclude_check(c.name, include, exclude)]
         for stack_container in containers_in_scope:
 
-            log_info(f"Preparing {stack_container.name} ({len(finished_containers)+1} of {len(all_containers_in_scope)})", bold=True)
+            log_info(f"Preparing {stack_container.name} ({len(finished_containers)+1} of {len(all_containers_in_scope)})",
+                     bold=True)
 
             # No container ref means use the stack repo.
             if (not stack_container.ref or stack_container.ref == ".") and stack.get_repo_ref():
@@ -447,7 +451,8 @@ def build_containers(parent_stack,
                 stack.repo_is_local_checkout() and same_repo_ref(stack_container.ref, stack.get_repo_ref())
             ):
                 fs_path_for_container_specs = fs_path_for_repo(stack_container.ref, dev_root_path)
-                if not os.path.exists(fs_path_for_container_specs) or (git_pull and fs_path_for_container_specs not in dont_pull_repo_fs_paths):
+                if not os.path.exists(fs_path_for_container_specs) or (
+                        git_pull and fs_path_for_container_specs not in dont_pull_repo_fs_paths):
                     process_repo(git_pull, False, git_ssh, dev_root_path, [], stack_container.ref)
                     dont_pull_repo_fs_paths.append(fs_path_for_container_specs)
 
@@ -478,7 +483,8 @@ def build_containers(parent_stack,
                 elif not identity.tag_version.startswith("stackdev-"):
                     # A stackdev version is never published, so don't look for it remotely.
                     if build_policy in ["as-needed", "prebuilt", "prebuilt-remote"]:
-                        exists_remotely, image_registry_to_pull_this_container = container_exists_remotely(container_tag, image_registries_to_check, target_arch)
+                        exists_remotely, image_registry_to_pull_this_container = container_exists_remotely(
+                            container_tag, image_registries_to_check, target_arch)
                         if exists_remotely:
                             if image_registry_to_pull_this_container:
                                 log_info(f"Container {image_registry_to_pull_this_container}/{container_tag} exists remotely.")
@@ -518,7 +524,8 @@ def build_containers(parent_stack,
                         log_info(f"Building {container_spec.name} from {target_fs_repo_path}")
                     else:
                         target_fs_repo_path = fs_path_for_repo(identity.payload_ref, dev_root_path)
-                        if not os.path.exists(target_fs_repo_path) or (git_pull and target_fs_repo_path not in dont_pull_repo_fs_paths):
+                        if not os.path.exists(target_fs_repo_path) or (
+                                git_pull and target_fs_repo_path not in dont_pull_repo_fs_paths):
                             fetch_ref = identity.payload_ref
                             if identity.payload_pin:
                                 fetch_ref = f"{identity.payload_ref.split('@')[0]}@{identity.payload_pin}"
@@ -531,7 +538,8 @@ def build_containers(parent_stack,
                         if not identity.payload_pin:
                             deviating_inputs.append(f"payload:{payload_version}")
                         elif payload_version != identity.payload_pin:
-                            log_warn(f"WARN: {identity.payload_ref} checkout {payload_version} does not match locked hash {identity.payload_pin}.", bold=True)
+                            log_warn(f"WARN: {identity.payload_ref} checkout {payload_version} "
+                                     f"does not match locked hash {identity.payload_pin}.", bold=True)
                             deviating_inputs.append(f"payload:{payload_version}")
 
                 container_build_env = make_container_build_env(
@@ -546,7 +554,7 @@ def build_containers(parent_stack,
                         continue
                     try:
                         docker.image.remove(tag)
-                    except:
+                    except Exception:
                         pass
 
                 result = process_container(build_context)
@@ -562,8 +570,10 @@ def build_containers(parent_stack,
                 if wrapper_used:
                     if not identity.wrapper_pin:
                         deviating_inputs.append(f"wrapper:{wrapper_used['hash']}{'-dirty' if wrapper_used['dirty'] else ''}")
-                    elif wrapper_used["dirty"] or (wrapper_used["hash"] and wrapper_used["hash"] != identity.wrapper_pin.get("hash")):
-                        log_warn(f"WARN: wrapper {wrapper_used['name']} at {wrapper_used['hash']} does not match locked hash {identity.wrapper_pin.get('hash')}.", bold=True)
+                    elif wrapper_used["dirty"] or (
+                            wrapper_used["hash"] and wrapper_used["hash"] != identity.wrapper_pin.get("hash")):
+                        log_warn(f"WARN: wrapper {wrapper_used['name']} at {wrapper_used['hash']} "
+                                 f"does not match locked hash {identity.wrapper_pin.get('hash')}.", bold=True)
                         deviating_inputs.append(f"wrapper:{wrapper_used['hash']}{'-dirty' if wrapper_used['dirty'] else ''}")
 
                 # The actual inputs are known now, so settle the image identity.
@@ -572,8 +582,10 @@ def build_containers(parent_stack,
                     if deviating_inputs:
                         # The content deviates from what the recipe commit pins, so the recipe
                         # hash must not name it: generate a dev version from the actual inputs.
-                        built_version = "stackdev-" + hashlib.sha1(":".join([built_version] + deviating_inputs).encode()).hexdigest()
-                        log_warn(f"WARN: {container_spec.name} was built from unpinned or deviating inputs.  Using generated version: {built_version}", bold=True)
+                        built_version = "stackdev-" + hashlib.sha1(
+                            ":".join([built_version] + deviating_inputs).encode()).hexdigest()
+                        log_warn(f"WARN: {container_spec.name} was built from unpinned or deviating inputs."
+                                 f"  Using generated version: {built_version}", bold=True)
                     container_tag = f"{container_spec.name}:{built_version}"[:128]
 
                 _write_missing_pins(identity, payload_version, wrapper_used)
@@ -619,15 +631,18 @@ def build_containers(parent_stack,
 @click.option("--stack", help="name or path of the stack", required=False)
 @click.option("--include", help="only build these containers")
 @click.option("--exclude", help="don't build these containers")
-@click.option("--git-ssh/--no-git-ssh", is_flag=True, default=get_config_setting("git-ssh", False), help="use SSH for git rather than HTTPS")
+@click.option("--git-ssh/--no-git-ssh", is_flag=True, default=get_config_setting("git-ssh", False),
+              help="use SSH for git rather than HTTPS")
 @click.option("--build-policy", default=BUILD_POLICIES[0], help=f"Available policies: {BUILD_POLICIES}")
 @click.option("--extra-build-args", help="Supply extra arguments to build")
 @click.option("--dont-pull-images", is_flag=True, default=False, help="Don't pull remote images (useful with k8s deployments).")
 @click.option("--publish-images", is_flag=True, default=False, help="Publish the built images")
-@click.option("--image-registry", help="Specify the remote image registry (default: auto-detect per-container)", default=get_config_setting("image-registry"))
+@click.option("--image-registry", help="Specify the remote image registry (default: auto-detect per-container)",
+              default=get_config_setting("image-registry"))
 @click.option("--target-arch", help="Specify a target architecture (only for use with --dont-pull-images)")
 @click.pass_context
-def command(ctx, stack, include, exclude, git_ssh, build_policy, extra_build_args, dont_pull_images, publish_images, image_registry, target_arch):
+def command(ctx, stack, include, exclude, git_ssh, build_policy, extra_build_args, dont_pull_images, publish_images,
+            image_registry, target_arch):
     """build stack containers"""
     stack = resolve_stack(stack)
     build_containers(stack,

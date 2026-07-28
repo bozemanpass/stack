@@ -18,7 +18,6 @@ from python_on_whales import DockerClient
 from python_on_whales.exceptions import DockerException
 
 from stack.log import log_debug
-from stack.opts import opts
 from stack.util import error_exit
 
 
