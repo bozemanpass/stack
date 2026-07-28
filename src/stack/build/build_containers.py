@@ -38,6 +38,7 @@ from stack.build.build_util import (
     read_container_locks,
     read_stack_locks,
     recipe_repo_version,
+    same_repo_ref,
     write_stack_locks,
 )
 from stack.build.publish import publish_image
@@ -272,9 +273,14 @@ def _resolve_wrapper_for_container(building_container, wrapper_pin: dict):
 def _source_repo_dir(building_container, stack):
     """The repo whose source this container is built from.
 
-    `ref` names it.  A container.yml that omits `ref` means "the repo this descriptor lives
-    in", which is what `repo_path` records.  Failing both, the stack's own repo."""
+    `ref` names it.  A ref naming the stack's own repo resolves to the tree the stack was
+    loaded from (possibly a checkout outside the dev root), keeping the built content and
+    the image identity in the same tree.  A container.yml that omits `ref` means "the repo
+    this descriptor lives in", which is what `repo_path` records.  Failing both, the
+    stack's own repo."""
     if building_container.ref:
+        if stack is not None and getattr(stack, "repo_path", None) and same_repo_ref(building_container.ref, stack.get_repo_ref()):
+            return stack.repo_path
         return fs_path_for_repo(building_container.ref)
     if building_container.repo_path:
         return building_container.repo_path
@@ -437,7 +443,9 @@ def build_containers(parent_stack,
             if (not stack_container.ref or stack_container.ref == ".") and stack.get_repo_ref():
                 stack_container.ref = stack.get_repo_ref()
 
-            if stack_container.ref:
+            if stack_container.ref and not (
+                stack.repo_is_local_checkout() and same_repo_ref(stack_container.ref, stack.get_repo_ref())
+            ):
                 fs_path_for_container_specs = fs_path_for_repo(stack_container.ref, dev_root_path)
                 if not os.path.exists(fs_path_for_container_specs) or (git_pull and fs_path_for_container_specs not in dont_pull_repo_fs_paths):
                     process_repo(git_pull, False, git_ssh, dev_root_path, [], stack_container.ref)
@@ -503,15 +511,21 @@ def build_containers(parent_stack,
                 payload_version = None
                 deviating_inputs = []
                 if identity.payload_ref:
-                    target_fs_repo_path = fs_path_for_repo(identity.payload_ref, dev_root_path)
-                    if not os.path.exists(target_fs_repo_path) or (git_pull and target_fs_repo_path not in dont_pull_repo_fs_paths):
-                        fetch_ref = identity.payload_ref
-                        if identity.payload_pin:
-                            fetch_ref = f"{identity.payload_ref.split('@')[0]}@{identity.payload_pin}"
-                        process_repo(git_pull, False, git_ssh, dev_root_path, [], fetch_ref)
-                        dont_pull_repo_fs_paths.append(target_fs_repo_path)
-                    else:
+                    if identity.payload_is_recipe:
+                        # Colocated: the recipe tree is the payload source; it is already
+                        # present and its state is already reflected in the identity.
+                        target_fs_repo_path = identity.recipe_fs_path
                         log_info(f"Building {container_spec.name} from {target_fs_repo_path}")
+                    else:
+                        target_fs_repo_path = fs_path_for_repo(identity.payload_ref, dev_root_path)
+                        if not os.path.exists(target_fs_repo_path) or (git_pull and target_fs_repo_path not in dont_pull_repo_fs_paths):
+                            fetch_ref = identity.payload_ref
+                            if identity.payload_pin:
+                                fetch_ref = f"{identity.payload_ref.split('@')[0]}@{identity.payload_pin}"
+                            process_repo(git_pull, False, git_ssh, dev_root_path, [], fetch_ref)
+                            dont_pull_repo_fs_paths.append(target_fs_repo_path)
+                        else:
+                            log_info(f"Building {container_spec.name} from {target_fs_repo_path}")
                     payload_version = get_container_tag_for_repo(target_fs_repo_path)
                     if not identity.payload_is_recipe:
                         if not identity.payload_pin:

@@ -273,6 +273,17 @@ is never published or matched remotely: committing the lock file is what stabili
 Lock files exist to make builds reproducible.  To move a pin to a newer version, delete the lock file (or the
 relevant entry) and rebuild to regenerate it.
 
+### Building from a local checkout
+
+When a stack is loaded from a filesystem path (rather than located by name under the repo base directory),
+containers whose source is the stack's own repository build directly from that checkout — the repo is not
+cloned again, and the image identity and the built content always come from the same tree.  This is what a
+CI job wants: the pipeline's checkout is the build source, with no second clone (which for a private
+repository would need its own credentials).  It also means local modifications in a developer checkout are
+what gets built — with tracked changes producing a `stackdev-` tagged image, since the checkout no longer
+matches any commit.  Repositories referenced by `ref` that are *not* the stack's own are always cloned
+beneath the repo base directory, at their pinned versions.
+
 ## container.lock
 
 The `container.lock` file lives beside a `container.yml` whose `ref` names a different source repository, and pins

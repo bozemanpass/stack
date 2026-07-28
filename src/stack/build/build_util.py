@@ -230,7 +230,7 @@ def recipe_repo_version(recipe_fs_path, lock_file_path=None):
     return version
 
 
-def _same_repo(ref_a, ref_b):
+def same_repo_ref(ref_a, ref_b):
     if not ref_a or not ref_b:
         return False
     return ref_a.split("@")[0] == ref_b.split("@")[0]
@@ -321,7 +321,13 @@ def compute_image_identity(stack, stack_container, dev_root_path) -> ImageIdenti
 
     spec_dir = None
     if stack_container.ref:
-        fs_path_for_container_specs = Path(fs_path_for_repo(stack_container.ref, dev_root_path))
+        # A ref naming the stack's own repo resolves to the tree the stack was actually
+        # loaded from (which may be a checkout outside the dev root), so that identity
+        # and content always come from the same tree.
+        if stack and stack.repo_path and same_repo_ref(stack_container.ref, stack.get_repo_ref()):
+            fs_path_for_container_specs = Path(stack.repo_path)
+        else:
+            fs_path_for_container_specs = Path(fs_path_for_repo(stack_container.ref, dev_root_path))
         candidate_dir = fs_path_for_container_specs
         if stack_container.path:
             candidate_dir = candidate_dir.joinpath(stack_container.path)
@@ -365,7 +371,7 @@ def compute_image_identity(stack, stack_container, dev_root_path) -> ImageIdenti
     ident.container_spec = container_spec
     ident.payload_ref = container_spec.ref
     ident.wrapper_name = container_spec.wrapper
-    ident.payload_is_recipe = _same_repo(ident.payload_ref, ident.recipe_ref)
+    ident.payload_is_recipe = same_repo_ref(ident.payload_ref, ident.recipe_ref)
     embedded_payload_pin = _embedded_pin(ident.payload_ref)
     if not ident.payload_pin:
         ident.payload_pin = embedded_payload_pin

@@ -61,12 +61,20 @@ def host_and_path_for_repo(fully_qualified_repo):
     return None, None, None
 
 
+# The container registry associated with each known git hosting service.  Repos on
+# hosts not listed here (e.g. self-hosted Gitea/Forgejo, which serve a registry on
+# the git host itself) map to the host unchanged.
+KNOWN_HOST_IMAGE_REGISTRIES = {
+    "github.com": "ghcr.io",
+    "bitbucket.org": "crg.apkg.io",
+    "gitlab.com": "registry.gitlab.com",
+}
+
+
 def image_registry_for_repo(repository):
     host, path, _ = host_and_path_for_repo(repository)
-    if "github.com" == host:
-        return "ghcr.io"
-    elif host:
-        return host
+    if host:
+        return KNOWN_HOST_IMAGE_REGISTRIES.get(host, host)
     return None
 
 
@@ -275,7 +283,11 @@ def clone_all_repos_for_stack(stack, include=None, exclude=None, pull=False, git
             log_debug("Dev root directory doesn't exist, creating")
             os.makedirs(dev_root_path)
 
-        repos_in_scope = [req_stack.get_repo_ref()]
+        # A stack loaded from a local checkout builds its colocated containers from that
+        # checkout: its own repo is not cloned (it may not even be reachable, e.g. a
+        # private repo in CI).
+        stack_repo_is_local_checkout = req_stack.repo_is_local_checkout()
+        repos_in_scope = [] if stack_repo_is_local_checkout else [req_stack.get_repo_ref()]
         stack_repos = req_stack.get("repos", [])
         if stack_repos is not None:
             repos_in_scope.extend(req_stack.get("repos", []))
@@ -284,6 +296,8 @@ def clone_all_repos_for_stack(stack, include=None, exclude=None, pull=False, git
         containers_in_scope = build_util.get_containers_in_scope(req_stack)
         for c in containers_in_scope:
             if c.ref and c.ref != "." and c.ref not in repos_in_scope:
+                if stack_repo_is_local_checkout and build_util.same_repo_ref(c.ref, req_stack.get_repo_ref()):
+                    continue
                 repos_in_scope.append(c.ref)
 
         log_debug(f"Repos: {repos_in_scope}")
