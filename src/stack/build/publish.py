@@ -15,6 +15,7 @@
 
 from datetime import datetime
 from python_on_whales import DockerClient
+from python_on_whales.exceptions import DockerException
 
 from stack.log import log_debug
 from stack.opts import opts
@@ -44,4 +45,11 @@ def publish_image(local_tag, registry, version=None):
     docker.image.tag(local_tag, remote_tag)
     # Push it to the desired registry
     log_debug(f"Pushing image {remote_tag}")
-    docker.image.push(remote_tag)
+    try:
+        docker.image.push(remote_tag)
+    except DockerException as e:
+        # The docker CLI has already printed the push error (e.g. authorization
+        # failure) just above; add the likely remedy rather than a stack trace.
+        registry_host = registry.split("/")[0]
+        error_exit(f"Failed to push {remote_tag} (rc={e.return_code})."
+                   f"  If the registry requires authentication, log in first with: docker login {registry_host}")

@@ -30,7 +30,7 @@ from python_on_whales import DockerClient
 import stack.deploy.stack as stack_util
 
 from stack import constants
-from stack.log import log_debug, log_info
+from stack.log import log_debug, log_info, log_warn
 from stack.repos.repo_util import find_repo_root
 from stack.util import warn_exit, get_yaml, error_exit
 
@@ -512,6 +512,11 @@ def _docker_manifest_inspect(tag, registry=None):
         manifest = json.loads(result.stdout)
         if not isinstance(manifest, list):
             manifest = [manifest]
+    elif any(marker in result.stderr.lower() for marker in ("unauthorized", "authentication required", "denied", "401 ")):
+        # Failing the check treats the image as not available remotely, which for an
+        # auth failure silently forces a local build: make the real cause visible.
+        log_warn(f"WARN: not authorized to query {registry or 'the default registry'} for {full_tag}."
+                 f"  If you have access, log in first with: docker login {registry or ''}".rstrip())
 
     return manifest if manifest else []
 
