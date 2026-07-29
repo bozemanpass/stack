@@ -32,7 +32,10 @@ requires-python = ">=3.10"
 stack = "stack:main.cli"
 
 [dependency-groups]
-dev = ["flake8", "black"]
+dev = ["flake8", "black", "pytest"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests/unit"]
 
 [project.urls]
 "Homepage" = "https://github.com/bozemanpass/stack"
