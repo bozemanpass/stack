@@ -31,7 +31,6 @@ import stack.deploy.stack as stack_util
 
 from stack import constants
 from stack.log import log_debug, log_info, log_warn
-from stack.repos.repo_util import find_repo_root
 from stack.util import warn_exit, get_yaml, error_exit
 
 
@@ -107,6 +106,9 @@ class ContainerSpec:
         return json.dumps(ret)
 
     def init_from_file(self, file_path: Path):
+        # Deferred import to avoid a circular dependency.
+        from stack.repos.repo_util import find_repo_root
+
         self.file_path = Path(file_path).as_posix()
         self.spec_dir = Path(self.file_path).parent
 
