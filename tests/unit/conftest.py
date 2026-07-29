@@ -88,3 +88,69 @@ def minimal_stack(tmp_path):
 def annotated_stack(tmp_path):
     """A stack whose service port carries an http-proxy annotation."""
     return make_stack_fixture(tmp_path, name="annotatedstack", ports_yaml='      - "80"  # @stack http-proxy /\n')
+
+
+def make_stack_from_compose(base_dir, compose_yaml, name="teststack", stack_yaml=None):
+    """Create a stack whose single pod has the given (dedented) composefile content.
+
+    Unlike make_stack_fixture this places no constraints on the compose content, so
+    tests can exercise volumes, healthchecks, env files and the like.
+    """
+    stack_dir = base_dir / name
+    pod_dir = stack_dir / "web"
+    pod_dir.mkdir(parents=True)
+    if stack_yaml is None:
+        stack_yaml = textwrap.dedent(
+            f"""\
+            name: {name}
+            description: "test stack"
+            pods:
+              - name: web
+                path: ./web
+            """
+        )
+    (stack_dir / "stack.yml").write_text(stack_yaml)
+    (pod_dir / "composefile.yml").write_text(textwrap.dedent(compose_yaml))
+    subprocess.run(["git", "init", "-q", str(stack_dir)], check=True)
+    subprocess.run(
+        ["git", "-C", str(stack_dir), "remote", "add", "origin", f"https://github.com/example/{name}.git"],
+        check=True,
+    )
+    return stack_dir
+
+
+# A cluster id is normally a random token, which would make the generated object
+# content (app labels, salted image tags) unassertable.  Tests pin it instead.
+TEST_CLUSTER_ID = "stack-0123456789abcdef"
+
+
+def make_cluster_info(tmp_path, compose_yaml, spec_obj, deployment_name=TEST_CLUSTER_ID):
+    """Build a ClusterInfo over one pod file, for testing k8s object generation.
+
+    Requires no cluster and no kubeconfig: ClusterInfo only parses the pod files and
+    the spec.  The pod file is written to disk and loaded through the same YAML path
+    the real deployer uses, so comment- and sequence-typed content behaves identically.
+    """
+    # Imported here rather than at module scope so that collecting this file does not
+    # require the kubernetes client.
+    from stack.deploy.spec import Spec
+    from stack.deploy.k8s.cluster_info import ClusterInfo
+
+    pod_file = tmp_path / "compose-web.yml"
+    pod_file.write_text(textwrap.dedent(compose_yaml))
+    spec = Spec(file_path=tmp_path / "spec.yml", obj=spec_obj)
+    cluster_info = ClusterInfo()
+    # The env file need not exist; a missing one yields no shared environment.
+    cluster_info.int([str(pod_file)], tmp_path / "config.env", deployment_name, spec)
+    return cluster_info
+
+
+def k8s_dict(obj):
+    """Serialize a kubernetes client object the same way the API client would.
+
+    This is the transformation that turns the in-memory objects into what actually
+    goes over the wire, so asserting on its output tests what the cluster would see.
+    """
+    from kubernetes import client
+
+    return client.ApiClient().sanitize_for_serialization(obj)
