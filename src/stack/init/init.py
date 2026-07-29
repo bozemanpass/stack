@@ -42,14 +42,21 @@ def _parse_http_proxy(raw_val: str):
     return {"service": service, "port": port, "path": path}
 
 
-def _output_checks(specs, deploy_to):
+def _output_checks(specs, deploy_to, http_proxy_fqdn_specified=False):
     merged = MergedSpec()
     for spec in specs:
         merged.merge(spec)
 
     if deploy_to in [constants.k8s_kind_deploy_type, constants.k8s_deploy_type]:
         if not merged.get_http_proxy():
-            log_info("NOTE: No HTTP proxy settings specified, external HTTP access will not be configured.")
+            if http_proxy_fqdn_specified:
+                log_warn(
+                    "WARN: --http-proxy-fqdn was specified but there are no HTTP proxy targets, so external "
+                    "HTTP access will not be configured. Specify --http-proxy-target, or use a stack which "
+                    "annotates a service port with http-proxy."
+                )
+            else:
+                log_info("NOTE: No HTTP proxy settings specified, external HTTP access will not be configured.")
         else:
             known_targets = set()
             for svc, ports in merged.get_network_ports().items():
@@ -154,6 +161,7 @@ def command(
         else:
             error_exit(f"Invalid config variable: {c}")
 
+    http_proxy_fqdn_specified = http_proxy_fqdn is not None
     if not http_proxy_fqdn:
         if deploy_to == "compose":
             http_proxy_fqdn = "localhost"
@@ -214,7 +222,7 @@ def command(
         )
         specs.append(spec)
 
-    _output_checks(specs, deploy_to)
+    _output_checks(specs, deploy_to, http_proxy_fqdn_specified)
 
     if len(specs) == 1:
         specs[0].dump(output)

@@ -38,7 +38,13 @@ Formatting uses `black` (available via `uv run black`). Linting config is in `to
 
 ## Testing
 
-Tests are **bash shell scripts**, not pytest. They require Docker and/or Kubernetes (Kind) to be available.
+Unit tests (pytest) live in `tests/unit/` and run the CLI in a subprocess with an isolated `HOME`, no Docker or Kubernetes required:
+
+```bash
+uv run pytest
+```
+
+The integration tests are **bash shell scripts**, not pytest. They require Docker and/or Kubernetes (Kind) to be available.
 
 ```bash
 # Smoke tests (basic CLI functionality)
@@ -120,4 +126,4 @@ Stacks can also provide custom subcommands loaded dynamically.
 
 - Build backend: `uv_build`
 - CI runs on GitHub Actions (see `.github/workflows/`)
-- Workflows: `lint.yml`, `test.yml`, `test-deploy.yml`, `test-deploy-k8s.yml`, `test-database.yml`, `test-webapp.yml`, `publish.yml`
+- Workflows: `lint.yml`, `test-unit.yml`, `test.yml`, `test-deploy.yml`, `test-deploy-k8s.yml`, `test-database.yml`, `test-webapp.yml`, `publish.yml`
