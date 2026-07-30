@@ -287,7 +287,8 @@ def _generate_kind_port_mappings(parsed_pod_files):
     return "" if len(port_definitions) == 0 else ("  extraPortMappings:\n" f"{''.join(port_definitions)}")
 
 
-# Note: this makes any duplicate definition in b overwrite a
+# Note: this makes any duplicate definition in b overwrite a, so callers layering
+# env sources must pass the lower-precedence map first (see get_deployments()).
 def merge_envs(a: Mapping[str, str], b: Mapping[str, str]) -> Mapping[str, str]:
     result = {**a, **b}
     return result

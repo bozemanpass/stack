@@ -574,13 +574,6 @@ def test_environment_from_env_file_relative_to_pod_dir(tmp_path):
     assert by_name["FROM_FILE"] == "file-value"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="env_file wins over an inline environment value, which is the opposite of "
-    "compose precedence, so the same stack gets different values under k8s and "
-    "compose.  get_deployments() calls merge_envs(new, existing) and merge_envs "
-    "lets its second argument win, so already-merged values beat later ones.",
-)
 def test_inline_environment_overrides_env_file(tmp_path):
     (tmp_path / "env").mkdir()
     (tmp_path / "env" / "web.env").write_text("SHARED=from-file\n")
@@ -599,6 +592,66 @@ def test_inline_environment_overrides_env_file(tmp_path):
     envs = k8s_dict(cluster_info.get_deployments()[0])["spec"]["template"]["spec"]["containers"][0]["env"]
     by_name = {e["name"]: e.get("value") for e in envs}
     assert by_name["SHARED"] == "from-inline"
+
+
+def test_last_env_file_wins(tmp_path):
+    (tmp_path / "env").mkdir()
+    (tmp_path / "env" / "base.env").write_text("SHARED=from-base\nONLY_BASE=base\n")
+    (tmp_path / "env" / "web.env").write_text("SHARED=from-web\n")
+
+    pod = """\
+        services:
+          web:
+            image: nginx:local
+            env_file:
+              - env/base.env
+              - env/web.env
+        """
+    cluster_info = make_cluster_info(tmp_path, pod, k8s_spec())
+
+    envs = k8s_dict(cluster_info.get_deployments()[0])["spec"]["template"]["spec"]["containers"][0]["env"]
+    by_name = {e["name"]: e.get("value") for e in envs}
+    # Compose reads env_file entries in order, so the later file wins.  The deployment
+    # config.env is prepended to this list for compose deployments, which makes it the
+    # lowest-precedence source there and here.
+    assert by_name["SHARED"] == "from-web"
+    assert by_name["ONLY_BASE"] == "base"
+
+
+def test_pod_file_env_overrides_deployment_config(tmp_path):
+    (tmp_path / "config.env").write_text("SHARED=from-deployment-config\n")
+
+    pod = """\
+        services:
+          web:
+            image: nginx:local
+            environment:
+              SHARED: from-inline
+        """
+    cluster_info = make_cluster_info(tmp_path, pod, k8s_spec())
+
+    envs = k8s_dict(cluster_info.get_deployments()[0])["spec"]["template"]["spec"]["containers"][0]["env"]
+    by_name = {e["name"]: e.get("value") for e in envs}
+    assert by_name["SHARED"] == "from-inline"
+
+
+def test_deployment_config_still_expands_into_pod_file_references(tmp_path):
+    (tmp_path / "config.env").write_text("SHARED=from-deployment-config\n")
+
+    pod = """\
+        services:
+          web:
+            image: nginx:local
+            environment:
+              SHARED: ${SHARED}
+        """
+    cluster_info = make_cluster_info(tmp_path, pod, k8s_spec())
+
+    envs = k8s_dict(cluster_info.get_deployments()[0])["spec"]["template"]["spec"]["containers"][0]["env"]
+    by_name = {e["name"]: e.get("value") for e in envs}
+    # A pod file that forwards a deployment-level value must keep getting it: the
+    # inline block now wins outright, so the substitution is the only thing carrying it.
+    assert by_name["SHARED"] == "from-deployment-config"
 
 
 # ---------------------------------------------------------------------------
