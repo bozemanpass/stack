@@ -333,6 +333,18 @@ volumes:
   act-runner-config:
 ```
 
+### Environment Variable Precedence
+
+A service can pick up the same variable from more than one place.  Later sources in this list win:
+
+1. the deployment's `config.env` (values supplied at deployment time)
+2. each file listed in the service's `env_file:`, in the order listed
+3. the service's inline `environment:` block
+
+This is the order Docker Compose uses, and it is applied identically for Kubernetes deployments, so a pod file
+hands its containers the same values whichever target it is deployed to.  A pod file that wants a deployment-time
+value to reach the container can forward it explicitly, e.g. `environment: {SOME_VAR: "${SOME_VAR}"}`.
+
 ### Service Hostnames
 
 Every service in a deployment is reachable from every other service by its service name as it appears in the

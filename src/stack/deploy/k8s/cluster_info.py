@@ -319,15 +319,19 @@ class ClusterInfo:
                 image = service_info["image"]
                 container_ports = container_ports_for_service(service_info)
 
+                # Env sources are layered in compose precedence order: the deployment-wide
+                # config first, then each env_file in the order listed, then the inline
+                # environment block.  Later sources override earlier ones, matching what
+                # docker compose gives the same pod file.
                 merged_envs = self.environment_variables.map.copy()
                 if "env_file" in service_info:
                     for env_file in service_info["env_file"]:
                         env_file = f"{pod_dir}/{env_file}"
                         env_vars_from_file = env_var_map_from_file(env_file, expand=False)
-                        merged_envs = merge_envs(envs_from_compose_file(env_vars_from_file, merged_envs), merged_envs)
+                        merged_envs = merge_envs(merged_envs, envs_from_compose_file(env_vars_from_file, merged_envs))
 
                 if "environment" in service_info:
-                    merged_envs = merge_envs(envs_from_compose_file(service_info["environment"], merged_envs), merged_envs)
+                    merged_envs = merge_envs(merged_envs, envs_from_compose_file(service_info["environment"], merged_envs))
 
                 envs = envs_from_environment_variables_map(merged_envs)
                 log_debug(f"Merged envs: {envs}")
