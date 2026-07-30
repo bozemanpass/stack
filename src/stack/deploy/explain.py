@@ -17,6 +17,7 @@ import yaml
 
 from kubernetes import client
 
+from stack.deploy.k8s import gateway
 from stack.deploy.k8s.deploy_k8s import K8sDeployer
 from stack.log import output_main
 from stack.util import error_exit
@@ -62,6 +63,12 @@ def explain_op(ctx):
 
     http_proxy_info = cluster_info.spec.get_http_proxy()
     use_tls = http_proxy_info and not is_kind
+    # Which of these two is applied depends on the target cluster (Gateway API
+    # if it serves the contract GatewayClass, the Ingress API otherwise), which
+    # explain does not contact; show both renderings.
     ingress = cluster_info.get_ingress(use_tls=use_tls)
     if ingress:
         _print_section("Ingress", [ingress])
+    http_route = cluster_info.get_http_route(gateway.GATEWAY_NAME, gateway.GATEWAY_NAMESPACE)
+    if http_route:
+        _print_section("HTTPRoute", [http_route])

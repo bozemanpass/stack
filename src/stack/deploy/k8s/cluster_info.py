@@ -45,6 +45,7 @@ from stack.deploy.deploy_util import convert_to_seconds
 from stack.deploy.k8s.helpers import DEFAULT_K8S_NAMESPACE
 from stack.deploy.spec import Spec, Resources, ResourceLimits
 from stack.deploy.images import remote_tag_for_image_unique
+from stack.deploy.k8s import gateway
 
 
 DEFAULT_VOLUME_RESOURCES = Resources({"reservations": {"storage": "2Gi"}})
@@ -166,6 +167,71 @@ class ClusterInfo:
                 spec=spec,
             )
         return ingress
+
+    def get_http_route(self, gateway_name, gateway_namespace):
+        """The HTTPRoute for this deployment's http-proxy config, as a dict.
+
+        The Gateway API equivalent of get_ingress().  Routing attaches to the
+        shared Gateway named by the arguments; TLS is not represented here at
+        all -- in the Gateway API it belongs to the Gateway's listeners, which
+        are managed at deploy time (see stack.deploy.k8s.gateway).
+
+        There are no typed classes for Gateway API resources in the kubernetes
+        client, so this returns the resource as a plain dict.
+        """
+        http_proxy_info_list = self.spec.get_http_proxy()
+        if not http_proxy_info_list:
+            return None
+        # TODO: handle multiple definitions
+        http_proxy_info = http_proxy_info_list[0]
+        log_debug(f"http-proxy: {http_proxy_info}")
+        host_name = http_proxy_info[constants.host_name_key]
+        rules = []
+        for route in http_proxy_info[constants.routes_key]:
+            path = route.get(constants.path_key, "/")
+            if "(" in path:
+                # The Ingress API arrangement accepted nginx regex paths; the
+                # Gateway API has no core regex matching, so degrade to the
+                # literal prefix in front of the regex.
+                prefix = path.split("(")[0]
+                log_warn(f"http-proxy path {path} contains a regex; using prefix match on {prefix or '/'}")
+                path = prefix
+            path = f"/{path.strip('/')}"
+            proxy_to = route[constants.proxy_to_key]
+            log_debug(f"proxy config: {path} -> {proxy_to}")
+            # proxy_to has the form <container>:<port>
+            proxy_to_svc, proxy_to_port = proxy_to.split(":")
+            rule = {
+                "matches": [{"path": {"type": "PathPrefix", "value": path}}],
+                "backendRefs": [{"name": proxy_to_svc, "port": int(proxy_to_port)}],
+            }
+            if path != "/":
+                # A sub-path route proxies to the backend's root, matching the
+                # rewrite-target behavior of the Ingress arrangement.
+                rule["filters"] = [
+                    {
+                        "type": "URLRewrite",
+                        "urlRewrite": {"path": {"type": "ReplacePrefixMatch", "replacePrefixMatch": "/"}},
+                    }
+                ]
+            rules.append(rule)
+
+        return {
+            "apiVersion": f"{gateway.GATEWAY_API_GROUP}/{gateway.GATEWAY_API_VERSION}",
+            "kind": "HTTPRoute",
+            "metadata": {"name": gateway.HTTP_ROUTE_NAME},
+            "spec": {
+                "parentRefs": [
+                    {
+                        "kind": "Gateway",
+                        "name": gateway_name,
+                        "namespace": gateway_namespace,
+                    }
+                ],
+                "hostnames": [host_name],
+                "rules": rules,
+            },
+        }
 
     def get_services(self):
         ret = []
