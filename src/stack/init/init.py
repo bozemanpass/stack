@@ -37,7 +37,12 @@ def _parse_http_proxy(raw_val: str):
     elif len(parts) == 3:
         path, service, port = parts
     else:
-        error_exit(f"Invalid http-proxy target: {raw_val}")
+        error_exit(f"Invalid http-proxy target: {raw_val}, expected [path:]target_svc:target_port")
+
+    # The path leads, as it does in the @stack http-proxy composefile annotation.  Catch the
+    # reversed form (svc:port:path) here rather than letting it reach the spec as a bad route.
+    if not port.isdigit():
+        error_exit(f"Invalid port '{port}' in http-proxy target: {raw_val}, expected [path:]target_svc:target_port")
 
     return {"service": service, "port": port, "path": path}
 
@@ -99,7 +104,7 @@ def _output_checks(specs, deploy_to, http_proxy_fqdn_specified=False):
 @click.option(
     "--http-proxy-target",
     required=False,
-    help="k8s http proxy settings in the form: target_svc:target_port[path]",
+    help="k8s http proxy settings in the form: [path:]target_svc:target_port",
     multiple=True,
 )
 @click.option(

@@ -175,13 +175,8 @@ def test_parse_http_proxy_rejects_wrong_arity(value):
         _parse_http_proxy(value)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="`stack init --http-proxy-target` documents the form "
-    "'target_svc:target_port[path]', but _parse_http_proxy() unpacks three parts as "
-    "path:service:port.  Following the documented order silently yields "
-    "service='80', port='/api' -- init only warns that the target does not match a "
-    "service, and the bad value reaches the spec.",
-)
-def test_parse_http_proxy_documented_argument_order():
-    assert _parse_http_proxy("web:80:/api") == {"service": "web", "port": "80", "path": "/api"}
+@pytest.mark.parametrize("value", ["web:80:/api", "/api:web:http"])
+def test_parse_http_proxy_rejects_non_numeric_port(value):
+    # The path leads: the reversed 'svc:port:path' form must fail rather than reach the spec.
+    with pytest.raises(SystemExit):
+        _parse_http_proxy(value)

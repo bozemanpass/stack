@@ -24,7 +24,7 @@ stack init [OPTIONS]
 | `--deploy-to` | CHOICE | Cluster system to deploy to (`compose`, `k8s`, or `k8s-kind`) | From config or `compose` |
 | `--kube-config` | TEXT | Provide a config file for a k8s deployment | From config |
 | `--image-registry` | TEXT | Container image registry URL for this k8s cluster | From config |
-| `--http-proxy-target` | TEXT | k8s http proxy settings in format: `target_svc:target_port[path]` (multiple) | - |
+| `--http-proxy-target` | TEXT | k8s http proxy settings in format: `[path:]target_svc:target_port` (multiple, path defaults to `/`) | - |
 | `--http-proxy-fqdn` | TEXT | k8s http proxy hostname to use | From config |
 | `--http-proxy-clusterissuer` | TEXT | k8s http proxy cluster issuer | From config or `letsencrypt-prod` |
 | `--output` | TEXT | Write yaml spec file here (required) | - |
@@ -84,6 +84,12 @@ stack init --stack my-stack --output my-stack.yml \
   --deploy-to k8s \
   --http-proxy-fqdn my-app.example.com \
   --http-proxy-target frontend:3000
+
+# With HTTP proxy routing a sub-path (the path comes first)
+stack init --stack my-stack --output my-stack.yml \
+  --deploy-to k8s \
+  --http-proxy-fqdn my-app.example.com \
+  --http-proxy-target /api:backend:8080
 
 # Kind (Kubernetes in Docker)
 stack init --stack my-stack --output my-stack.yml \
