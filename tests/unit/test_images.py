@@ -82,30 +82,56 @@ def test_remote_tag_for_image_unique(image, expected):
     assert remote_tag_for_image_unique(image, REGISTRY, DEPLOYMENT_ID) == expected
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="A registry-qualified image reference raises ValueError.  Both functions do "
-    "image.split('/', 2) and then assume element [1] carries the ':tag'.  That holds "
-    "for 'org/img:tag' but for 'host/org/img:tag' element [1] is the org, which has "
-    "no ':' -- so the unpack fails.  Any k8s deployment with image-registry set and a "
-    "registry-qualified image in a pod file hits this, including stack-built images "
-    "that already live in a registry (ghcr.io/org/img:stack).",
-)
 @pytest.mark.parametrize(
-    "image",
+    "image, expected",
     [
-        "docker.io/library/nginx:1.27",
-        "ghcr.io/example/nginx:1.27",
-        "ghcr.io/example/nginx:stack",
+        # A registry-qualified reference of a released image is pulled as named.
+        ("docker.io/library/nginx:1.27", "docker.io/library/nginx:1.27"),
+        ("ghcr.io/example/nginx:1.27", "ghcr.io/example/nginx:1.27"),
+        # A stack-built image that already lives in a registry is still redirected at
+        # this deployment's registry, under its bare name.
+        ("ghcr.io/example/nginx:stack", f"{REGISTRY}/nginx:deploy-89abcdef"),
+        ("ghcr.io/example/nginx:local", f"{REGISTRY}/nginx:deploy-89abcdef"),
     ],
 )
-def test_registry_qualified_image_reference(image):
-    # Both rewriters share the flaw; asserting on the unique one is enough to pin it.
-    assert remote_tag_for_image_unique(image, REGISTRY, DEPLOYMENT_ID)
+def test_registry_qualified_image_reference(image, expected):
+    assert remote_tag_for_image_unique(image, REGISTRY, DEPLOYMENT_ID) == expected
 
 
-def test_untagged_image_reference():
-    # An image with no tag at all also fails to unpack.  Compose treats a missing tag
-    # as :latest, which would mean "leave it alone".
-    with pytest.raises(ValueError):
-        remote_tag_for_image_unique("nginx", REGISTRY, DEPLOYMENT_ID)
+@pytest.mark.parametrize(
+    "image, expected",
+    [
+        # A ':' before the last '/' is a registry port, not a tag.
+        ("localhost:5000/nginx:stack", f"{REGISTRY}/nginx:deploy-89abcdef"),
+        ("localhost:5000/nginx:1.27", "localhost:5000/nginx:1.27"),
+        ("localhost:5000/nginx", "localhost:5000/nginx"),
+    ],
+)
+def test_registry_port_is_not_a_tag(image, expected):
+    assert remote_tag_for_image_unique(image, REGISTRY, DEPLOYMENT_ID) == expected
+
+
+@pytest.mark.parametrize("image", ["nginx", "someorg/nginx", "ghcr.io/example/nginx"])
+def test_untagged_image_reference_left_alone(image):
+    # Compose treats a missing tag as :latest, which is not a locally built image.
+    assert remote_tag_for_image_unique(image, REGISTRY, DEPLOYMENT_ID) == image
+
+
+def test_digest_pinned_image_reference_left_alone():
+    # The ':' here introduces a digest, not a tag, so there is nothing to redirect.
+    image = "ghcr.io/example/nginx@sha256:" + "a" * 64
+    assert remote_tag_for_image_unique(image, REGISTRY, DEPLOYMENT_ID) == image
+
+
+@pytest.mark.parametrize(
+    "image, expected",
+    [
+        ("ghcr.io/example/nginx:stack", f"{REGISTRY}/nginx:deploy"),
+        ("ghcr.io/example/nginx:1.27", "ghcr.io/example/nginx:1.27"),
+        ("localhost:5000/nginx:stack", f"{REGISTRY}/nginx:deploy"),
+        ("nginx", "nginx"),
+    ],
+)
+def test_remote_tag_for_image_handles_the_same_reference_forms(image, expected):
+    # The non-unique rewriter shared the same parse, so it needs the same coverage.
+    assert _remote_tag_for_image(image, REGISTRY) == expected

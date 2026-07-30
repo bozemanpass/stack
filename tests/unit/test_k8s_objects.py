@@ -691,21 +691,25 @@ def test_released_two_part_image_not_retagged_for_registry(tmp_path):
     assert container["image"] == "nginx:1.27"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="Generating a Deployment crashes when image-registry is set and an image is "
-    "registry-qualified.  See test_images.py for the root cause in "
-    "remote_tag_for_image_unique().",
+@pytest.mark.parametrize(
+    "image, expected",
+    [
+        # Released images are pulled as named, however they are qualified.
+        ("ghcr.io/example/nginx:1.27", "ghcr.io/example/nginx:1.27"),
+        # A stack-built image is redirected at the deployment's registry either way.
+        ("ghcr.io/example/nginx:stack", "registry.example.com/org/nginx:deploy-89abcdef"),
+    ],
 )
-def test_registry_qualified_image_handled(tmp_path):
-    pod = """\
+def test_registry_qualified_image_handled(tmp_path, image, expected):
+    pod = f"""\
         services:
           web:
-            image: ghcr.io/example/nginx:1.27
+            image: {image}
         """
     cluster_info = make_cluster_info(tmp_path, pod, k8s_spec(**{"image-registry": "registry.example.com/org"}))
 
-    k8s_dict(cluster_info.get_deployments()[0])
+    container = k8s_dict(cluster_info.get_deployments()[0])["spec"]["template"]["spec"]["containers"][0]
+    assert container["image"] == expected
 
 
 def test_image_pull_policy_passed_through(tmp_path):

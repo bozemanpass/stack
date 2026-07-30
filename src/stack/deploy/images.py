@@ -25,17 +25,42 @@ from stack.deploy.deploy_util import images_for_deployment
 from stack.log import log_debug
 
 
+# The tags stack builds locally.  Only these are redirected at a deployment's registry;
+# any other image is pulled exactly as the pod file names it.
+LOCALLY_BUILT_TAGS = ("local", "stack")
+
+
+def _split_image_reference(image: str):
+    """Split an image reference into its bare name and its tag.
+
+    The name is the last path component: any host and org in the reference are dropped,
+    because the remote registry URL replacing them carries its own.  So both
+    `bar:stack` and `foo.io/org/bar:stack` yield ("bar", "stack").
+
+    A ':' only introduces a tag when it follows the last '/' -- a registry host may
+    carry a port, as in `localhost:5000/bar`.  The tag is None when there is none,
+    which includes digest-pinned references (`bar@sha256:...`, whose "tag" is not a
+    tag); neither is a locally built image, so both are left alone by the callers.
+    """
+    last_path_component = image.rsplit("/", 1)[-1]
+    if ":" in last_path_component:
+        image_name, image_version = last_path_component.rsplit(":", 1)
+    else:
+        image_name, image_version = last_path_component, None
+    return image_name, image_version
+
+
 def _image_needs_pushed(image: str):
-    # TODO: this needs to be more intelligent
-    return image.endswith(":stack") or image.endswith(":local")
+    # Only an image stack built locally has to be uploaded; everything else is already
+    # wherever it is pulled from.  Shares the tag parse with the rewriters below so that
+    # "is this ours" and "rename it" cannot disagree about a reference.
+    return _split_image_reference(image)[1] in LOCALLY_BUILT_TAGS
 
 
 def _remote_tag_for_image(image: str, remote_repo_url: str):
     # Turns image tags of the form: foo/bar:stack into remote.repo/org/bar:deploy
-    major_parts = image.split("/", 2)
-    image_name_with_version = major_parts[1] if 2 == len(major_parts) else major_parts[0]
-    (image_name, image_version) = image_name_with_version.split(":")
-    if image_version in ["local", "stack"]:
+    image_name, image_version = _split_image_reference(image)
+    if image_version in LOCALLY_BUILT_TAGS:
         return f"{remote_repo_url}/{image_name}:deploy"
     else:
         return image
@@ -68,10 +93,8 @@ def add_tags_to_image(remote_repo_url: str, local_tag: str, *additional_tags):
 
 def remote_tag_for_image_unique(image: str, remote_repo_url: str, deployment_id: str):
     # Turns image tags of the form: foo/bar:stack into remote.repo/org/bar:deploy
-    major_parts = image.split("/", 2)
-    image_name_with_version = major_parts[1] if 2 == len(major_parts) else major_parts[0]
-    (image_name, image_version) = image_name_with_version.split(":")
-    if image_version in ["local", "stack"]:
+    image_name, image_version = _split_image_reference(image)
+    if image_version in LOCALLY_BUILT_TAGS:
         # Salt the tag with part of the deployment id to make it unique to this deployment
         deployment_tag = deployment_id[-8:]
         return f"{remote_repo_url}/{image_name}:deploy-{deployment_tag}"
