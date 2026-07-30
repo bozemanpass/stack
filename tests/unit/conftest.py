@@ -119,6 +119,27 @@ def make_stack_from_compose(base_dir, compose_yaml, name="teststack", stack_yaml
     return stack_dir
 
 
+def make_multi_pod_stack(base_dir, pod_composefiles, name="multipodstack"):
+    """Create a stack with one pod per entry in {pod name: composefile content}.
+
+    Pods are declared in the order given, which is what a caller testing order
+    sensitivity needs to control.
+    """
+    stack_dir = base_dir / name
+    for pod_name, compose_yaml in pod_composefiles.items():
+        pod_dir = stack_dir / pod_name
+        pod_dir.mkdir(parents=True)
+        (pod_dir / "composefile.yml").write_text(textwrap.dedent(compose_yaml))
+    pods_yaml = "".join(f"  - name: {pod_name}\n    path: ./{pod_name}\n" for pod_name in pod_composefiles)
+    (stack_dir / "stack.yml").write_text(f"name: {name}\ndescription: \"test stack\"\npods:\n{pods_yaml}")
+    subprocess.run(["git", "init", "-q", str(stack_dir)], check=True)
+    subprocess.run(
+        ["git", "-C", str(stack_dir), "remote", "add", "origin", f"https://github.com/example/{name}.git"],
+        check=True,
+    )
+    return stack_dir
+
+
 # A cluster id is normally a random token, which would make the generated object
 # content (app labels, salted image tags) unassertable.  Tests pin it instead.
 TEST_CLUSTER_ID = "stack-0123456789abcdef"

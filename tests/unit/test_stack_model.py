@@ -23,7 +23,7 @@ directly rather than inferring from whether a deployment came out right.
 
 import pytest
 
-from conftest import make_stack_from_compose
+from conftest import make_multi_pod_stack, make_stack_from_compose
 from stack.deploy.stack import Stack
 
 
@@ -35,6 +35,12 @@ def load_stack(tmp_path, compose_yaml, name="teststack"):
     """
     stack_dir = make_stack_from_compose(tmp_path, compose_yaml, name=name)
     return Stack(name).init_from_file(stack_dir / "stack.yml")
+
+
+def load_multi_pod_stack(tmp_path, pod_composefiles):
+    """A Stack with one pod per entry in {pod name: composefile content}."""
+    stack_dir = make_multi_pod_stack(tmp_path, pod_composefiles)
+    return Stack("multipodstack").init_from_file(stack_dir / "stack.yml")
 
 
 # ---------------------------------------------------------------------------
@@ -327,15 +333,6 @@ def test_named_volume_used_read_write_and_read_only_is_rw_only(tmp_path):
     assert stack.get_named_volumes() == {"rw": ["shared"], "ro": []}
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="Classification depends on the order services appear in the composefile.  "
-    "get_named_volumes() makes the 'rw' list sticky (the ro branch skips a volume "
-    "already in rw) but not the other way round, so a volume seen ro-first lands in "
-    "both lists.  init_operation() then iterates both, and for k8s a volume whose name "
-    "contains 'config' is emitted as a configmap as well as a volume -- which would "
-    "mount it read-only and break the writer.",
-)
 def test_named_volume_read_only_use_seen_first_still_classified_rw(tmp_path):
     stack = load_stack(
         tmp_path,
@@ -354,6 +351,94 @@ def test_named_volume_read_only_use_seen_first_still_classified_rw(tmp_path):
         """,
     )
     assert stack.get_named_volumes() == {"rw": ["shared"], "ro": []}
+
+
+def test_named_volume_many_readers_one_writer_is_rw(tmp_path):
+    stack = load_stack(
+        tmp_path,
+        """\
+        services:
+          reader_a:
+            image: nginx:local
+            volumes:
+              - shared:/ro:ro
+          reader_b:
+            image: nginx:local
+            volumes:
+              - shared:/ro:ro
+          writer:
+            image: nginx:local
+            volumes:
+              - shared:/rw
+          reader_c:
+            image: nginx:local
+            volumes:
+              - shared:/ro:ro
+        volumes:
+          shared:
+        """,
+    )
+    assert stack.get_named_volumes() == {"rw": ["shared"], "ro": []}
+
+
+@pytest.mark.parametrize("reader_pod_first", [True, False])
+def test_named_volume_shared_across_pods_is_rw(tmp_path, reader_pod_first):
+    """A volume mounted ro in one pod and rw in another is rw, whichever pod is first."""
+    reader = (
+        "reader",
+        """\
+        services:
+          reader:
+            image: nginx:local
+            volumes:
+              - shared:/ro:ro
+        volumes:
+          shared:
+        """,
+    )
+    writer = (
+        "writer",
+        """\
+        services:
+          writer:
+            image: nginx:local
+            volumes:
+              - shared:/rw
+        volumes:
+          shared:
+        """,
+    )
+    pods = [reader, writer] if reader_pod_first else [writer, reader]
+    stack = load_multi_pod_stack(tmp_path, dict(pods))
+
+    assert stack.get_named_volumes() == {"rw": ["shared"], "ro": []}
+
+
+def test_named_volume_read_only_in_every_pod_stays_ro(tmp_path):
+    stack = load_multi_pod_stack(
+        tmp_path,
+        {
+            "a": """\
+                services:
+                  a:
+                    image: nginx:local
+                    volumes:
+                      - shared:/ro:ro
+                volumes:
+                  shared:
+                """,
+            "b": """\
+                services:
+                  b:
+                    image: nginx:local
+                    volumes:
+                      - shared:/also-ro:ro
+                volumes:
+                  shared:
+                """,
+        },
+    )
+    assert stack.get_named_volumes() == {"rw": [], "ro": ["shared"]}
 
 
 def test_declared_but_unused_volume_is_not_reported(tmp_path):
