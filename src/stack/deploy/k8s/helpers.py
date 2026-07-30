@@ -293,12 +293,25 @@ def merge_envs(a: Mapping[str, str], b: Mapping[str, str]) -> Mapping[str, str]:
     return result
 
 
+def _env_value_to_str(raw_val) -> str:
+    """Render a value from a compose file as the string a container will see.
+
+    YAML parses `true` as a Python bool, whose str() is "True" -- but compose passes
+    "true", and a consumer comparing the value as a string (a shell test, a
+    case-sensitive config parser) sees those as different values.  So a bool has to be
+    lowercased on the way to becoming a string, not after.
+    """
+    if isinstance(raw_val, bool):
+        return str(raw_val).lower()
+    return str(raw_val)
+
+
 def _expand_shell_vars(raw_val: str, environ=os.environ) -> str:
     # could be: <string> or ${<env-var-name>} or ${<env-var-name>:-<default-value>}
     # TODO: implement support for variable substitution and default values
     # if raw_val is like ${<something>} print a warning and substitute an empty string
     # otherwise return raw_val
-    raw_val = str(raw_val)
+    raw_val = _env_value_to_str(raw_val)
     match = re.search(r"\$\{(.*)\}", raw_val)
     if match:
         return expand(raw_val, environ=environ)
@@ -329,9 +342,9 @@ def envs_from_environment_variables_map(map: Mapping[str, str]) -> List[client.V
             result.append(client.V1EnvVar(env_var, env_val))
     else:
         for env_var, env_val in map.items():
-            if isinstance(env_val, bool):
-                env_val = str(env_val).lower()
-            result.append(client.V1EnvVar(env_var, env_val))
+            # Values reaching here have normally been rendered by envs_from_compose_file
+            # already; normalize again so a direct caller cannot bypass it.
+            result.append(client.V1EnvVar(env_var, _env_value_to_str(env_val)))
     return result
 
 

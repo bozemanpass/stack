@@ -306,6 +306,11 @@ class Stack:
                                 }
             return ret
 
+        # A volume is read-only only if *every* mount of it is read-only: one writer
+        # means it has to be provisioned writable, however many readers there are.
+        # Collect the verdict over all pods and services before classifying, so that
+        # the answer does not depend on the order they happen to be visited in.
+        is_writable = {}
         pods = self.get_pod_list()
         for pod in pods:
             parsed_pod_file = self.load_pod_file(pod)
@@ -313,13 +318,11 @@ class Stack:
                 volumes = parsed_pod_file[constants.volumes_key]
                 for volume in volumes.keys():
                     for vu in find_vol_usage(parsed_pod_file, volume).values():
-                        read_only = vu["options"] == "ro"
-                        if read_only:
-                            if vu["volume"] not in named_volumes["rw"] and vu["volume"] not in named_volumes["ro"]:
-                                named_volumes["ro"].append(vu["volume"])
-                        else:
-                            if vu["volume"] not in named_volumes["rw"]:
-                                named_volumes["rw"].append(vu["volume"])
+                        writable = vu["options"] != "ro"
+                        is_writable[volume] = is_writable.get(volume, False) or writable
+
+        for volume, writable in is_writable.items():
+            named_volumes["rw" if writable else "ro"].append(volume)
 
         return named_volumes
 

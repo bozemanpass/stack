@@ -499,13 +499,6 @@ def test_environment_from_compose_mapping(tmp_path):
     assert by_name["NUMERIC"] == "42"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="A YAML boolean reaches the container as 'True', not 'true'.  "
-    "envs_from_environment_variables_map() has a branch that lowercases bools, but "
-    "envs_from_compose_file() has already run str() over the value by then, so the "
-    "branch never fires.  Compose emits 'true' for the same stack.",
-)
 def test_boolean_environment_value_is_lowercased(tmp_path):
     pod = """\
         services:
@@ -513,12 +506,37 @@ def test_boolean_environment_value_is_lowercased(tmp_path):
             image: nginx:local
             environment:
               TRUTHY: true
+              FALSY: false
+              # A quoted value is already a string and must pass through untouched.
+              QUOTED: "True"
         """
     cluster_info = make_cluster_info(tmp_path, pod, k8s_spec())
 
     envs = k8s_dict(cluster_info.get_deployments()[0])["spec"]["template"]["spec"]["containers"][0]["env"]
     by_name = {e["name"]: e["value"] for e in envs}
+    # Compose passes "true"/"false"; a consumer comparing strings must see the same.
     assert by_name["TRUTHY"] == "true"
+    assert by_name["FALSY"] == "false"
+    assert by_name["QUOTED"] == "True"
+
+
+def test_boolean_environment_value_from_env_file_unaffected(tmp_path):
+    (tmp_path / "env").mkdir()
+    # An env file is always text, so its values are never YAML booleans.
+    (tmp_path / "env" / "web.env").write_text("FROM_FILE=True\n")
+
+    pod = """\
+        services:
+          web:
+            image: nginx:local
+            env_file:
+              - env/web.env
+        """
+    cluster_info = make_cluster_info(tmp_path, pod, k8s_spec())
+
+    envs = k8s_dict(cluster_info.get_deployments()[0])["spec"]["template"]["spec"]["containers"][0]["env"]
+    by_name = {e["name"]: e["value"] for e in envs}
+    assert by_name["FROM_FILE"] == "True"
 
 
 def test_environment_from_compose_sequence(tmp_path):
