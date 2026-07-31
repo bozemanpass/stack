@@ -34,8 +34,9 @@
 #
 # Optional environment:
 #   STACK_K3S_MODE           "gateway" (default) provisions the Gateway API
-#                            arrangement (k3s-node.sh --gateway-api);
+#                            arrangement, which is k3s-node.sh's own default;
 #                            "ingress" provisions the legacy nginx arrangement
+#                            (k3s-node.sh --nginx-ingress)
 #   MACHINE_REGION           Provider region (default nyc3)
 #   MACHINE_SIZE             Machine size slug (default s-2vcpu-4gb)
 #   MACHINE_IMAGE            Machine image (default ubuntu-24-04-x64)
@@ -92,10 +93,10 @@ fi
 
 case "$STACK_K3S_MODE" in
   gateway)
-    k3s_mode_args="--gateway-api"
+    k3s_mode_args=""
     ;;
   ingress)
-    k3s_mode_args=""
+    k3s_mode_args="--nginx-ingress"
     ;;
   *)
     echo "Error: STACK_K3S_MODE must be gateway or ingress, not $STACK_K3S_MODE"

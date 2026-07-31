@@ -13,8 +13,8 @@ an `Ingress` or as Gateway API resources at deploy time. `stack manage --dir <di
 ## The cluster contract
 
 A Gateway API cluster is detected by the presence of a `GatewayClass` named `traefik`. Beyond that, stack expects
-(and the [machine-provisioning](https://github.com/stirlingbridge/machine-provisioning) `k3s-node.sh --gateway-api`
-script provides):
+(and the [machine-provisioning](https://github.com/stirlingbridge/machine-provisioning) `k3s-node.sh` script
+provides by default):
 
 - A `Gateway` named `stack-gateway` in the `kube-system` namespace, with an HTTP listener on port 8000 (traefik's
   `web` entrypoint, exposed by its service as port 80), accepting routes from all namespaces, and annotated with
