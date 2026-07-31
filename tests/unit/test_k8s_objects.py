@@ -38,14 +38,23 @@ MINIMAL_POD = """\
     """
 
 
+REGISTRY = "registry.example.com/org"
+
+
 def k8s_spec(**overrides):
-    """A k8s deployment spec for the single-service pod above."""
+    """A k8s deployment spec for the single-service pod above.
+
+    A staging image-registry is configured by default, since without one every
+    locally built image must be published somewhere the cluster can pull from
+    (which these fixture images are not).  Override with None to remove a key.
+    """
     spec = {
         "stack": "teststack",
         "deploy-to": "k8s",
+        "image-registry": REGISTRY,
     }
     spec.update(overrides)
-    return spec
+    return {k: v for k, v in spec.items() if v is not None}
 
 
 # ---------------------------------------------------------------------------
@@ -733,8 +742,66 @@ def test_liveness_probe_time_units_converted(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_image_left_alone_without_registry(tmp_path):
-    cluster_info = make_cluster_info(tmp_path, MINIMAL_POD, k8s_spec())
+class _FakeImagesDockerClient:
+    """Stands in for DockerClient in stack.deploy.images; serves one image's repo_tags."""
+
+    repo_tags = None
+
+    def __init__(self):
+        self.image = self
+
+    def inspect(self, image):
+        if self.repo_tags is None:
+            raise Exception(f"No such image: {image}")
+
+        class _Image:
+            repo_tags = self.repo_tags
+
+        return _Image()
+
+
+PUBLISHED_HASH = "0123456789abcdef0123456789abcdef01234567"
+
+PUBLISHED_POD = """\
+    services:
+      web:
+        image: exampleorg/myapp:stack
+        ports:
+          - "80"
+    """
+
+
+def test_published_image_used_without_registry(tmp_path, monkeypatch):
+    # No staging registry in the spec, but prepare's cross-tags show the image is
+    # published: the pod pulls the registry-qualified reference directly.
+    _FakeImagesDockerClient.repo_tags = [
+        "exampleorg/myapp:stack",
+        f"exampleorg/myapp:{PUBLISHED_HASH}",
+        f"ghcr.io/exampleorg/myapp:{PUBLISHED_HASH}",
+    ]
+    monkeypatch.setattr("stack.deploy.images.DockerClient", _FakeImagesDockerClient)
+    cluster_info = make_cluster_info(tmp_path, PUBLISHED_POD, k8s_spec(**{"image-registry": None}))
+
+    container = k8s_dict(cluster_info.get_deployments()[0])["spec"]["template"]["spec"]["containers"][0]
+    assert container["image"] == f"ghcr.io/exampleorg/myapp:{PUBLISHED_HASH}"
+
+
+def test_unpublished_image_without_registry_fails_fast(tmp_path, monkeypatch):
+    # Locally built, unpublished, and no staging registry: the cluster could never
+    # pull this, so object generation must error rather than emit a doomed pod.
+    _FakeImagesDockerClient.repo_tags = None
+    monkeypatch.setattr("stack.deploy.images.DockerClient", _FakeImagesDockerClient)
+    cluster_info = make_cluster_info(tmp_path, MINIMAL_POD, k8s_spec(**{"image-registry": None}))
+
+    with pytest.raises(SystemExit):
+        cluster_info.get_deployments()
+
+
+def test_kind_without_registry_uses_local_image(tmp_path):
+    # kind gets local images loaded directly into the cluster, so the local
+    # reference is the right one there.
+    spec = k8s_spec(**{"image-registry": None, "deploy-to": "k8s-kind"})
+    cluster_info = make_cluster_info(tmp_path, MINIMAL_POD, spec)
 
     container = k8s_dict(cluster_info.get_deployments()[0])["spec"]["template"]["spec"]["containers"][0]
     assert container["image"] == "nginx:local"
@@ -767,8 +834,9 @@ def test_released_two_part_image_not_retagged_for_registry(tmp_path):
     [
         # Released images are pulled as named, however they are qualified.
         ("ghcr.io/example/nginx:1.27", "ghcr.io/example/nginx:1.27"),
-        # A stack-built image is redirected at the deployment's registry either way.
-        ("ghcr.io/example/nginx:stack", "registry.example.com/org/nginx:deploy-89abcdef"),
+        # A stack-built image is redirected at the deployment's registry either way:
+        # the host is replaced, the org kept.
+        ("ghcr.io/example/nginx:stack", "registry.example.com/org/example/nginx:deploy-89abcdef"),
     ],
 )
 def test_registry_qualified_image_handled(tmp_path, image, expected):

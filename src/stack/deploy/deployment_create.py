@@ -283,7 +283,10 @@ def init_operation(  # noqa: C901
         if image_registry:
             spec_file_content.update({constants.image_registry_key: image_registry})
         elif deployer_type == "k8s":
-            log_warn("WARN: --image-registry not specified, only default container registries (eg, Docker Hub) will be available")
+            log_warn(
+                "WARN: --image-registry not specified: locally built images can only be deployed"
+                " if they are published to a container registry the cluster can reach"
+            )
         if http_proxy_targets:
             routes = []
             for target in http_proxy_targets:

@@ -44,7 +44,7 @@ from stack.deploy.deploy_types import DeployEnvVars
 from stack.deploy.deploy_util import convert_to_seconds
 from stack.deploy.k8s.helpers import DEFAULT_K8S_NAMESPACE
 from stack.deploy.spec import Spec, Resources, ResourceLimits
-from stack.deploy.images import remote_tag_for_image_unique
+from stack.deploy.images import resolve_image_for_deployment
 from stack.deploy.k8s import gateway
 
 
@@ -424,13 +424,14 @@ class ClusterInfo:
                             failure_threshold=int(healthcheck.get("retries", "3")),
                         )
 
-                # Re-write the image tag for remote deployment
+                # Re-write the image reference for remote deployment.
+                # A kind cluster with no staging registry gets local images loaded
+                # directly into it, so the local reference is the right one there.
                 # Note self.app_name has the same value as deployment_id
-                image_to_use = (
-                    remote_tag_for_image_unique(image, self.spec.get_image_registry(), self.app_name)
-                    if self.spec.get_image_registry() is not None
-                    else image
-                )
+                if self.spec.get_image_registry() is None and self.spec.is_kind_deployment():
+                    image_to_use = image
+                else:
+                    image_to_use = resolve_image_for_deployment(image, self.spec.get_image_registry(), self.app_name)
                 volume_mounts = volume_mounts_for_service(self.parsed_pod_yaml_map, service_name)
                 resources = self.spec.get_container_resources(service_name)
                 if not resources:
