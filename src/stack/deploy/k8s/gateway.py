@@ -43,7 +43,7 @@ GATEWAY_API_GROUP = "gateway.networking.k8s.io"
 GATEWAY_API_VERSION = "v1"
 
 # The contract with the machine provisioning scripts (see stirlingbridge
-# machine-provisioning k3s-node.sh --gateway-api).
+# machine-provisioning k3s-node.sh, which provisions this by default).
 GATEWAY_NAME = "stack-gateway"
 GATEWAY_NAMESPACE = "kube-system"
 GATEWAY_CLASS_NAME = "traefik"
