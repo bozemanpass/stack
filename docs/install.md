@@ -1,7 +1,7 @@
 # Install Stack
 
 ## Scripted Install for CI/Test on a VM
-[This script](./scripts/quick-install-linux.sh) captures the install/setup of stack and its prerequisites on a fresh Ubuntu 24 VM.
+[This script](../scripts/quick-install-linux.sh) captures the install/setup of stack and its prerequisites on a fresh Ubuntu 24 VM.
 
 **WARNING:** always review scripts prior to running them so that you know what is happening on your machine.
 

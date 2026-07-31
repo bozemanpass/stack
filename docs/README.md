@@ -1,4 +1,55 @@
-# BPI stack
+# BPI Stack Documentation
 
-Here you will find information about the design of `stack`, contributing to it, and deploying services/applications
-that combine two or more "stacks".
+`stack` is a CLI tool for building, deploying, and managing groups of containerized services
+("stacks") defined in a simple component model, with transparent deployment to either Docker
+Compose or Kubernetes. This directory contains the documentation: how to install and use the
+tool, how to author your own stacks, and how the more advanced features work.
+
+New users should start with [install.md](install.md) and the [command reference](commands.md);
+stack authors should read [stack-files.md](stack-files.md) first.
+
+## Getting Started
+
+| Document | Description |
+| --- | --- |
+| [install.md](install.md) | Installing `stack`: user install, developer mode, and scripted install for CI/test VMs. |
+| [commands.md](commands.md) | Overview of the command/subcommand structure, with links to a reference page for each command in [commands/](commands/). |
+
+## Authoring Stacks
+
+| Document | Description |
+| --- | --- |
+| [stack-files.md](stack-files.md) | The `stack.yml` file format: containers, pods, pre/post-start commands, and stack composition. The core reference for stack authors. |
+| [hooks.md](hooks.md) | Extending the `init` and `deploy` commands on a per-pod basis with Python hook functions. |
+| [subcommands.md](subcommands.md) | Adding stack-specific subcommands to the `stack` command line from a `subcommands` directory. |
+| [wrappers.md](wrappers.md) | Container wrappers: packaging application source that has no container build of its own (static HTML, Next.js apps without a Dockerfile) into runnable images. |
+| [webapp.md](webapp.md) | Building and running static, React, and Next.js webapps with `webapp build` / `webapp run`, separating compilation from environment-specific configuration. |
+
+## Container Images
+
+| Document | Description |
+| --- | --- |
+| [fetching-containers.md](fetching-containers.md) | How pre-built container images are fetched from a registry instead of built from source, and the build policies that control this. |
+| [image-names.md](image-names.md) | Every scheme used for image names and tags, and the lifecycle of an image name from stack definition through build, publish, and deployment. |
+
+## Deployment
+
+| Document | Description |
+| --- | --- |
+| [ingress.md](ingress.md) | Automatic HTTP route configuration for an ingress controller / reverse proxy via annotations in `composefile.yml`. |
+| [gateway-api.md](gateway-api.md) | HTTPS on Kubernetes via the Gateway API (with the legacy Ingress API as fallback), and the cluster contract required to use it. |
+| [k8s-deployment-enhancements.md](k8s-deployment-enhancements.md) | Controlling Kubernetes pod placement with node affinity rules in the deployment spec. |
+
+## Design Proposals
+
+| Document | Description |
+| --- | --- |
+| [backup.md](backup.md) | Proposed design for backing up and restoring the persistent data a running stack accumulates. Not yet implemented. |
+| [backup-implementation.md](backup-implementation.md) | Companion implementation sketch for [backup.md](backup.md), pinning the design to concrete functions and insertion points in the code. |
+
+## Project
+
+| Document | Description |
+| --- | --- |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute: developer-mode install, coding standards, and submitting changes. |
+| [recent-features.md](recent-features.md) | Changelog of recently added features, with links to the pull requests that introduced them. |
