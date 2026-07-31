@@ -1,0 +1,60 @@
+name: Real K8S Deploy Test
+
+# Provisions a real single-node k3s cluster on a DigitalOcean VM (via the
+# "machine" utility and the machine-provisioning scripts) and runs the k8s
+# deploy test against it: remote kubeconfig, real registry, real DNS, and
+# HTTPS with a real Let's Encrypt certificate. Costs real money and real
+# minutes, so it is not run per-PR.
+
+on:
+  workflow_dispatch:
+    inputs:
+      provisioning-url:
+        description: "combine.sh URL (to test a machine-provisioning branch)"
+        required: false
+  schedule:
+    # Run weekly on Monday at 07:00 UTC
+    - cron: "0 7 * * 1"
+
+jobs:
+  test:
+    name: "Deploy to real k3s (${{ matrix.mode }})"
+    runs-on: ubuntu-24.04
+    environment: k3s-test
+    strategy:
+      fail-fast: false
+      matrix:
+        # gateway = Gateway API + traefik + per-app HTTP-01 certificates;
+        # ingress = the legacy nginx ingress arrangement
+        mode: [gateway, ingress]
+    steps:
+      - name: "Clone project repository"
+        uses: actions/checkout@v5
+      - name: "Install uv"
+        uses: astral-sh/setup-uv@v8.2.0
+        with:
+          python-version: '3.12'
+      - name: "Install the machine utility"
+        run: uv tool install git+https://github.com/stirlingbridge/machine.git
+      - name: "Write the SSH key"
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.K3S_TEST_SSH_KEY }}" > ~/.ssh/k3s-test-key
+          chmod 600 ~/.ssh/k3s-test-key
+      - name: "Generate build version file"
+        run: ./scripts/create_build_tag_file.sh
+      - name: "Build local shiv package"
+        run: ./scripts/build_shiv_package.sh
+      - name: "Run the k3s deploy test"
+        env:
+          STACK_K3S_MODE: ${{ matrix.mode }}
+          MACHINE_DO_TOKEN: ${{ secrets.K3S_TEST_DO_TOKEN }}
+          MACHINE_SSH_KEY_NAME: ${{ vars.K3S_TEST_SSH_KEY_NAME }}
+          MACHINE_DNS_ZONE: ${{ vars.K3S_TEST_DNS_ZONE }}
+          MACHINE_PROJECT: ${{ vars.K3S_TEST_PROJECT }}
+          MACHINE_PROVISIONING_URL: ${{ inputs.provisioning-url }}
+          STACK_IMAGE_REGISTRY: ${{ vars.K3S_TEST_IMAGE_REGISTRY }}
+          STACK_IMAGE_REGISTRY_USER: ${{ secrets.K3S_TEST_REGISTRY_TOKEN }}
+          STACK_IMAGE_REGISTRY_TOKEN: ${{ secrets.K3S_TEST_REGISTRY_TOKEN }}
+          LETSENCRYPT_EMAIL: ${{ vars.K3S_TEST_LETSENCRYPT_EMAIL }}
+        run: MACHINE_SSH_KEY_FILE=$HOME/.ssh/k3s-test-key ./tests/k3s-deploy/run-k3s-deploy-test.sh

@@ -142,6 +142,7 @@ def test_explain_emits_expected_sections(tmp_path, isolated_env):
         "Deployments",
         "Services",
         "Ingress",
+        "HTTPRoute",
     }
     # No bind-mounted volumes in this spec, so no PersistentVolumes section at all.
     assert "PersistentVolumes" not in sections
@@ -182,6 +183,24 @@ def test_explain_service_and_pvc(tmp_path, isolated_env):
     pvc = sections["PersistentVolumeClaims"][0]
     assert pvc["metadata"]["name"] == "web-data"
     assert pvc["spec"]["accessModes"] == ["ReadWriteOnce"]
+
+
+def test_explain_http_route_from_port_annotation(tmp_path, isolated_env):
+    deployment_dir = build_deployment(tmp_path, isolated_env)
+
+    sections = explain(deployment_dir, isolated_env, tmp_path)
+    http_route = sections["HTTPRoute"][0]
+
+    # The Gateway API rendering of the same http-proxy config as the Ingress
+    # below: routing attaches to the shared stack-gateway, and TLS does not
+    # appear here at all (it lives on the Gateway's listeners).
+    assert http_route["spec"]["parentRefs"] == [
+        {"kind": "Gateway", "name": "stack-gateway", "namespace": "kube-system"}
+    ]
+    assert http_route["spec"]["hostnames"] == ["test.example.com"]
+    rule = http_route["spec"]["rules"][0]
+    assert rule["matches"] == [{"path": {"type": "PathPrefix", "value": "/"}}]
+    assert rule["backendRefs"] == [{"name": "web", "port": 80}]
 
 
 def test_explain_ingress_from_port_annotation(tmp_path, isolated_env):

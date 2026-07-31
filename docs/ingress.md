@@ -38,8 +38,11 @@ network:
 
 ## Kubernetes
 
-When using Kubernetes, support for [kubernetes/ingress-nginx](https://github.com/kubernetes/ingress-nginx) is built in.
-SSL support is also handled automatically by [cert-manager](https://github.com/cert-manager/cert-manager) if installed.
+When using Kubernetes, the `http-proxy` settings are published through the
+[Gateway API](https://gateway-api.sigs.k8s.io/) on clusters provisioned for it, and through the Ingress API
+(using [kubernetes/ingress-nginx](https://github.com/kubernetes/ingress-nginx), now retired upstream) otherwise —
+see [gateway-api.md](gateway-api.md) for how the target is detected and what is created.
+SSL support is handled automatically by [cert-manager](https://github.com/cert-manager/cert-manager) if installed.
 The `cluster-issuer` to use for requesting a certificate can be specified using the `--http-proxy-clusterissuer` flag.
 No additional configuration is required.
 

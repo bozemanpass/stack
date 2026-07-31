@@ -37,6 +37,7 @@ from stack.deploy.k8s.helpers import (
     log_stream_from_string,
 )
 from stack.deploy.k8s.helpers import generate_kind_config
+from stack.deploy.k8s import gateway
 from stack.deploy.k8s.cluster_info import ClusterInfo
 from stack.opts import opts
 from stack.deploy.deployment_context import DeploymentContext
@@ -216,6 +217,28 @@ class K8sDeployer(Deployer):
                                 return cert
         return None
 
+    def _create_gateway_resources(self, http_proxy_info_list):
+        # TODO: handle multiple definitions
+        http_proxy_info = http_proxy_info_list[0]
+        host_name = http_proxy_info[constants.host_name_key]
+        cluster_issuer = http_proxy_info.get(constants.cluster_issuer_key, gateway.DEFAULT_CLUSTER_ISSUER)
+        gw = gateway.ensure_gateway(self.custom_obj_api, cluster_issuer)
+        # Note: at present we don't support tls for kind (and enabling tls causes errors)
+        if not self.is_kind():
+            listener = gateway.https_listener_covering_host(gw, host_name)
+            if listener:
+                # Already served, e.g. by a machine-provisioned wildcard
+                # listener whose certificate covers every host under a domain.
+                log_debug(f"Host {host_name} already covered by Gateway listener {listener['name']}")
+            else:
+                # cert-manager sees the new listener on the annotated Gateway
+                # and obtains its certificate over HTTP-01.
+                gateway.add_https_listener(self.custom_obj_api, gw, self.k8s_namespace, host_name)
+
+        http_route = self.cluster_info.get_http_route(gateway.GATEWAY_NAME, gateway.GATEWAY_NAMESPACE)
+        log_debug(f"Sending this HTTPRoute: {http_route}")
+        gateway.create_http_route(self.custom_obj_api, self.k8s_namespace, http_route)
+
     def up(self, detach, skip_cluster_management, services):
         try:
             self.skip_cluster_management = skip_cluster_management
@@ -255,6 +278,12 @@ class K8sDeployer(Deployer):
             self._create_deployments()
 
             http_proxy_info = self.cluster_info.spec.get_http_proxy()
+            if http_proxy_info and not opts.o.dry_run and gateway.gateway_api_available(self.custom_obj_api):
+                # A Gateway API cluster: routing via an HTTPRoute on the shared
+                # Gateway, HTTPS via a per-deployment listener on it.
+                self._create_gateway_resources(http_proxy_info)
+                return
+
             # Note: at present we don't support tls for kind (and enabling tls causes errors)
             use_tls = http_proxy_info and not self.is_kind()
             certificate = self._find_certificate_for_host_name(http_proxy_info[0]["host-name"]) if use_tls else None
@@ -335,15 +364,21 @@ class K8sDeployer(Deployer):
                 except client.exceptions.ApiException as e:
                     _check_delete_exception(e)
 
-            ingress: client.V1Ingress = self.cluster_info.get_ingress(use_tls=not self.is_kind())
-            if ingress:
-                log_debug(f"Deleting this ingress: {ingress}")
-                try:
-                    self.networking_api.delete_namespaced_ingress(name=ingress.metadata.name, namespace=self.k8s_namespace)
-                except client.exceptions.ApiException as e:
-                    _check_delete_exception(e)
+            if self.cluster_info.spec.get_http_proxy() and gateway.gateway_api_available(self.custom_obj_api):
+                gateway.delete_http_route(self.custom_obj_api, self.k8s_namespace)
+                # The certificate Secret survives so that a redeployment of the
+                # same hostname reuses it rather than asking for a new one.
+                gateway.remove_https_listener(self.custom_obj_api, self.k8s_namespace)
             else:
-                log_debug("No ingress to delete")
+                ingress: client.V1Ingress = self.cluster_info.get_ingress(use_tls=not self.is_kind())
+                if ingress:
+                    log_debug(f"Deleting this ingress: {ingress}")
+                    try:
+                        self.networking_api.delete_namespaced_ingress(name=ingress.metadata.name, namespace=self.k8s_namespace)
+                    except client.exceptions.ApiException as e:
+                        _check_delete_exception(e)
+                else:
+                    log_debug("No ingress to delete")
 
             if volumes:
                 try:
@@ -376,26 +411,56 @@ class K8sDeployer(Deployer):
         ip = "?"
         tls = "?"
         try:
-            ingress = self.networking_api.read_namespaced_ingress(
-                namespace=self.k8s_namespace,
-                name=self.cluster_info.get_ingress().metadata.name,
-            )
+            if gateway.gateway_api_available(self.custom_obj_api):
+                http_route = self.custom_obj_api.get_namespaced_custom_object(
+                    group=gateway.GATEWAY_API_GROUP,
+                    version=gateway.GATEWAY_API_VERSION,
+                    namespace=self.k8s_namespace,
+                    plural="httproutes",
+                    name=gateway.HTTP_ROUTE_NAME,
+                )
+                hostname = http_route["spec"]["hostnames"][0]
+                gw = gateway.get_gateway(self.custom_obj_api)
+                addresses = gw.get("status", {}).get("addresses", [])
+                if addresses:
+                    ip = addresses[0].get("value", "?")
+                listener = gateway.https_listener_covering_host(gw, hostname)
+                if listener:
+                    # cert-manager names the Certificate after the secret the
+                    # listener references.
+                    cert = self.custom_obj_api.get_namespaced_custom_object(
+                        group="cert-manager.io",
+                        version="v1",
+                        namespace=gateway.GATEWAY_NAMESPACE,
+                        plural="certificates",
+                        name=listener["tls"]["certificateRefs"][0]["name"],
+                    )
+                    tls = "notBefore: %s; notAfter: %s; names: %s" % (
+                        cert["status"]["notBefore"],
+                        cert["status"]["notAfter"],
+                        cert["spec"]["dnsNames"],
+                    )
+            else:
+                ingress = self.networking_api.read_namespaced_ingress(
+                    namespace=self.k8s_namespace,
+                    name=self.cluster_info.get_ingress().metadata.name,
+                )
 
-            cert = self.custom_obj_api.get_namespaced_custom_object(
-                group="cert-manager.io",
-                version="v1",
-                namespace=self.k8s_namespace,
-                plural="certificates",
-                name=ingress.spec.tls[0].secret_name,
-            )
+                cert = self.custom_obj_api.get_namespaced_custom_object(
+                    group="cert-manager.io",
+                    version="v1",
+                    namespace=self.k8s_namespace,
+                    plural="certificates",
+                    name=ingress.spec.tls[0].secret_name,
+                )
 
-            hostname = ingress.spec.rules[0].host
-            ip = ingress.status.load_balancer.ingress[0].ip
-            tls = "notBefore: %s; notAfter: %s; names: %s" % (
-                cert["status"]["notBefore"],
-                cert["status"]["notAfter"],
-                ingress.spec.tls[0].hosts,
-            )
+                hostname = ingress.spec.rules[0].host
+                ip = ingress.status.load_balancer.ingress[0].ip
+                tls = "notBefore: %s; notAfter: %s; names: %s" % (
+                    cert["status"]["notBefore"],
+                    cert["status"]["notAfter"],
+                    ingress.spec.tls[0].hosts,
+                )
         except:  # noqa: E722
             pass
 
