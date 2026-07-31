@@ -104,6 +104,10 @@ def build_deployment(tmp_path, isolated_env, deploy_to="k8s", extra_init_args=()
         kube_config.write_text("apiVersion: v1\n")
         init_args += ["--kube-config", str(kube_config)]
     init_args += list(extra_init_args)
+    if deploy_to == "k8s" and "--image-registry" not in init_args:
+        # The fixture image is locally built and unpublished, so a k8s deployment
+        # needs a staging registry to be resolvable at all.
+        init_args += ["--image-registry", "registry.example.com/org"]
 
     result = run_stack(init_args, isolated_env, cwd=tmp_path)
     assert result.returncode == 0, f"init failed:\n{result.stdout}\n{result.stderr}"

@@ -23,6 +23,7 @@ from stack.deploy.deployment_context import DeploymentContext
 from stack.deploy.deploy_types import DeployCommandContext
 from stack.deploy.deploy_util import images_for_deployment
 from stack.log import log_debug
+from stack.util import error_exit
 
 
 # The tags stack builds locally.  Only these are redirected at a deployment's registry;
@@ -30,12 +31,26 @@ from stack.log import log_debug
 LOCALLY_BUILT_TAGS = ("local", "stack")
 
 
-def _split_image_reference(image: str):
-    """Split an image reference into its bare name and its tag.
+def _strip_registry_host(image_name: str):
+    """Drop a leading registry host (`ghcr.io/`, `localhost:5000/`) from an image name.
 
-    The name is the last path component: any host and org in the reference are dropped,
-    because the remote registry URL replacing them carries its own.  So both
-    `bar:stack` and `foo.io/org/bar:stack` yield ("bar", "stack").
+    Follows the standard reference heuristic: the first path component is a host only
+    if it contains a '.' or ':' or is exactly "localhost"; otherwise it is an org
+    (`someorg/bar` has no host).
+    """
+    first_component, sep, rest = image_name.partition("/")
+    if sep and ("." in first_component or ":" in first_component or first_component == "localhost"):
+        return rest
+    return image_name
+
+
+def _split_image_reference(image: str):
+    """Split an image reference into its host-less name and its tag.
+
+    Any registry host in the reference is dropped, because the remote registry URL
+    replacing it carries its own, but the org path is kept -- it is part of the image's
+    identity and registries like ghcr require a namespace.  So `org/bar:stack` and
+    `foo.io/org/bar:stack` both yield ("org/bar", "stack").
 
     A ':' only introduces a tag when it follows the last '/' -- a registry host may
     carry a port, as in `localhost:5000/bar`.  The tag is None when there is none,
@@ -44,10 +59,11 @@ def _split_image_reference(image: str):
     """
     last_path_component = image.rsplit("/", 1)[-1]
     if ":" in last_path_component:
-        image_name, image_version = last_path_component.rsplit(":", 1)
+        image_version = last_path_component.rsplit(":", 1)[1]
+        image_name = image[: len(image) - len(image_version) - 1]
     else:
-        image_name, image_version = last_path_component, None
-    return image_name, image_version
+        image_name, image_version = image, None
+    return _strip_registry_host(image_name), image_version
 
 
 def _image_needs_pushed(image: str):
@@ -58,7 +74,7 @@ def _image_needs_pushed(image: str):
 
 
 def _remote_tag_for_image(image: str, remote_repo_url: str):
-    # Turns image tags of the form: foo/bar:stack into remote.repo/org/bar:deploy
+    # Turns image tags of the form: org/bar:stack into remote.repo/org/bar:deploy
     image_name, image_version = _split_image_reference(image)
     if image_version in LOCALLY_BUILT_TAGS:
         return f"{remote_repo_url}/{image_name}:deploy"
@@ -92,7 +108,7 @@ def add_tags_to_image(remote_repo_url: str, local_tag: str, *additional_tags):
 
 
 def remote_tag_for_image_unique(image: str, remote_repo_url: str, deployment_id: str):
-    # Turns image tags of the form: foo/bar:stack into remote.repo/org/bar:deploy
+    # Turns image tags of the form: org/bar:stack into remote.repo/org/bar:deploy-<id>
     image_name, image_version = _split_image_reference(image)
     if image_version in LOCALLY_BUILT_TAGS:
         # Salt the tag with part of the deployment id to make it unique to this deployment
@@ -102,13 +118,84 @@ def remote_tag_for_image_unique(image: str, remote_repo_url: str, deployment_id:
         return image
 
 
+def _published_reference_for_image(image: str):
+    """Find the registry-qualified reference under which a locally built image is published.
+
+    `stack prepare` leaves the answer in the local daemon's tags: pulling a prebuilt
+    image records `ghcr.io/org/bar:<hash>` alongside the `org/bar:<hash>` and
+    `org/bar:stack` cross-tags, and `--publish-images` tags what it pushes the same
+    way.  So a sibling tag that carries a registry host, and whose name and version
+    match an unqualified sibling, is a reference the cluster can pull directly.
+
+    Requiring the version to also exist as an unqualified tag keeps deployment-private
+    staging tags (`reg/org/bar:deploy-xxxx`, which have no unqualified counterpart)
+    from being mistaken for a published image.
+
+    Returns None when the image has no such tag -- or does not exist locally at all.
+    """
+    image_name, _ = _split_image_reference(image)
+    try:
+        repo_tags = DockerClient().image.inspect(image).repo_tags
+    except Exception:
+        return None
+
+    local_versions = set()
+    qualified = []
+    for ref in repo_tags:
+        ref_name, ref_version = _split_image_reference(ref)
+        if not ref_version or ref_version in LOCALLY_BUILT_TAGS or ref_name != image_name:
+            continue
+        if ref_version.startswith("stackdev-"):
+            # A stackdev version identifies a local development build; it is never published.
+            continue
+        if _strip_registry_host(ref) == ref:
+            local_versions.add(ref_version)
+        else:
+            qualified.append((ref_version, ref))
+    matches = sorted(ref for ref_version, ref in qualified if ref_version in local_versions)
+    return matches[0] if matches else None
+
+
+def resolve_image_for_deployment(image: str, image_registry: str, deployment_id: str) -> str:
+    """Return the image reference a (non-kind) k8s pod spec should use.
+
+    Images not tagged as locally built are pulled exactly as the pod file names them.
+    A locally built image is redirected at the deployment's staging registry when the
+    spec configures one (matching what push-images uploads); otherwise its published
+    registry-qualified reference is used.  If neither exists the deployment cannot
+    work, so fail now with the remedy rather than as an ImagePullBackOff later.
+    """
+    _, image_version = _split_image_reference(image)
+    if image_version not in LOCALLY_BUILT_TAGS:
+        return image
+    if image_registry:
+        return remote_tag_for_image_unique(image, image_registry, deployment_id)
+    published = _published_reference_for_image(image)
+    if published:
+        log_debug(f"Using published image {published} for {image}")
+        return published
+    error_exit(
+        f"Cannot resolve image {image} for deployment: it is not published to a registry and"
+        f" the spec has no image-registry to stage it through.  Either publish it"
+        f" (stack prepare --publish-images --image-registry <url>), or add an image registry"
+        f" to the deployment (stack init --image-registry <url> ...) and upload the image with"
+        f" 'stack manage --dir <deployment-dir> push-images'.  If the stack has not been"
+        f" prepared on this machine, run 'stack prepare' first."
+    )
+
+
 # TODO: needs lots of error handling
 def push_images_operation(command_context: DeployCommandContext, deployment_context: DeploymentContext):
     # Get the list of images for the stack
     cluster_context = command_context.cluster_context
     images: Set[str] = images_for_deployment(cluster_context.compose_files)
     # Tag the images for the remote repo
-    remote_repo_url = deployment_context.spec.obj[constants.image_registry_key]
+    remote_repo_url = deployment_context.spec.obj.get(constants.image_registry_key)
+    if not remote_repo_url:
+        error_exit(
+            "The spec has no image-registry to push to."
+            "  Re-run 'stack init' with --image-registry <url> to configure one."
+        )
     docker = DockerClient()
     for image in images:
         if _image_needs_pushed(image):
