@@ -1,0 +1,12 @@
+# Fixture mirroring the project layout taught by skills/deploy-with-stack/SKILL.md:
+# one service built from a Dockerfile in the project, one stock image with a volume.
+# All paths are relative to the repository root (the test script git-inits a copy
+# of the myproject directory), not to this file.
+name: skillfixture
+description: "Fixture for the deploy-with-stack skill quickstart test"
+containers:
+  - name: bpitest/skill-backend
+    path: ./backend
+pods:
+  - name: skillfixture
+    path: ./stack/pods/skillfixture

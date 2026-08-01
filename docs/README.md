@@ -36,6 +36,7 @@ stack authors should read [stack-files.md](stack-files.md) first.
 
 | Document | Description |
 | --- | --- |
+| [from-laptop-to-production.md](from-laptop-to-production.md) | Choosing a deployment target by situation: local development, a single always-on VM for real users, or Kubernetes — and why a PaaS is not required. Start here if you know your goal but not the options. |
 | [ingress.md](ingress.md) | Automatic HTTP route configuration for an ingress controller / reverse proxy via annotations in `composefile.yml`. |
 | [gateway-api.md](gateway-api.md) | HTTPS on Kubernetes via the Gateway API (with the legacy Ingress API as fallback), and the cluster contract required to use it. |
 | [k8s-deployment-enhancements.md](k8s-deployment-enhancements.md) | Controlling Kubernetes pod placement with node affinity rules in the deployment spec. |

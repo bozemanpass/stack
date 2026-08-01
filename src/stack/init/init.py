@@ -92,7 +92,8 @@ def _output_checks(specs, deploy_to, http_proxy_fqdn_specified=False):
 @click.option("--cluster", help="specify a non-default cluster name")
 @click.option(
     "--deploy-to",
-    help="cluster system to deploy to (compose or k8s or k8s-kind)",
+    type=click.Choice([constants.compose_deploy_type, constants.k8s_deploy_type, constants.k8s_kind_deploy_type]),
+    help="cluster system to deploy to",
     default=get_config_setting("deploy-to", "compose"),
 )
 @click.option("--kube-config", help="Provide a config file for a k8s deployment", default=get_config_setting("kube-config"))
