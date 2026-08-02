@@ -29,6 +29,7 @@ stack prepare [OPTIONS]
 | `--publish-images` | FLAG | Publish the built images | False |
 | `--image-registry` | TEXT | Specify the remote image registry | From config |
 | `--target-arch` | TEXT | Specify a target architecture (with --dont-pull-images) | - |
+| `--quiet-build` | FLAG | Suppress container build and pull output, keeping the progress summary | False |
 
 ## Build Policies
 
@@ -103,7 +104,14 @@ stack prepare --stack my-stack --target-arch arm64 --dont-pull-images
 
 # Prepare with SSH for private repos
 stack prepare --stack my-stack --git-ssh --include-repos private-repo
+
+# Prepare without the docker build/pull log, keeping the progress summary
+stack prepare --stack my-stack --quiet-build
 ```
+
+Note that `--quiet-build` differs from the global `--quiet`: `--quiet` also raises
+the log level, which hides the per-container progress lines, whereas
+`--quiet-build` suppresses only the output of the underlying docker commands.
 
 ## See Also
 

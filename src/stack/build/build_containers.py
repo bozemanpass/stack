@@ -193,7 +193,7 @@ def process_container(build_context: BuildContext) -> bool:
             build_envs["PATH"] = os.environ["PATH"]
         log_debug(f"Executing: {build_command} with environment: {build_envs}")
 
-        build_result = run_shell_command(build_command, env=build_envs, quiet=opts.o.quiet)
+        build_result = run_shell_command(build_command, env=build_envs, quiet=opts.o.quiet or opts.o.quiet_build)
 
         log_debug(f"Build command return code is: {build_result}")
         if build_result != 0:
@@ -228,7 +228,7 @@ def prepare_wrapper_base_container(wrapper, build_context: BuildContext) -> bool
             if exists_remotely:
                 pull_tag = f"{registry}/{hash_tag}" if registry else hash_tag
                 log_info(f"Base container {pull_tag} exists remotely.")
-                run_shell_command(f"docker pull {pull_tag}", quiet=opts.o.quiet)
+                run_shell_command(f"docker pull {pull_tag}", quiet=opts.o.quiet or opts.o.quiet_build)
                 if registry:
                     docker.image.tag(pull_tag, hash_tag)
                 docker.image.tag(hash_tag, stack_tag)
@@ -498,11 +498,12 @@ def build_containers(parent_stack,  # noqa: C901
             if container_needs_pulled:
                 # Pull the remote image
                 if image_registry_to_pull_this_container:
-                    run_shell_command(f"docker pull {image_registry_to_pull_this_container}/{container_tag}", quiet=opts.o.quiet)
+                    run_shell_command(f"docker pull {image_registry_to_pull_this_container}/{container_tag}",
+                                      quiet=opts.o.quiet or opts.o.quiet_build)
                     # Tag the local copy to point at it.
                     docker.image.tag(f"{image_registry_to_pull_this_container}/{container_tag}", container_tag)
                 else:
-                    run_shell_command(f"docker pull {container_tag}", quiet=opts.o.quiet)
+                    run_shell_command(f"docker pull {container_tag}", quiet=opts.o.quiet or opts.o.quiet_build)
                 # Tag the local copy to point at it.
                 docker.image.tag(container_tag, stack_local_tag)
                 container_was_pulled = True

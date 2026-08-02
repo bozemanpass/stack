@@ -18,6 +18,7 @@ import click
 from stack.build.build_containers import BUILD_POLICIES, build_containers
 from stack.config.util import get_config_setting
 from stack.deploy.stack import resolve_stack
+from stack.opts import opts
 from stack.repos.repo_util import clone_all_repos_for_stack
 from stack.util import error_exit
 
@@ -43,6 +44,8 @@ PREPARE_POLICIES = BUILD_POLICIES[:] + ["fetch-repos"]
     default=get_config_setting("image-registry"),
 )
 @click.option("--target-arch", help="Specify a target architecture (only for use with --dont-pull-images)")
+@click.option("--quiet-build", is_flag=True, default=False,
+              help="Suppress container build and pull output, keeping the progress summary")
 @click.pass_context
 def command(
         ctx,
@@ -59,11 +62,16 @@ def command(
         publish_images,
         image_registry,
         target_arch,
+        quiet_build,
 ):
     """build or download stack containers"""
 
     if build_policy not in PREPARE_POLICIES:
         error_exit(f"{build_policy} is not one of {PREPARE_POLICIES}")
+
+    # Consumed deep in the build path (docker build/pull), so carry it on the shared
+    # options object rather than threading it through every intervening signature.
+    opts.o.quiet_build = quiet_build
 
     stack = resolve_stack(stack)
     cloned_or_pulled_repos = clone_all_repos_for_stack(stack, include_repos, exclude_repos, git_pull, git_ssh)
