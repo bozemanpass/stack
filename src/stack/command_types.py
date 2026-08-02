@@ -25,5 +25,9 @@ class CommandOptions:
     dry_run: bool = False
     debug: bool = False
     quiet: bool = False
+    # Set by `stack prepare --quiet-build`. Suppresses subcommand (docker build/pull)
+    # output only, unlike `quiet`, which also raises the log level and so hides the
+    # progress narration.
+    quiet_build: bool = False
     log_timestamps: bool = False
     log_elapsed: bool = False
