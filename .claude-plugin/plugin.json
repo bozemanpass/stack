@@ -1,0 +1,13 @@
+{
+  "name": "bpi-stack",
+  "displayName": "BPI Stack",
+  "description": "Agent skills for packaging multi-container systems as BPI stacks and deploying them to Docker Compose or Kubernetes with the stack CLI",
+  "author": {
+    "name": "Bozeman Pass, Inc.",
+    "url": "https://github.com/bozemanpass"
+  },
+  "homepage": "https://github.com/bozemanpass/stack",
+  "repository": "https://github.com/bozemanpass/stack",
+  "license": "AGPL-3.0",
+  "keywords": ["deployment", "docker", "docker-compose", "kubernetes", "containers"]
+}

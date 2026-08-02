@@ -2,6 +2,16 @@
 
 Stack allows building and deployment of a system of related containerized applications as a single "stack". Transparently deploy to local Docker, Podman or to remote Kubernetes.
 
+## What is Stack good for?
+Stack is useful for a wide category of software applications including those that have a web app component, back-end services and optionally a database: web systems.
+Development of such a system ususally begins on a laptop where it's quick and easy to prototype concepts, try things out and iterate.
+Once the system is ready for users it needs somewhere to run that stays up — reachable by colleagues, customers, 
+or the public at a real URL, whether or not the laptop lid is open. That step is called _deployment_, and the common option today is to hand it to 
+one of the "Platforms". The PaaS can provide hosting but also brings a growing bill, limits on what you can run, and configuration you can't take with you. 
+Stack is the PaaS-free alternative: define your system once, then deploy that same definition with one command to 
+local Docker while you develop, to an ordinary rented VM to serve real users, or to a Kubernetes cluster when you genuinely need scale, with no vendor lock-in 
+at any step. If you're wondering which of those you need, start with [From Laptop to Production](./docs/from-laptop-to-production.md).
+
 ## Quick Start
 
 Let's build and deploy an [example stack](https://github.com/bozemanpass/example-todo-list) for the canonical "Todo" web app (LLM-generated of course).
