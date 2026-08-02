@@ -99,7 +99,14 @@ def container_disposition(parent_stack, image_registry, git_ssh):
 )
 @click.pass_context
 def command(ctx, stack, image_registry, git_ssh):
-    """check if stack containers are ready"""
+    """dry run of prepare: report what is missing
+
+    Reports what `stack prepare` would still have to fetch or build, without
+    doing any of it. Useful when you have stepped away since preparing and
+    want a quick answer rather than a build that may take minutes.
+
+    Exits non-zero if anything is missing.
+    """
 
     stack = resolve_stack(stack)
     what_needs_done = container_disposition(stack, image_registry, git_ssh)
