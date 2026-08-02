@@ -515,10 +515,13 @@ def _docker_manifest_inspect(tag, registry=None):
         if not isinstance(manifest, list):
             manifest = [manifest]
     elif any(marker in result.stderr.lower() for marker in ("unauthorized", "authentication required", "denied", "401 ")):
-        # Failing the check treats the image as not available remotely, which for an
-        # auth failure silently forces a local build: make the real cause visible.
-        log_warn(f"WARN: not authorized to query {registry or 'the default registry'} for {full_tag}."
-                 f"  If you have access, log in first with: docker login {registry or ''}".rstrip())
+        # Failing the check treats the image as not available remotely, which silently
+        # forces a local build: make the reason visible. Registries generally return the
+        # same denial for a private repo and one that does not exist, so we cannot tell
+        # "not published" from "no access" here — say so rather than assuming a login is
+        # needed, since the usual cause is simply that no image was ever published.
+        log_warn(f"WARN: no pre-built image found at {registry or 'the default registry'} for {full_tag};"
+                 f" building locally.  If it is private, log in first with: docker login {registry or ''}".rstrip())
 
     return manifest if manifest else []
 
