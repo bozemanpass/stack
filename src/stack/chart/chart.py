@@ -33,16 +33,98 @@ _theme = {
 }
 
 
+def _image_summary(svc_config):
+    """One-line description of what a service runs, and whether it is built here."""
+    image = svc_config.get("image") or "?"
+    build = svc_config.get("build")
+    if isinstance(build, dict):
+        build = build.get("context")
+    return f"{image} (build {build})" if build else image
+
+
+def _depends_on(svc_config):
+    depends = svc_config.get("depends_on") or []
+    # Compose allows either a plain list or a mapping of name -> condition.
+    return list(depends.keys()) if isinstance(depends, dict) else list(depends)
+
+
+def _render_stack_text(stack, show_http_targets, show_ports, show_volumes, indent="", lines=None):
+    """Render the stack as an indented tree, mirroring what the mermaid chart shows."""
+    if lines is None:
+        lines = []
+    lines.append(f"{indent}{stack.name}")
+
+    if stack.is_super_stack():
+        children = stack.get_required_stacks_paths()
+        for i, child in enumerate(children):
+            last_child = i == len(children) - 1
+            branch = "└── " if last_child else "├── "
+            child_indent = indent + ("    " if last_child else "│   ")
+            child_stack = resolve_stack(child)
+            # Render the child at its own indent, then replace its root line so the child
+            # stack hangs off this stack's branch instead of being indented under it.
+            child_lines = _render_stack_text(child_stack, show_http_targets, show_ports, show_volumes, child_indent, [])
+            child_lines[0] = f"{indent}{branch}{child_stack.name}"
+            lines.extend(child_lines)
+        return lines
+
+    services = stack.get_services()
+    http_targets = stack.get_http_proxy_targets() if show_http_targets else []
+    ports = stack.get_ports() if show_ports else {}
+    volumes = stack.get_volumes() if show_volumes else {}
+
+    name_width = max((len(s) for s in services), default=0)
+    service_names = list(services)
+    for i, svc in enumerate(service_names):
+        last = i == len(service_names) - 1
+        branch = "└── " if last else "├── "
+        # Detail lines hang under the service, so they need the continuation bar.
+        detail_indent = indent + ("      " if last else "│     ")
+        lines.append(f"{indent}{branch}{svc.ljust(name_width)}  {_image_summary(services[svc])}")
+
+        for ht in [t for t in http_targets if t["service"] == svc]:
+            lines.append(f"{detail_indent}http :{ht['port']} -> {ht.get('path', '/')}")
+
+        shown_http_ports = {str(t["port"]) for t in http_targets if t["service"] == svc}
+        for port in ports.get(svc, []):
+            # Skip ports already shown as an http route to avoid saying the same thing twice.
+            if str(port).split(":")[-1] in shown_http_ports:
+                continue
+            lines.append(f"{detail_indent}port {port}")
+
+        for volume in volumes.get(svc, []):
+            volume_name, _, mount = str(volume).partition(":")
+            lines.append(f"{detail_indent}volume {volume_name}" + (f" -> {mount}" if mount else ""))
+
+        for dep in _depends_on(services[svc]):
+            lines.append(f"{detail_indent}needs {dep}")
+
+    return lines
+
+
 @click.command()
 @click.option("--stack", help="name or path of the stack", required=False)
 @click.option("--show-ports/--no-show-ports", default=False)
 @click.option("--show-http-targets/--no-show-http-targets", default=True)
 @click.option("--show-volumes/--no-show-volumes", default=True)
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["mermaid", "text"]),
+    default="mermaid",
+    help="render as a mermaid diagram, or as a plain text tree",
+)
 @click.pass_context
-def command(ctx, stack, show_ports, show_http_targets, show_volumes):
+def command(ctx, stack, show_ports, show_http_targets, show_volumes, output_format):
     """generate a mermaid graph of the stack"""
 
     parent_stack = resolve_stack(stack)
+
+    if output_format == "text":
+        for line in _render_stack_text(parent_stack, show_http_targets, show_ports, show_volumes):
+            output_main(line)
+        return
+
     chart = Chart(direction=ChartDir.RL)
 
     for cls, style in _theme.items():
