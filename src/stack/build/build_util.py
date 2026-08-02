@@ -30,7 +30,7 @@ from python_on_whales import DockerClient
 import stack.deploy.stack as stack_util
 
 from stack import constants
-from stack.log import log_debug, log_info, log_warn
+from stack.log import log_debug, log_info
 from stack.util import warn_exit, get_yaml, error_exit
 
 
@@ -515,13 +515,15 @@ def _docker_manifest_inspect(tag, registry=None):
         if not isinstance(manifest, list):
             manifest = [manifest]
     elif any(marker in result.stderr.lower() for marker in ("unauthorized", "authentication required", "denied", "401 ")):
-        # Failing the check treats the image as not available remotely, which silently
-        # forces a local build: make the reason visible. Registries generally return the
-        # same denial for a private repo and one that does not exist, so we cannot tell
-        # "not published" from "no access" here — say so rather than assuming a login is
-        # needed, since the usual cause is simply that no image was ever published.
-        log_warn(f"WARN: no pre-built image found at {registry or 'the default registry'} for {full_tag};"
-                 f" building locally.  If it is private, log in first with: docker login {registry or ''}".rstrip())
+        # Debug, not a warning: registries are probed speculatively (the natural registry
+        # for the repo's git host, plus the default one), and for a stack whose images were
+        # never published every probe is denied. That is the ordinary case, and the caller
+        # already reports the outcome as "needs to be built" and "built". A registry returns
+        # the same denial for a private repo and one that does not exist, so this cannot
+        # distinguish "not published" from "no access" anyway. A user who requires a pull
+        # rather than a build should say so with --build-policy prebuilt, which fails hard.
+        log_debug(f"denied by {registry or 'the default registry'} for {full_tag}; "
+                  f"treating as not available remotely")
 
     return manifest if manifest else []
 
