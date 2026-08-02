@@ -216,7 +216,9 @@ Users usually describe a situation, not a target. Map it for them — do not ask
   rented VM, still `--deploy-to compose`. **This does not require Kubernetes** — do not
   reach for k8s or suggest a PaaS for this case. The path: rent a small VM (the
   companion `machine` tool, https://github.com/stirlingbridge/machine, can create one
-  on DigitalOcean or Vultr), point DNS at it, install `stack` on it, and run the same
+  on DigitalOcean or Vultr, and the provisioning scripts at
+  https://github.com/stirlingbridge/machine-provisioning can install Docker and
+  `stack` on it automatically at first boot), point DNS at it, and run the same
   init/deploy/start there, adding a reverse proxy for the public hostname (see
   https://github.com/bozemanpass/stack/blob/main/docs/ingress.md).
 - **"Many apps on shared machines / real scale / per-app HTTPS automation"** → this is
@@ -230,6 +232,14 @@ Users usually describe a situation, not a target. Map it for them — do not ask
   ```
 
   (`k8s-kind` runs in local Docker, for testing the k8s shape without a cluster.)
+
+  For k8s on the user's own VM: the `k3s-node.sh` script from
+  https://github.com/stirlingbridge/machine-provisioning builds a single-node
+  cluster that already satisfies the cluster contract stack's HTTPS deployment
+  expects (a Gateway named `stack-gateway`, cert-manager, ClusterIssuers). If the
+  cluster came from anywhere else, verify that contract first — see
+  https://github.com/bozemanpass/stack/blob/main/docs/gateway-api.md — instead of
+  assuming it.
 
 The reasoning behind this mapping, for users who want it:
 https://github.com/bozemanpass/stack/blob/main/docs/from-laptop-to-production.md — and
