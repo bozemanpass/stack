@@ -44,4 +44,4 @@ stack chart --stack my-stack --no-show-volumes --no-show-http-targets
 ## See Also
 
 - [stack list](list.md) - List available stacks
-- [stack check](check.md) - Check if stack containers are ready
+- [stack check](check.md) - Dry run of prepare: report what is missing

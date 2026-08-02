@@ -60,7 +60,7 @@ stack COMMAND SUBCOMMAND --help
 
 ### 📊 Information & Analysis
 - **[list](commands/list.md)** - List available stacks
-- **[check](commands/check.md)** - Check if stack containers are ready
+- **[check](commands/check.md)** - Dry run of prepare: report what is missing
 - **[chart](commands/chart.md)** - Generate a mermaid graph of the stack
 
 ### 🌐 Web Applications

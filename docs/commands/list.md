@@ -66,6 +66,6 @@ stack list database --show-path
 
 ## See Also
 
-- [stack check](check.md) - Check if stack containers are ready
+- [stack check](check.md) - Dry run of prepare: report what is missing
 - [stack chart](chart.md) - Generate a mermaid graph of the stack
 - [stack init](init.md) - Create a stack specification file
