@@ -17,6 +17,8 @@ import socket
 import click
 import os
 
+from click.core import ParameterSource
+
 from stack import constants
 from stack.log import log_info, log_debug, log_warn
 from stack.config.util import get_config_setting
@@ -114,7 +116,7 @@ def _output_checks(specs, deploy_to, http_proxy_fqdn_specified=False):
 @click.option(
     "--http-proxy-clusterissuer",
     required=False,
-    help="k8s http proxy hostname to use",
+    help="cert-manager cluster issuer to obtain the k8s http proxy certificate from",
     default=get_config_setting("http-proxy-clusterissuer", "letsencrypt-prod"),
 )
 @click.option("--output", required=True, help="Write yaml spec file here")
@@ -145,6 +147,11 @@ def command(
     """create a stack specification file"""
     if deploy_to is None:
         deploy_to = "compose"
+
+    # The cluster issuer option carries a default, so its value cannot tell us whether
+    # the user asked for one. Ask click where the value came from instead, so that we
+    # only report ignoring it when it was actually requested on the command line.
+    clusterissuer_explicitly_set = ctx.get_parameter_source("http_proxy_clusterissuer") == ParameterSource.COMMANDLINE
 
     ctx.obj = create_deploy_context(
         global_options2(ctx),
@@ -225,6 +232,7 @@ def command(
             None,
             map_ports_to_host,
             backup_targets,
+            clusterissuer_explicitly_set,
         )
         specs.append(spec)
 
