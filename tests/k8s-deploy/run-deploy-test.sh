@@ -81,11 +81,14 @@ wait_for_log_output () {
 wait_for_running () {
   set +e
 
-  # Check that all services are running
+  # Check that all services are running (and ready -- "status" only reports a
+  # pod as Running once its containers pass their readiness probes).
   how_many=$1
   local running=0
   local check=0
-  local check_limit=10
+  # Against a real cluster the images are pulled from a real registry over the
+  # network, which can take minutes on a cold node, so allow ~5 minutes here.
+  local check_limit=60
   while [ $running -lt $how_many ] && [ $check -lt $check_limit ]; do
       check=$((check + 1))
       running=$($TEST_TARGET_SO manage --dir $test_deployment_dir status | grep -ic "running")
@@ -145,6 +148,37 @@ add_todo() {
   set -e
 
   return $rc
+}
+
+# Fetch a URL until its body contains the expected text. Even once the pods are
+# ready the ingress/gateway needs a moment to route to the new endpoints, so a
+# single-shot fetch here is a race.
+wait_for_content () {
+  set +e
+
+  url=$1
+  expected=$2
+
+  local try=0
+  local rc=1
+
+  while [ $rc -ne 0 ] && [ $try -lt 20 ]; do
+    try=$((try + 1))
+    curl -s "$url" | grep -q "$expected"
+    rc=$?
+
+    if [ $rc -ne 0 ]; then
+      echo "Waiting for $expected at $url..."
+      sleep 5
+    fi
+  done
+
+  set -e
+
+  if [ $rc -ne 0 ]; then
+    echo "deploy http: failed - $expected not found at $url"
+    exit 1
+  fi
 }
 
 # Test basic stack deploy
@@ -218,7 +252,7 @@ if [ "$todo_title" != "$(curl -s ${TEST_SCHEME}://${TEST_HOSTNAME}/api/todos | j
     exit 1
 fi
 
-wget -q -O - ${TEST_SCHEME}://${TEST_HOSTNAME} | grep 'bundle.js'
+wait_for_content ${TEST_SCHEME}://${TEST_HOSTNAME} 'bundle.js'
 echo "deploy http: passed"
 
 delete_cluster_exit
