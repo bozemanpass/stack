@@ -58,6 +58,23 @@ def _check_delete_exception(e: client.exceptions.ApiException):
         error_exit(f"k8s api error: {e}")
 
 
+def _pod_status(pod):
+    # A pod enters the Running phase as soon as its containers have started,
+    # which is well before the application inside them is able to serve. Only
+    # report Running once every container also passes its readiness probe, so
+    # that "Running" means the same thing here as a ready pod does to k8s.
+    phase = pod.status.phase
+    if phase != "Running":
+        return phase
+
+    container_statuses = pod.status.container_statuses or []
+    total = len(container_statuses)
+    ready = len([c for c in container_statuses if c.ready])
+    if not total or ready < total:
+        return f"Starting {ready}/{total} ready"
+    return f"Running {ready}/{total} ready"
+
+
 class K8sDeployer(Deployer):
     name: str = "k8s"
     type: str
@@ -475,7 +492,7 @@ class K8sDeployer(Deployer):
             if p.metadata.deletion_timestamp:
                 output_main(f"\t{p.metadata.namespace}/{p.metadata.name}: Terminating ({p.metadata.deletion_timestamp})")
             else:
-                output_main(f"\t{p.metadata.namespace}/{p.metadata.name}: {p.status.phase} ({p.metadata.creation_timestamp})")
+                output_main(f"\t{p.metadata.namespace}/{p.metadata.name}: {_pod_status(p)} ({p.metadata.creation_timestamp})")
 
     def ps(self):
         self.connect_api()
