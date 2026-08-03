@@ -273,6 +273,7 @@ def init_operation(  # noqa: C901
     output,
     map_ports_to_host,
     backup_targets=None,
+    clusterissuer_explicitly_set=False,
 ):
     spec_file_content = {"stack": stack, constants.deploy_to_key: deployer_type}
     if deployer_type in ["k8s", "k8s-kind"]:
@@ -287,23 +288,6 @@ def init_operation(  # noqa: C901
                 "WARN: --image-registry not specified: locally built images can only be deployed"
                 " if they are published to a container registry the cluster can reach"
             )
-        if http_proxy_targets:
-            routes = []
-            for target in http_proxy_targets:
-                routes.append(
-                    {
-                        constants.path_key: target["path"],
-                        constants.proxy_to_key: f"{target['service']}:{target['port']}",
-                    }
-                )
-            http_proxy = {
-                constants.host_name_key: http_proxy_fqdn,
-                constants.cluster_issuer_key: http_proxy_clusterissuer,
-                constants.routes_key: routes,
-            }
-            if constants.network_key not in spec_file_content:
-                spec_file_content[constants.network_key] = {}
-            spec_file_content[constants.network_key].update({constants.http_proxy_key: [http_proxy]})
     else:
         # Check for --kube-config supplied for non-relevant deployer types
         if kube_config is not None:
@@ -322,10 +306,14 @@ def init_operation(  # noqa: C901
             constants.host_name_key: http_proxy_fqdn,
             constants.routes_key: routes,
         }
-        if http_proxy_clusterissuer and deployer_type in ["k8s", "k8s-kind"]:
-            http_proxy[constants.cluster_issuer_key] = http_proxy_clusterissuer
-        else:
-            log_info("NOTE: http-cluster-issuer is only used when deploying to Kubernetes")
+        if deployer_type in ["k8s", "k8s-kind"]:
+            if http_proxy_clusterissuer:
+                http_proxy[constants.cluster_issuer_key] = http_proxy_clusterissuer
+        elif clusterissuer_explicitly_set:
+            # Only worth saying when the user actually asked for a cluster issuer: the
+            # option carries a default, so testing its value would flag every non-k8s
+            # deployment, which is the ordinary case and not something to report.
+            log_info("NOTE: --http-proxy-clusterissuer is only used when deploying to Kubernetes; ignoring it")
         if constants.network_key not in spec_file_content:
             spec_file_content[constants.network_key] = {}
         spec_file_content[constants.network_key].update({constants.http_proxy_key: [http_proxy]})
