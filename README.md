@@ -2,6 +2,10 @@
 
 Stack allows building and deployment of a system of related containerized applications as a single "stack". Transparently deploy to local Docker, Podman or to remote Kubernetes.
 
+![Building and deploying a three-container todo app — front end, API and PostgreSQL — to local Docker with stack](./docs/images/quickstart.gif)
+
+_An unedited recording of the [Docker quick start](#docker) below. Regenerate it with `./demo/record-quickstart.sh`._
+
 ## What is Stack good for?
 Stack is useful for a wide category of software applications including those that have a web app component, back-end services and optionally a database: web systems.
 Development of such a system ususally begins on a laptop where it's quick and easy to prototype concepts, try things out and iterate.
@@ -34,6 +38,8 @@ stack init \
   --map-ports-to-host localhost-same
 
 # create the deployment from the config
+# (the parent directory must already exist)
+mkdir -p ~/deployments
 stack deploy --spec-file todo.yml --deployment-dir ~/deployments/todo-docker
 
 # start / status / logs / stop
@@ -61,6 +67,8 @@ stack init \
     --config REACT_APP_API_URL=https://example-todo.myexample.com/api/todos
 
 # create the deployment from the config
+# (the parent directory must already exist)
+mkdir -p ~/deployments
 stack deploy --spec-file todo.yml --deployment-dir ~/deployments/todo-k8s
 
 # push image tags for this deployment to the image registry used by Kubernetes
