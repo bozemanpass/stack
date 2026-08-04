@@ -2,9 +2,9 @@
 
 Stack allows building and deployment of a system of related containerized applications as a single "stack". Transparently deploy to local Docker, Podman or to remote Kubernetes.
 
-![Building and deploying a three-container todo app — front end, API and PostgreSQL — to local Docker with stack](./docs/images/quickstart.gif)
+![Building a three-container todo app — front end, API and PostgreSQL — and deploying it with stack, first to local Docker and then, unchanged, to a Kubernetes cluster over HTTPS](./docs/images/quickstart.gif)
 
-_An unedited recording of the [Docker quick start](#docker) below. Regenerate it with `./demo/record-quickstart.sh`._
+_An unedited recording of the [Docker quick start](#docker) below, followed by the same stack deployed to a real Kubernetes cluster. Regenerate it with `./demo/k8s-host.sh create && ./demo/record-quickstart.sh` (see [demo/README.md](./demo/README.md))._
 
 ## What is Stack good for?
 Stack is useful for a wide category of software applications including those that have a web app component, back-end services and optionally a database: web systems.
