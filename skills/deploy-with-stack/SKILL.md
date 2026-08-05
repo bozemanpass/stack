@@ -94,9 +94,10 @@ Rules that matter:
   to resolve it.
 - Services with no container build of their own have two options: off-the-shelf images
   (postgres, redis, …) need **no** `containers:` entry at all — just use the stock image
-  name in the composefile (`image: postgres:16`); plain content like a static site or a
-  Next.js app without a Dockerfile can use a wrapper (`wrapper: static-content`, etc. —
-  list with `stack webapp wrappers`).
+  name in the composefile (`image: postgres:16`); an app without a Dockerfile can use a
+  wrapper — `static-content` for a static site, `webapp` for a built frontend, `nextjs`
+  for Next.js, `node-service` for a long-running node service (list them with
+  `stack webapp wrappers`).
 - Pods are the unit of deployment grouping; one composefile each. A single pod holding
   all services is the right default for a small system.
 - A pod entry can carry `pre_start_command` / `post_start_command` (host-side scripts,
