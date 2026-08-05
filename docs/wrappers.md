@@ -20,7 +20,16 @@ has been fetched, `stack` fetches the default wrapper repositories itself.
 |------------------|-----------------------------------|------------|
 | `webapp`         | `bozemanpass/webapp-base`         | [stack-wrapper-webapp](https://github.com/bozemanpass/stack-wrapper-webapp) |
 | `nextjs`         | `bozemanpass/nextjs-base`         | [stack-wrapper-webapp](https://github.com/bozemanpass/stack-wrapper-webapp) |
+| `node-service`   | `bozemanpass/node-service-base`   | [stack-wrapper-webapp](https://github.com/bozemanpass/stack-wrapper-webapp) |
 | `static-content` | `bozemanpass/static-content-base` | [stack-wrapper-static-content](https://github.com/bozemanpass/stack-wrapper-static-content) |
+
+The first three build node.js applications. `webapp` and `nextjs` produce *static content*:
+the app is built and a web server in the base image serves the result. `node-service` is
+different in kind — the application process is itself the server, so the build keeps
+`package.json` and the installed `node_modules` alongside any compiled output, and the
+container start command runs the app. A node service also needs no build-time placeholder
+for its configuration, because unlike a browser bundle it reads `process.env` directly at
+startup.
 
 List the wrappers available locally with:
 
@@ -37,9 +46,11 @@ $ stack webapp build --wrapper static-content --source-repo ~/my-static-site
 ```
 
 If `--wrapper` is omitted the wrapper is auto-detected from the app source using each wrapper's
-`detect` rules (e.g. a `next` dependency in `package.json` selects `nextjs`), falling back to
-the wrapper marked `default`.  See [webapp.md](./webapp.md) for the full webapp build/run/deploy
-workflow.
+`detect` rules (e.g. a `next` dependency in `package.json` selects `nextjs`, an `express`
+dependency selects `node-service`), falling back to the wrapper marked `default`.  Only
+`dependencies` are consulted, not `devDependencies`, and the first matching wrapper wins — so
+name the wrapper explicitly when an app could match more than one.  See
+[webapp.md](./webapp.md) for the full webapp build/run/deploy workflow.
 
 ### In a stack, with the `wrapper` field
 
@@ -115,6 +126,66 @@ $ stack webapp build --wrapper static-content --source-repo ~/my-static-site --c
 `content-root` is not wrapper-specific: it narrows the build context of an ordinary container
 build the same way.  See [stack-files.md](./stack-files.md#path-vs-content-root) for how it
 relates to `path`, with worked examples of each combination.
+
+## Runtime environment
+
+A service reads its configuration from the environment at startup, so deploying the same image
+to staging and production is just a matter of setting different variables.  A *webapp* cannot
+do that: its code runs in a browser, which has no environment, so a bundler resolves every
+configuration value at build time and freezes it into the bundle.  Taken at face value that
+would mean one image per environment.
+
+The `webapp` and `nextjs` wrappers avoid this by building with a **placeholder** in place of
+each value, and rewriting the placeholders when the container starts.  A placeholder is the
+variable's name prefixed with `STACK_RUNTIME_ENV_`, so an app configured by `API_URL` is built
+as though `API_URL` were the literal string `STACK_RUNTIME_ENV_API_URL`.  At startup
+`apply-runtime-env.sh` walks the served files, finds each placeholder, and replaces it with the
+value of the correspondingly named environment variable — here, `$API_URL`.  The image itself
+stays environment-independent.
+
+Placeholders reach the bundle in one of two ways.
+
+**Automatically, for apps that read `process.env`.**  Before the build, the wrapper scans the
+app's `.js`/`.jsx`/`.ts`/`.tsx` sources for `process.env.<NAME>` and exports each one set to its
+own placeholder, which the bundler then inlines.  Create React App and webpack-style apps need
+no configuration at all.  The scan covers the source root's subdirectories, skipping hidden ones
+and any listed in `.gitignore`, so a reference sitting in a file at the very top level is not
+picked up.
+
+**By hand, for everything else.**  The scan only recognizes the literal `process.env.<NAME>`
+form.  Vite reads configuration as `import.meta.env.VITE_<NAME>`, so nothing matches and no
+placeholder is produced — the build silently bakes in whatever the value was at build time.
+Such an app sets the placeholder itself, e.g. in `.env.production`:
+
+```
+VITE_API_URL=STACK_RUNTIME_ENV_API_URL
+```
+
+Vite inlines that literal, and startup substitution rewrites it from `$API_URL` as usual.  Note
+the deliberate asymmetry: the build-time variable is the one the framework requires
+(`VITE_API_URL`), while the runtime variable is whatever the placeholder names (`API_URL`).
+
+At startup the wrapper rewrites `.htm`, `.html`, `.js`, `.jsx`, `.ts`, `.tsx` and `.json` files
+under the served directory, skipping `node_modules` and `.git`.  Substitution happens after
+minification and is textual, but it matches whole tokens rather than bare substrings: the
+placeholder has to be bounded by whitespace, a quote (including a backtick), or one of
+`/ \ { } , ( ) ;`.  Every form a bundler emits a string literal in is covered, so it does not
+matter how the build chose to quote it — but a placeholder dropped into free-form markup, as in
+`<p>STACK_RUNTIME_ENV_API_URL</p>`, is not recognized.  Put it in an attribute or a script
+string instead.
+
+A `.env` file in the served directory is loaded first if present, with real environment
+variables taking precedence over it.  Surrounding quotes are stripped from substituted values
+unless `STACK_RETAIN_ENV_QUOTES=true`.
+
+Each substitution is logged as `<file>: <NAME>=<value>`.  That log is the thing to check when an
+app comes up pointing at the wrong address, because **a placeholder that is never found is not
+an error** — the wrapper simply has nothing to do, the unsubstituted string ships to the
+browser, and the failure only shows up as a bad request at runtime.
+
+The `node-service` wrapper does none of this, and needs none of it: a node process reads
+`process.env` directly when it starts, so ordinary container environment variables already
+work.
 
 ## Prebuilt base images
 
@@ -220,6 +291,7 @@ wrapper:
   default: true
   # Optional: rules for auto-detection from the app source.  Currently supported:
   #   package-json-dependency: <name> — matches if package.json lists the dependency
+  #                                     under `dependencies` (devDependencies are ignored)
   detect:
     package-json-dependency: next
 ```
