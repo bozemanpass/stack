@@ -252,7 +252,9 @@ if [ "$todo_title" != "$(curl -s ${TEST_SCHEME}://${TEST_HOSTNAME}/api/todos | j
     exit 1
 fi
 
-wait_for_content ${TEST_SCHEME}://${TEST_HOSTNAME} 'bundle.js'
+# The built frontend references its JS bundle as /assets/index-<hash>.js, so
+# match the stable prefix rather than the per-build hash.
+wait_for_content ${TEST_SCHEME}://${TEST_HOSTNAME} '/assets/index-'
 echo "deploy http: passed"
 
 delete_cluster_exit

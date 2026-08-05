@@ -66,6 +66,41 @@ add_todo() {
 }
 
 
+# Fetch a URL until its body contains the expected text. "status" reports a
+# container as running as soon as Docker starts it, which is not the same as the
+# frontend being ready to serve, so a single-shot fetch here is a race.
+wait_for_content () {
+  set +e
+
+  local url=$1
+  local expected=$2
+  local body=""
+
+  local try=0
+  local rc=1
+
+  while [ $rc -ne 0 ] && [ $try -lt 20 ]; do
+    try=$((try + 1))
+    body=$(curl -s "$url")
+    echo "$body" | grep -q "$expected"
+    rc=$?
+
+    if [ $rc -ne 0 ]; then
+      echo "Waiting for $expected at $url..."
+      sleep 5
+    fi
+  done
+
+  set -e
+
+  if [ $rc -ne 0 ]; then
+    echo "deploy http: failed - $expected not found at $url"
+    echo "last response body was:"
+    echo "$body"
+    exit 1
+  fi
+}
+
 wait_for_running () {
   # Check that all services are running
   local how_many=$1
@@ -166,7 +201,9 @@ echo "deploy storage: passed"
 # TODO: Do we need to add a check for deleting the volumes?
 #  Docker doesn't remove the files for a bound volume so nothing much really changes.
 
-wget -q -O - http://localhost:3000 | grep 'bundle.js'
+# The built frontend references its JS bundle as /assets/index-<hash>.js, so
+# match the stable prefix rather than the per-build hash.
+wait_for_content http://localhost:3000 '/assets/index-'
 echo "deploy http: passed"
 
 echo "Test passed"
