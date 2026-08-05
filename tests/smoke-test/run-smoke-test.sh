@@ -2,10 +2,9 @@
 set -e
 if [ -n "$STACK_SCRIPT_DEBUG" ]; then
   set -x
+  echo "Environment variables:"
+  env
 fi
-# Dump environment variables for debugging
-echo "Environment variables:"
-env
 # Basic simple test of stack functionality
 echo "Running stack smoke test"
 # Bit of a hack, test the most recent package

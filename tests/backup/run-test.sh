@@ -16,7 +16,9 @@
 # bozemanpass/backup-stack repo must be pushed for this to run.
 set -e
 if [ -n "$STACK_SCRIPT_DEBUG" ]; then
-    set -x
+  set -x
+  echo "Environment variables:"
+  env
 fi
 
 if ! command -v docker &> /dev/null; then

@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
 set -e
 if [ -n "$STACK_SCRIPT_DEBUG" ]; then
-    set -x
-    # Dump environment variables for debugging
-    echo "Environment variables:"
-    env
+  set -x
+  echo "Environment variables:"
+  env
 fi
 
 if ! command -v kind &> /dev/null; then

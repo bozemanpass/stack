@@ -2,6 +2,8 @@
 set -e
 if [ -n "$STACK_SCRIPT_DEBUG" ]; then
   set -x
+  echo "Environment variables:"
+  env
 fi
 
 # Check for required utilities
@@ -10,10 +12,6 @@ if ! command -v jq &> /dev/null; then
     echo "Please install jq to run this test script."
     exit 1
 fi
-
-# Dump environment variables for debugging
-echo "Environment variables:"
-env
 
 delete_cluster_exit () {
     $TEST_TARGET_SO manage --dir $test_deployment_dir stop --delete-volumes

@@ -6,6 +6,8 @@
 set -e
 if [ -n "$STACK_SCRIPT_DEBUG" ]; then
   set -x
+  echo "Environment variables:"
+  env
 fi
 
 script_dir=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )

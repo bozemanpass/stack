@@ -3,11 +3,10 @@ set -e
 
 if [ -n "$STACK_SCRIPT_DEBUG" ]; then
   set -x
+  echo "Environment variables:"
+  env
 fi
 
-# Dump environment variables for debugging
-echo "Environment variables:"
-env
 # Test basic stack webapp
 echo "Running stack webapp test"
 if [ "$1" == "from-path" ]; then

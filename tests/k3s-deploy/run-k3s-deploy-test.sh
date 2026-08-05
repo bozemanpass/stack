@@ -51,6 +51,8 @@ set -e
 
 if [ -n "$STACK_SCRIPT_DEBUG" ]; then
   set -x
+  echo "Environment variables:"
+  env
 fi
 
 script_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
@@ -206,9 +208,16 @@ if ! grep -q "$machine_fqdn" "$kube_config"; then
 fi
 echo "Fetched kubeconfig"
 
-# So that push-images can push to the registry.
+# So that push-images can push to the registry.  The token is an argument here,
+# so under STACK_SCRIPT_DEBUG it would be echoed verbatim by xtrace; suppress
+# tracing across the login and restore whatever it was afterward.  (Heredoc
+# bodies and pipe contents are not traced, so the machine config and the
+# kubeconfig need no such guard.)
+xtrace_was_set=""
+case $- in *x*) xtrace_was_set=1; set +x ;; esac
 echo "$STACK_IMAGE_REGISTRY_TOKEN" | docker login "${STACK_IMAGE_REGISTRY%%/*}" \
   --username "$STACK_IMAGE_REGISTRY_USER" --password-stdin
+if [ -n "$xtrace_was_set" ]; then set -x; fi
 
 # The test hostname must resolve locally before the HTTP checks can pass (the
 # authoritative record was just created; Let's Encrypt resolves it
