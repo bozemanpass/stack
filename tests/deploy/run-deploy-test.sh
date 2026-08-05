@@ -166,7 +166,9 @@ echo "deploy storage: passed"
 # TODO: Do we need to add a check for deleting the volumes?
 #  Docker doesn't remove the files for a bound volume so nothing much really changes.
 
-wget -q -O - http://localhost:3000 | grep 'bundle.js'
+# The built frontend references its JS bundle as /assets/index-<hash>.js, so
+# match the stable prefix rather than the per-build hash.
+wget -q -O - http://localhost:3000 | grep '/assets/index-'
 echo "deploy http: passed"
 
 echo "Test passed"
