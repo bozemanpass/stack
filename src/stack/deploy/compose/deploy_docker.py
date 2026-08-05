@@ -18,12 +18,19 @@ import os
 from pathlib import Path
 from python_on_whales import DockerClient, DockerException
 
-from stack.build.build_util import container_exists_locally
 from stack.deploy.deployer import Deployer, DeployerException, DeployerConfigGenerator
 from stack.deploy.deployment_context import DeploymentContext
 from stack.log import output_main, log_info
 from stack.opts import opts
 from stack.util import get_yaml, error_exit
+
+
+def _local_image_id(tag):
+    """The image ID a local tag resolves to, or None if the tag doesn't exist locally."""
+    try:
+        return DockerClient().image.inspect(tag).id
+    except Exception:
+        return None
 
 
 class DockerDeployer(Deployer):
@@ -47,21 +54,38 @@ class DockerDeployer(Deployer):
         self.compose_files = compose_files
         self.deployment_context = deployment_context
 
+    def _stage_local_images(self):
+        """Point this deployment's private image tags at the current locally built images.
+
+        `deploy` rewrites `<name>:stack` to `<name>:<cluster-id>` so that concurrent
+        deployments on one host don't share a mutable tag, so the tag has to be created
+        here.  Creating it only when absent is not enough: a rebuild (`stack prepare`)
+        moves `:stack` to a new image while the deployment tag still names the old one,
+        which would silently keep running the previous build.  So re-tag whenever the two
+        names disagree, which is also the edit-build-restart loop for a compose deployment
+        (see docs/developing-applications.md).
+        """
+        for compose_file in self.compose_files:
+            parsed_file = get_yaml().load(open(compose_file, "r"))
+            for svc_name in parsed_file.get("services", {}):
+                image = parsed_file["services"][svc_name].get("image")
+                if not image or not image.endswith(self.deployment_context.id):
+                    continue
+                stack_image = image.replace(f":{self.deployment_context.id}", ":stack")
+                stack_image_id = _local_image_id(stack_image)
+                if stack_image_id is None:
+                    # No locally built image: the staged tag is all there is to run.
+                    if _local_image_id(image) is not None:
+                        continue
+                    error_exit(f"Cannot find {image} or {stack_image} locally. Did you run 'stack prepare'?")
+                if stack_image_id == _local_image_id(image):
+                    continue
+                log_info(f"Tagging {stack_image} to {image}...")
+                self.docker.tag(stack_image, image)
+
     def up(self, detach, skip_cluster_management, services):
         if not opts.o.dry_run:
-            for compose_file in self.compose_files:
-                parsed_file = get_yaml().load(open(compose_file, "r"))
-                if "services" in parsed_file:
-                    for svc_name in parsed_file["services"]:
-                        image = parsed_file["services"][svc_name].get("image")
-                        if image and image.endswith(self.deployment_context.id):
-                            if not container_exists_locally(image):
-                                stack_image = image.replace(f":{self.deployment_context.id}", ":stack")
-                                if container_exists_locally(stack_image):
-                                    log_info(f"Tagging {stack_image} to {image}...")
-                                    self.docker.tag(stack_image, image)
-                                else:
-                                    error_exit(f"Cannot find {image} or {stack_image} locally. Did you run 'stack prepare'?")
+            self._stage_local_images()
             try:
                 return self.docker.compose.up(detach=detach, services=services)
             except DockerException as e:

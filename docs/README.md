@@ -36,6 +36,7 @@ stack authors should read [stack-files.md](stack-files.md) first.
 
 | Document | Description |
 | --- | --- |
+| [developing-applications.md](developing-applications.md) | The edit-build-deploy loop for an application you are actively changing: building images from your own working tree and getting each edit into a running compose, kind, or Kubernetes deployment. |
 | [from-laptop-to-production.md](from-laptop-to-production.md) | Choosing a deployment target by situation: local development, a single always-on VM for real users, or Kubernetes — and why a PaaS is not required. Start here if you know your goal but not the options. |
 | [ingress.md](ingress.md) | Automatic HTTP route configuration for an ingress controller / reverse proxy via annotations in `composefile.yml`. |
 | [gateway-api.md](gateway-api.md) | HTTPS on Kubernetes via the Gateway API (with the legacy Ingress API as fallback), and the cluster contract required to use it. |

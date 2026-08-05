@@ -115,6 +115,7 @@ Detailed documentation on the installation of stack and its prerequisites as wel
 ## Learn More
  - [Stack commands](./docs/commands.md)
  - [Stack files](./docs/stack-files.md)
+ - [Developing an application with stack](./docs/developing-applications.md)
  - [Container wrappers](./docs/wrappers.md)
  - [Building and running webapps](./docs/webapp.md)
  - [Recent New Features](./docs/recent-features.md)
