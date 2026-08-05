@@ -125,9 +125,10 @@ registry the cluster can reach (see step 5), and `init` warns accordingly.
 
 - **compose target:** each `image: <name>:stack` in the generated compose
   files is rewritten to `<name>:stack-<cluster-id>` so that concurrent
-  deployments on one host don't share a mutable tag. At `up` time the local
-  `<name>:stack` image is retagged to match (erroring with "did you run
-  stack prepare?" if absent).
+  deployments on one host don't share a mutable tag. At every `up` the local
+  `<name>:stack` image is retagged to match whenever the two names resolve to
+  different images, so a rebuild is picked up by a restart (erroring with "did
+  you run stack prepare?" when neither name exists locally).
 - **k8s targets:** pod files keep `<name>:stack`; translation happens at
   manifest-generation time (next step).
 
