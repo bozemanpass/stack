@@ -47,13 +47,7 @@
 #                            (default: the main branch)
 #   MACHINE_CMD              The machine command to run (default: machine)
 #
-set -e
-
-if [ -n "$STACK_SCRIPT_DEBUG" ]; then
-  set -x
-  echo "Environment variables:"
-  env
-fi
+source "$( dirname -- "${BASH_SOURCE[0]}" )/../lib/common.sh"
 
 script_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
@@ -69,12 +63,7 @@ MACHINE_NEW_USER=stacktest
 # cert-manager etc. (seconds).
 PROVISION_TIMEOUT=1800
 
-for cmd in "$MACHINE_CMD" jq ssh docker; do
-  if ! command -v "$cmd" &> /dev/null; then
-    echo "Error: $cmd is not installed."
-    exit 1
-  fi
-done
+require_commands "$MACHINE_CMD" jq ssh docker
 
 missing=""
 for var in MACHINE_DO_TOKEN MACHINE_SSH_KEY_NAME MACHINE_SSH_KEY_FILE MACHINE_DNS_ZONE \

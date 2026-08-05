@@ -1,32 +1,13 @@
 #!/usr/bin/env bash
-set -e
-if [ -n "$STACK_SCRIPT_DEBUG" ]; then
-  set -x
-  echo "Environment variables:"
-  env
-fi
+source "$( dirname -- "${BASH_SOURCE[0]}" )/../lib/common.sh"
+
 # Basic simple test of stack functionality
 echo "Running stack smoke test"
-# Bit of a hack, test the most recent package
-TEST_TARGET_STACK=$( ls -t1 ./package/stack* | head -1 )
-# We make a directory within which our test will create files
-STACK_TEST_DIR=~/stack-test/smoke-test-dir
-# Set a non-default repo dir
-export STACK_REPO_BASE_DIR=${STACK_TEST_DIR}/repo-base-dir
-echo "Testing this package: $TEST_TARGET_STACK"
-echo "Test version command"
-reported_version_string=$( $TEST_TARGET_STACK version )
-echo "Version reported is: ${reported_version_string}"
-echo "Using test directory: $STACK_TEST_DIR"
-rm -rf $STACK_TEST_DIR
-mkdir -p $STACK_TEST_DIR
-mkdir -p $STACK_REPO_BASE_DIR
+select_test_target "$@"
+setup_test_dir smoke-test-dir
 # We must delete any instances of the test-container in the local registory
 # otherwise we'll skip building it below
-existing_test_images=$(docker image ls -q --filter=reference=bozemanpass/test-container | uniq)
-if [ -n "$existing_test_images" ]; then
-  docker image rm -f ${existing_test_images}
-fi
+remove_local_images bozemanpass/test-container
 # Fetch the test stacks
 echo "Fetching test stac repo into: $STACK_REPO_BASE_DIR"
 $TEST_TARGET_STACK fetch repo github.com/bozemanpass/stack-test-stacks

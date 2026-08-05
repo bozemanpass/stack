@@ -1,18 +1,7 @@
 #!/usr/bin/env bash
-set -e
+source "$( dirname -- "${BASH_SOURCE[0]}" )/../lib/common.sh"
 
-if [ -n "$STACK_SCRIPT_DEBUG" ]; then
-  set -x
-  echo "Environment variables:"
-  env
-fi
-
-# Check for required utilities
-if ! command -v jq &> /dev/null; then
-    echo "Error: jq is not installed."
-    echo "Please install jq to run this test script."
-    exit 1
-fi
+require_commands jq
 
 # Determine if we're testing against a remote k8s cluster
 # Set STACK_K8S_REMOTE=true to enable remote mode, which also requires:
@@ -21,8 +10,7 @@ fi
 #   STACK_K8S_HOSTNAME   - hostname of the remote cluster
 if [ "$STACK_K8S_REMOTE" = "true" ]; then
   if [ -z "$STACK_KUBE_CONFIG" ] || [ -z "$STACK_IMAGE_REGISTRY" ] || [ -z "$STACK_K8S_HOSTNAME" ]; then
-    echo "Error: Remote k8s mode requires STACK_KUBE_CONFIG, STACK_IMAGE_REGISTRY, and STACK_K8S_HOSTNAME"
-    exit 1
+    fail "Error: Remote k8s mode requires STACK_KUBE_CONFIG, STACK_IMAGE_REGISTRY, and STACK_K8S_HOSTNAME"
   fi
   DEPLOY_TO="k8s"
   TEST_HOSTNAME="$STACK_K8S_HOSTNAME"
@@ -33,83 +21,12 @@ else
   TEST_SCHEME="http"
 fi
 
-delete_cluster_exit () {
-  if [ -d "$test_deployment_dir" ]; then
-    $TEST_TARGET_SO manage --dir $test_deployment_dir stop --delete-volumes
-  fi
-}
-
-wait_for_pods_started () {
-    for i in {1..50}
-    do
-        local ps_output=$( $TEST_TARGET_SO manage --dir $test_deployment_dir ps )
-
-        if [[ "$ps_output" == *"Running containers:"* ]]; then
-            # if ready, return
-            return
-        else
-            # if not ready, wait
-            sleep 5
-        fi
-    done
-    # Timed out, error exit
-    echo "waiting for pods to start: FAILED"
-    exit 1
-}
-
-wait_for_log_output () {
-    for i in {1..50}
-    do
-
-        local log_output=$( $TEST_TARGET_SO manage --dir $test_deployment_dir logs )
-
-        if [[ ! -z "$log_output" ]]; then
-            # if ready, return
-            return
-        else
-            # if not ready, wait
-            sleep 5
-        fi
-    done
-    # Timed out, error exit
-    echo "waiting for pods log content: FAILED"
-    exit 1
-}
-
-wait_for_running () {
-  set +e
-
-  # Check that all services are running (and ready -- "status" only reports a
-  # pod as Running once its containers pass their readiness probes).
-  how_many=$1
-  local running=0
-  local check=0
-  # Against a real cluster the images are pulled from a real registry over the
-  # network, which can take minutes on a cold node, so allow ~5 minutes here.
-  local check_limit=60
-  while [ $running -lt $how_many ] && [ $check -lt $check_limit ]; do
-      check=$((check + 1))
-      running=$($TEST_TARGET_SO manage --dir $test_deployment_dir status | grep -ic "running")
-      if [ $running -lt $how_many ]; then
-          echo "deploy manage start: Waiting for services to start..."
-          sleep 5
-      fi
-  done
-
-  if [ $running -lt $how_many ]; then
-      echo "deploy manage start: failed - not all services started"
-      exit 1
-  fi
-
-  set -e
-}
+# Whether kind or a real cluster, the images are pulled over the network, which
+# can take minutes on a cold node, so allow ~5 minutes for services to come up.
+START_CHECK_LIMIT=60
 
 add_todo() {
   set +e
-
-  local running=0
-  local check=0
-  local check_limit=10
 
   url=$1
   title=$2
@@ -148,60 +65,17 @@ add_todo() {
   return $rc
 }
 
-# Fetch a URL until its body contains the expected text. Even once the pods are
-# ready the ingress/gateway needs a moment to route to the new endpoints, so a
-# single-shot fetch here is a race.
-wait_for_content () {
-  set +e
-
-  url=$1
-  expected=$2
-
-  local try=0
-  local rc=1
-
-  while [ $rc -ne 0 ] && [ $try -lt 20 ]; do
-    try=$((try + 1))
-    curl -s "$url" | grep -q "$expected"
-    rc=$?
-
-    if [ $rc -ne 0 ]; then
-      echo "Waiting for $expected at $url..."
-      sleep 5
-    fi
-  done
-
-  set -e
-
-  if [ $rc -ne 0 ]; then
-    echo "deploy http: failed - $expected not found at $url"
-    exit 1
-  fi
-}
-
 # Test basic stack deploy
 echo "Running stack deploy test"
-# Bit of a hack, test the most recent package
-TEST_TARGET_SO=$( ls -t1 ./package/stack* | head -1 )
-# We make a directory within which our test will create files
-STACK_TEST_DIR=~/stack-test/k8s-test-dir
-# Set a non-default repo dir
-export STACK_REPO_BASE_DIR=${STACK_TEST_DIR}/repo-base-dir
-echo "Testing this package: $TEST_TARGET_SO"
-echo "Test version command"
-reported_version_string=$( $TEST_TARGET_SO version )
-echo "Version reported is: ${reported_version_string}"
-echo "Cloning repositories into: $STACK_REPO_BASE_DIR"
-rm -rf $STACK_TEST_DIR
-mkdir -p $STACK_TEST_DIR
-mkdir -p $STACK_REPO_BASE_DIR
+select_test_target "$@"
+setup_test_dir k8s-test-dir
 # Test bringing the test container up and down
 # with and without volume removal
 
 STACK_NAME="todo"
 
-$TEST_TARGET_SO fetch repo bozemanpass/example-todo-list
-$TEST_TARGET_SO prepare --stack $STACK_NAME
+$TEST_TARGET_STACK fetch repo bozemanpass/example-todo-list
+$TEST_TARGET_STACK prepare --stack $STACK_NAME
 
 # Basic test of creating a deployment
 test_deployment_dir=$STACK_TEST_DIR/test-deployment-dir
@@ -212,49 +86,42 @@ init_args="$init_args --config REACT_APP_API_URL=${TEST_SCHEME}://${TEST_HOSTNAM
 if [ "$STACK_K8S_REMOTE" = "true" ]; then
   init_args="$init_args --kube-config $STACK_KUBE_CONFIG --image-registry $STACK_IMAGE_REGISTRY"
 fi
-$TEST_TARGET_SO init $init_args
+$TEST_TARGET_STACK init $init_args
 
 # Check the file now exists
 if [ ! -f "$test_deployment_spec" ]; then
-    echo "deploy init test: spec file not present"
-    echo "deploy init test: FAILED"
-    exit 1
+    fail "deploy init test: FAILED - spec file not present"
 fi
 echo "deploy init test: passed"
-$TEST_TARGET_SO deploy --spec-file $test_deployment_spec --deployment-dir $test_deployment_dir
+stop_deployment_on_exit $test_deployment_dir
+$TEST_TARGET_STACK deploy --spec-file $test_deployment_spec --deployment-dir $test_deployment_dir
 # Check the deployment dir exists
 if [ ! -d "$test_deployment_dir" ]; then
-    echo "deploy deploy test: deployment directory not present"
-    echo "deploy deploy test: FAILED"
-    exit 1
+    fail "deploy create test: FAILED - deployment directory not present"
 fi
 echo "deploy create test: passed"
 
 # Push images to remote registry if needed
 if [ "$STACK_K8S_REMOTE" = "true" ]; then
-  $TEST_TARGET_SO manage --dir $test_deployment_dir push-images
+  $TEST_TARGET_STACK manage --dir $test_deployment_dir push-images
 fi
 
 # Start
-$TEST_TARGET_SO manage --dir $test_deployment_dir start
-wait_for_running 3
+$TEST_TARGET_STACK manage --dir $test_deployment_dir start
+wait_for_running 3 $START_CHECK_LIMIT
 
 # Add a todo
 todo_title="79b06705-b402-431a-83a3-a634392d2754"
 add_todo ${TEST_SCHEME}://${TEST_HOSTNAME}/api/todos "$todo_title"
 
-
 # Check that it exists
 if [ "$todo_title" != "$(curl -s ${TEST_SCHEME}://${TEST_HOSTNAME}/api/todos | jq -r '.[] | select(.id == 1) | .title')" ]; then
-    echo "deploy storage: failed - todo $todo_title not found"
-    exit 1
+    fail "deploy storage: failed - todo $todo_title not found"
 fi
 
 # The built frontend references its JS bundle as /assets/index-<hash>.js, so
 # match the stable prefix rather than the per-build hash.
 wait_for_content ${TEST_SCHEME}://${TEST_HOSTNAME} '/assets/index-'
 echo "deploy http: passed"
-
-delete_cluster_exit
 
 echo "Test passed"

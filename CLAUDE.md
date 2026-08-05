@@ -54,10 +54,23 @@ The integration tests are **bash shell scripts**, not pytest. They require Docke
 ./tests/deploy/run-deploy-test.sh
 
 # Kubernetes deployment tests
-./tests/k8s-deploy/run-k8s-deploy-test.sh
+./tests/k8s-deploy/run-deploy-test.sh
 ```
 
-The smoke tests require building a shiv package first (`./scripts/build_shiv_package.sh`).
+Run them from the repo root. By default each one tests the most recently built
+shiv package in `./package` (`./scripts/build_shiv_package.sh`); pass `from-path`
+to test the `stack` on your PATH instead, or set `TEST_TARGET_STACK` (e.g. to
+`"uv run stack"`).
+
+Set `STACK_SCRIPT_DEBUG` to turn on xtrace and an environment dump. In CI it is
+wired to `runner.debug`, so ticking "Enable debug logging" when re-running a
+failed job turns it on for that run.
+
+Shared helpers live in `tests/lib/common.sh`, which every test script sources as
+its first line: the debug preamble, target selection, test-directory setup, and
+the `wait_for_*` / teardown helpers. Put anything used by more than one test
+there — these scripts were written by copying each other, and each copied helper
+eventually drifted from its siblings.
 
 ## Source Layout
 

@@ -1,30 +1,10 @@
 #!/usr/bin/env bash
-set -e
-if [ -n "$STACK_SCRIPT_DEBUG" ]; then
-  set -x
-  echo "Environment variables:"
-  env
-fi
+source "$( dirname -- "${BASH_SOURCE[0]}" )/../lib/common.sh"
 
-# Check for required utilities
-if ! command -v jq &> /dev/null; then
-    echo "Error: jq is not installed."
-    echo "Please install jq to run this test script."
-    exit 1
-fi
-
-delete_cluster_exit () {
-    $TEST_TARGET_SO manage --dir $test_deployment_dir stop --delete-volumes
-}
-
-trap delete_cluster_exit EXIT
+require_commands jq
 
 add_todo() {
   set +e
-
-  local running=0
-  local check=0
-  local check_limit=10
 
   url=$1
   title=$2
@@ -63,111 +43,41 @@ add_todo() {
   return $rc
 }
 
-
-# Fetch a URL until its body contains the expected text. "status" reports a
-# container as running as soon as Docker starts it, which is not the same as the
-# frontend being ready to serve, so a single-shot fetch here is a race.
-wait_for_content () {
-  set +e
-
-  local url=$1
-  local expected=$2
-  local body=""
-
-  local try=0
-  local rc=1
-
-  while [ $rc -ne 0 ] && [ $try -lt 20 ]; do
-    try=$((try + 1))
-    body=$(curl -s "$url")
-    echo "$body" | grep -q "$expected"
-    rc=$?
-
-    if [ $rc -ne 0 ]; then
-      echo "Waiting for $expected at $url..."
-      sleep 5
-    fi
-  done
-
-  set -e
-
-  if [ $rc -ne 0 ]; then
-    echo "deploy http: failed - $expected not found at $url"
-    echo "last response body was:"
-    echo "$body"
-    exit 1
-  fi
-}
-
-wait_for_running () {
-  # Check that all services are running
-  local how_many=$1
-  local running=0
-  local check=0
-  local check_limit=10
-  while [ $running -lt $how_many ] && [ $check -lt $check_limit ]; do
-      check=$((check + 1))
-      running=$($TEST_TARGET_SO manage --dir $test_deployment_dir status | grep -ic "running")
-      if [ $running -lt $how_many ]; then
-          echo "deploy manage start: Waiting for services to start..."
-          sleep 5
-      fi
-  done
-
-  if [ $running -lt $how_many ]; then
-      echo "deploy manage start: failed - not all services started"
-      exit 1
-  fi
-}
-
 export STACK_USE_BUILTIN_STACK=true
 
 # Test basic stack deploy
 echo "Running stack deploy test"
-# Bit of a hack, test the most recent package
-TEST_TARGET_SO=$( ls -t1 ./package/stack* | head -1 )
-# Set a non-default repo dir
-STACK_TEST_DIR=~/stack-test/deploy-test-dir
-export STACK_REPO_BASE_DIR=${STACK_TEST_DIR}/repo-base-dir
-echo "Testing this package: $TEST_TARGET_SO"
-echo "Test version command"
-reported_version_string=$( $TEST_TARGET_SO version )
-echo "Version reported is: ${reported_version_string}"
-echo "Cloning repositories into: $STACK_REPO_BASE_DIR"
-rm -rf $STACK_TEST_DIR
-mkdir -p $STACK_REPO_BASE_DIR
+select_test_target "$@"
+setup_test_dir deploy-test-dir
 # Test bringing the test container up and down
 # with and without volume removal
 
 STACK_NAME="todo"
 
-$TEST_TARGET_SO fetch repo bozemanpass/example-todo-list
-$TEST_TARGET_SO prepare --stack $STACK_NAME
+$TEST_TARGET_STACK fetch repo bozemanpass/example-todo-list
+$TEST_TARGET_STACK prepare --stack $STACK_NAME
 
 # Basic test of creating a deployment
 # Deployment artifacts live outside the repo base dir, so the deployment's copy
 # of the stack files is not seen when resolving stacks by name.
 test_deployment_dir=$STACK_TEST_DIR/test-deployment-dir
 test_deployment_spec=$STACK_TEST_DIR/test-deployment-spec.yml
-$TEST_TARGET_SO init --stack $STACK_NAME --output $test_deployment_spec --map-ports-to-host localhost-same
+$TEST_TARGET_STACK init --stack $STACK_NAME --output $test_deployment_spec --map-ports-to-host localhost-same
 # Check the file now exists
 if [ ! -f "$test_deployment_spec" ]; then
-    echo "deploy init test: spec file not present"
-    echo "deploy init test: FAILED"
-    exit 1
+    fail "deploy init test: FAILED - spec file not present"
 fi
 echo "deploy init test: passed"
-$TEST_TARGET_SO deploy --spec-file $test_deployment_spec --deployment-dir $test_deployment_dir
+stop_deployment_on_exit $test_deployment_dir
+$TEST_TARGET_STACK deploy --spec-file $test_deployment_spec --deployment-dir $test_deployment_dir
 # Check the deployment dir exists
 if [ ! -d "$test_deployment_dir" ]; then
-    echo "deploy deploy test: deployment directory not present"
-    echo "deploy deploy test: FAILED"
-    exit 1
+    fail "deploy deploy test: FAILED - deployment directory not present"
 fi
 echo "deploy create test: passed"
 
 # Start
-$TEST_TARGET_SO manage --dir $test_deployment_dir start
+$TEST_TARGET_STACK manage --dir $test_deployment_dir start
 wait_for_running 3
 
 # Add a todo
@@ -176,23 +86,21 @@ add_todo http://localhost:5000 "$todo_title"
 
 # Check that it exists
 if [ "$todo_title" != "$(curl -s http://localhost:5000 | jq -r '.[] | select(.id == 1) | .title')" ]; then
-    echo "deploy storage: failed - todo $todo_title not found"
-    exit 1
+    fail "deploy storage: failed - todo $todo_title not found"
 fi
 
 # Stop the stack (don't delete volumes)
-$TEST_TARGET_SO manage --dir $test_deployment_dir stop
+$TEST_TARGET_STACK manage --dir $test_deployment_dir stop
 
 # Restart the stack
-$TEST_TARGET_SO manage --dir $test_deployment_dir start
+$TEST_TARGET_STACK manage --dir $test_deployment_dir start
 
 # Check that all services are running
 wait_for_running 3
 
 # Check that it is still viewable
 if [ "$todo_title" != "$(curl -s http://localhost:5000 | jq -r '.[] | select(.id == 1) | .title')" ]; then
-    echo "deploy storage: failed - todo $todo_title not found after restart"
-    exit 1
+    fail "deploy storage: failed - todo $todo_title not found after restart"
 fi
 echo "deploy storage: passed"
 

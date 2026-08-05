@@ -1,32 +1,15 @@
 #!/usr/bin/env bash
-set -e
-
-if [ -n "$STACK_SCRIPT_DEBUG" ]; then
-  set -x
-  echo "Environment variables:"
-  env
-fi
+source "$( dirname -- "${BASH_SOURCE[0]}" )/../lib/common.sh"
 
 # Test basic stack webapp
 echo "Running stack webapp test"
-if [ "$1" == "from-path" ]; then
-    TEST_TARGET_SO="stack"
-else
-    TEST_TARGET_SO=$( ls -t1 ./package/stack* | head -1 )
-fi
-# Set a non-default repo dir
-export STACK_REPO_BASE_DIR=~/stack-test/repo-base-dir
-echo "Testing this package: $TEST_TARGET_SO"
-echo "Test version command"
-reported_version_string=$( $TEST_TARGET_SO version )
-echo "Version reported is: ${reported_version_string}"
+select_test_target "$@"
+setup_test_dir webapp-test-dir
 echo "Cloning repositories into: $STACK_REPO_BASE_DIR"
-rm -rf $STACK_REPO_BASE_DIR
-mkdir -p $STACK_REPO_BASE_DIR
 git clone https://github.com/bozemanpass/test-progressive-web-app.git $STACK_REPO_BASE_DIR/test-progressive-web-app
 
 # Test webapp command execution
-$TEST_TARGET_SO webapp build --source-repo $STACK_REPO_BASE_DIR/test-progressive-web-app
+$TEST_TARGET_STACK webapp build --source-repo $STACK_REPO_BASE_DIR/test-progressive-web-app
 
 CHECK="SPECIAL_01234567890_TEST_STRING"
 
@@ -98,7 +81,7 @@ test_deployment_dir=$STACK_REPO_BASE_DIR/test-deployment-dir
 fake_k8s_config_file=$STACK_REPO_BASE_DIR/kube-config.yml
 touch ${fake_k8s_config_file}
 
-$TEST_TARGET_SO webapp deploy --kube-config ${fake_k8s_config_file} --deployment-dir ${test_deployment_dir} --image ${app_image_name} --url https://my-test-app.example.com
+$TEST_TARGET_STACK webapp deploy --kube-config ${fake_k8s_config_file} --deployment-dir ${test_deployment_dir} --image ${app_image_name} --url https://my-test-app.example.com
 if [ -d ${test_deployment_dir} ]; then
   echo "PASSED"
 else

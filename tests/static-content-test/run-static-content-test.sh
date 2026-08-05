@@ -1,35 +1,17 @@
 #!/usr/bin/env bash
-set -e
-
-if [ -n "$STACK_SCRIPT_DEBUG" ]; then
-  set -x
-  echo "Environment variables:"
-  env
-fi
+source "$( dirname -- "${BASH_SOURCE[0]}" )/../lib/common.sh"
 
 # Test hosting static content with the static-content wrapper
 echo "Running stack static content test"
-if [ "$1" == "from-path" ]; then
-    TEST_TARGET_SO="stack"
-else
-    TEST_TARGET_SO=$( ls -t1 ./package/stack* | head -1 )
-fi
-# Set a non-default repo dir
-STACK_TEST_DIR=~/stack-test/static-content-test-dir
-export STACK_REPO_BASE_DIR=${STACK_TEST_DIR}/repo-base-dir
+select_test_target "$@"
+setup_test_dir static-content-test-dir
 # Overridable for local testing against an unpushed content repo
 TEST_CONTENT_REPO=${STACK_TEST_STATIC_CONTENT_REPO:-https://github.com/bozemanpass/stack-test-static-content.git}
-echo "Testing this package: $TEST_TARGET_SO"
-echo "Test version command"
-reported_version_string=$( $TEST_TARGET_SO version )
-echo "Version reported is: ${reported_version_string}"
 echo "Cloning repositories into: $STACK_REPO_BASE_DIR"
-rm -rf $STACK_TEST_DIR
-mkdir -p $STACK_REPO_BASE_DIR
 git clone $TEST_CONTENT_REPO $STACK_REPO_BASE_DIR/stack-test-static-content
 
 # Test webapp command execution with the static-content wrapper
-$TEST_TARGET_SO webapp build --wrapper static-content --source-repo $STACK_REPO_BASE_DIR/stack-test-static-content
+$TEST_TARGET_STACK webapp build --wrapper static-content --source-repo $STACK_REPO_BASE_DIR/stack-test-static-content
 
 set +e
 
@@ -95,7 +77,7 @@ set -e
 
 # Test wrapping only a subdirectory of the source repo, with --content-root
 subdir_image_name="bozemanpass/stack-test-static-content-content-root:stack"
-$TEST_TARGET_SO webapp build --wrapper static-content \
+$TEST_TARGET_STACK webapp build --wrapper static-content \
   --source-repo $STACK_REPO_BASE_DIR/stack-test-static-content \
   --content-root pages \
   --tag ${subdir_image_name}
@@ -142,37 +124,39 @@ set -e
 if [ -n "$STACK_TEST_STACKS_REPO" ]; then
     git clone $STACK_TEST_STACKS_REPO $STACK_REPO_BASE_DIR/github.com/bozemanpass/stack-test-stacks
 else
-    $TEST_TARGET_SO fetch repo bozemanpass/stack-test-stacks
+    $TEST_TARGET_STACK fetch repo bozemanpass/stack-test-stacks
 fi
 
-$TEST_TARGET_SO prepare --stack test-static-content
+$TEST_TARGET_STACK prepare --stack test-static-content
 
 # Deployment artifacts live outside the repo base dir, so the deployment's copy
 # of the stack files is not seen when resolving stacks by name.
 test_deployment_dir=$STACK_TEST_DIR/test-deployment-dir
 test_deployment_spec=$STACK_TEST_DIR/test-deployment-spec.yml
 
-$TEST_TARGET_SO init --stack test-static-content --output $test_deployment_spec --map-ports-to-host localhost-same
+$TEST_TARGET_STACK init --stack test-static-content --output $test_deployment_spec --map-ports-to-host localhost-same
 if [ ! -f "$test_deployment_spec" ]; then
     echo "DEPLOY-INIT: FAILED"
     exit 1
 fi
 echo "DEPLOY-INIT: PASSED"
 
-$TEST_TARGET_SO deploy --spec-file $test_deployment_spec --deployment-dir $test_deployment_dir
+# Teardown: the shared handler stops the deployment, and the scratch registry
+# started later on is this test's own to clean up.
+remove_test_registry () {
+    docker rm -f stack-test-registry > /dev/null 2>&1 || true
+}
+TEST_EXTRA_CLEANUP=remove_test_registry
+stop_deployment_on_exit $test_deployment_dir
+
+$TEST_TARGET_STACK deploy --spec-file $test_deployment_spec --deployment-dir $test_deployment_dir
 if [ ! -d "$test_deployment_dir" ]; then
     echo "DEPLOY-CREATE: FAILED"
     exit 1
 fi
 echo "DEPLOY-CREATE: PASSED"
 
-delete_cluster_exit () {
-    $TEST_TARGET_SO manage --dir $test_deployment_dir stop --delete-volumes
-    docker rm -f stack-test-registry > /dev/null 2>&1
-}
-trap delete_cluster_exit EXIT
-
-$TEST_TARGET_SO manage --dir $test_deployment_dir start
+$TEST_TARGET_STACK manage --dir $test_deployment_dir start
 
 set +e
 
@@ -198,7 +182,7 @@ rm -f test.deployed test.deployed-subdir
 
 # Finally, build a stack whose container entry uses content-root in stack.yml.
 set -e
-$TEST_TARGET_SO build containers --stack test-static-content-subdir
+$TEST_TARGET_STACK build containers --stack test-static-content-subdir
 set +e
 
 stack_subdir_image_name="bozemanpass/stack-test-static-content-subdir:stack"
@@ -236,16 +220,16 @@ docker run -d --name stack-test-registry -p 5000:5000 registry:2
 
 # The deployment holds a running container using the image, which would block
 # image removal below; it has served its purpose, so stop it now.
-$TEST_TARGET_SO manage --dir $test_deployment_dir stop --delete-volumes
+$TEST_TARGET_STACK manage --dir $test_deployment_dir stop --delete-volumes
 
 static_content_stack_dir=$STACK_REPO_BASE_DIR/github.com/bozemanpass/stack-test-stacks/stack-files/stacks/test-static-content-stack
 
-$TEST_TARGET_SO prepare --stack $static_content_stack_dir --publish-images --image-registry localhost:5000
+$TEST_TARGET_STACK prepare --stack $static_content_stack_dir --publish-images --image-registry localhost:5000
 
 # Remove every local tag of the app image so it can only come from the registry.
 docker images bozemanpass/stack-test-static-content -q | sort -u | xargs -r docker rmi -f
 
-$TEST_TARGET_SO prepare --stack $static_content_stack_dir --image-registry localhost:5000 | tee test.prepare-pull
+$TEST_TARGET_STACK prepare --stack $static_content_stack_dir --image-registry localhost:5000 | tee test.prepare-pull
 
 set +e
 
