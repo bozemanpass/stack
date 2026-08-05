@@ -3,46 +3,6 @@ source "$( dirname -- "${BASH_SOURCE[0]}" )/../lib/common.sh"
 
 require_commands jq
 
-add_todo() {
-  set +e
-
-  url=$1
-  title=$2
-
-  try=0
-  rc=1
-
-  while [ $rc -ne 0 ] && [ $try -lt 10 ]; do
-    try=$((try + 1))
-    curl "$url" \
-      --fail-with-body \
-      -H 'Accept: application/json, text/plain, */*' \
-      -H 'Accept-Language: en-US,en;q=0.9' \
-      -H 'Connection: keep-alive' \
-      -H 'Content-Type: application/json' \
-      -H 'Origin: http://localhost' \
-      -H 'Referer: http://localhost/' \
-      -H 'Sec-Fetch-Dest: empty' \
-      -H 'Sec-Fetch-Mode: cors' \
-      -H 'Sec-Fetch-Site: same-site' \
-      -H 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36 Edg/135.0.0.0' \
-      -H 'sec-ch-ua: "Microsoft Edge";v="135", "Not-A.Brand";v="8", "Chromium";v="135"' \
-      -H 'sec-ch-ua-mobile: ?0' \
-      -H 'sec-ch-ua-platform: "Windows"' \
-      --data-raw "{\"title\":\"$title\",\"completed\":false}"
-    rc=$?
-
-    if [ $rc -ne 0 ]; then
-      echo "Error adding todo, retrying..."
-      sleep 5
-    fi
-  done
-
-  set -e
-
-  return $rc
-}
-
 export STACK_USE_BUILTIN_STACK=true
 
 # Test basic stack deploy
@@ -82,7 +42,7 @@ wait_for_running 3
 
 # Add a todo
 todo_title="79b06705-b402-431a-83a3-a634392d2754"
-add_todo http://localhost:5000 "$todo_title"
+add_todo http://localhost:5000 "$todo_title" http://localhost
 
 # Check that it exists
 if [ "$todo_title" != "$(curl -s http://localhost:5000 | jq -r '.[] | select(.id == 1) | .title')" ]; then

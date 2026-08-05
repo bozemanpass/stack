@@ -25,46 +25,6 @@ fi
 # can take minutes on a cold node, so allow ~5 minutes for services to come up.
 START_CHECK_LIMIT=60
 
-add_todo() {
-  set +e
-
-  url=$1
-  title=$2
-
-  try=0
-  rc=1
-
-  while [ $rc -ne 0 ] && [ $try -lt 10 ]; do
-    try=$((try + 1))
-    curl "$url" \
-      --fail-with-body \
-      -H 'Accept: application/json, text/plain, */*' \
-      -H 'Accept-Language: en-US,en;q=0.9' \
-      -H 'Connection: keep-alive' \
-      -H 'Content-Type: application/json' \
-      -H "Origin: ${TEST_SCHEME}://${TEST_HOSTNAME}" \
-      -H "Referer: ${TEST_SCHEME}://${TEST_HOSTNAME}/" \
-      -H 'Sec-Fetch-Dest: empty' \
-      -H 'Sec-Fetch-Mode: cors' \
-      -H 'Sec-Fetch-Site: same-site' \
-      -H 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36 Edg/135.0.0.0' \
-      -H 'sec-ch-ua: "Microsoft Edge";v="135", "Not-A.Brand";v="8", "Chromium";v="135"' \
-      -H 'sec-ch-ua-mobile: ?0' \
-      -H 'sec-ch-ua-platform: "Windows"' \
-      --data-raw "{\"title\":\"$title\",\"completed\":false}"
-    rc=$?
-
-    if [ $rc -ne 0 ]; then
-      echo "Error adding todo, retrying..."
-      sleep 5
-    fi
-  done
-
-  set -e
-
-  return $rc
-}
-
 # Test basic stack deploy
 echo "Running stack deploy test"
 select_test_target "$@"
@@ -112,7 +72,7 @@ wait_for_running 3 $START_CHECK_LIMIT
 
 # Add a todo
 todo_title="79b06705-b402-431a-83a3-a634392d2754"
-add_todo ${TEST_SCHEME}://${TEST_HOSTNAME}/api/todos "$todo_title"
+add_todo ${TEST_SCHEME}://${TEST_HOSTNAME}/api/todos "$todo_title" ${TEST_SCHEME}://${TEST_HOSTNAME}
 
 # Check that it exists
 if [ "$todo_title" != "$(curl -s ${TEST_SCHEME}://${TEST_HOSTNAME}/api/todos | jq -r '.[] | select(.id == 1) | .title')" ]; then

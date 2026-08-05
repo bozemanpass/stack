@@ -33,6 +33,9 @@ TEST_DEPLOYMENT_DIR=""
 # cleanup of its own to do (a scratch registry container, say).
 TEST_EXTRA_CLEANUP=""
 
+# Containers started via start_container, stopped at exit.
+TEST_CONTAINER_IDS=""
+
 # --- reporting ---------------------------------------------------------------
 
 # Report a failure and exit non-zero.  Teardown registered with
@@ -141,10 +144,27 @@ _test_exit_handler () {
         fi
         $TEST_TARGET_STACK manage --dir "$TEST_DEPLOYMENT_DIR" stop --delete-volumes
     fi
+    if [ -n "$TEST_CONTAINER_IDS" ]; then
+        docker stop $TEST_CONTAINER_IDS > /dev/null 2>&1
+    fi
     if [ -n "$TEST_EXTRA_CLEANUP" ]; then
         $TEST_EXTRA_CLEANUP
     fi
     exit $rc
+}
+
+# Start a container with `docker run` and remember it, setting CONTAINER_ID.
+# Pass the usual docker run arguments:
+#
+#     start_container -p 3000:80 -d "$image"
+#
+# The container is stopped at exit however the test ends. Without that, a test
+# that fails mid-way leaves its port bound and the *next* test fails with a
+# confusing "port is already allocated". Stopping it by hand earlier is fine.
+start_container () {
+    CONTAINER_ID=$( docker run "$@" )
+    TEST_CONTAINER_IDS="$TEST_CONTAINER_IDS $CONTAINER_ID"
+    trap _test_exit_handler EXIT
 }
 
 # Report what a failing deployment was doing, before it is torn down.
@@ -237,6 +257,51 @@ wait_for_log_content () {
     fail "waiting for log content '${expected}': FAILED"
 }
 
+# POST a todo to the example todo app serving at $1, retrying until it is
+# accepted.  $3 is the origin the request claims to come from -- the app's CORS
+# handling rejects a mismatch, so it is "http://localhost" for a compose
+# deployment and the scheme+host of the cluster for k8s.
+#
+# The browser-shaped headers are deliberate: the app is fronted by CORS and
+# content-type checks, and a bare curl does not get past them.
+add_todo () {
+    local url=$1
+    local title=$2
+    local origin=$3
+    local try=0
+    local rc=1
+
+    while [ $rc -ne 0 ] && [ $try -lt 10 ]; do
+        try=$((try + 1))
+        rc=0
+        curl "$url" \
+          --fail-with-body \
+          -H 'Accept: application/json, text/plain, */*' \
+          -H 'Accept-Language: en-US,en;q=0.9' \
+          -H 'Connection: keep-alive' \
+          -H 'Content-Type: application/json' \
+          -H "Origin: ${origin}" \
+          -H "Referer: ${origin}/" \
+          -H 'Sec-Fetch-Dest: empty' \
+          -H 'Sec-Fetch-Mode: cors' \
+          -H 'Sec-Fetch-Site: same-site' \
+          -H 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36 Edg/135.0.0.0' \
+          -H 'sec-ch-ua: "Microsoft Edge";v="135", "Not-A.Brand";v="8", "Chromium";v="135"' \
+          -H 'sec-ch-ua-mobile: ?0' \
+          -H 'sec-ch-ua-platform: "Windows"' \
+          --data-raw "{\"title\":\"$title\",\"completed\":false}" || rc=$?
+
+        if [ $rc -ne 0 ]; then
+            echo "Error adding todo, retrying..."
+            sleep 5
+        fi
+    done
+
+    if [ $rc -ne 0 ]; then
+        fail "add todo: FAILED - could not add '$title' at $url"
+    fi
+}
+
 # Fetch $1 until its body contains $2.  $3 overrides the number of 5-second
 # attempts (default 20).
 #
@@ -262,4 +327,64 @@ wait_for_content () {
     echo "last response body was:"
     echo "$body"
     fail "http: FAILED - $expected not found at $url"
+}
+
+# --- fetching and asserting --------------------------------------------------
+
+# Fetch $1 into the file $2, retrying while the server comes up.  Any further
+# arguments are passed to wget (e.g. -m to follow links, so that an assertion can
+# look at content the page pulls in rather than just the page itself).
+#
+# Returns wget's exit status instead of aborting, so a caller that expects a
+# fetch to fail can capture it:
+#
+#     rc=0; fetch_url "$url" out.html || rc=$?
+fetch_url () {
+    local url=$1
+    local out=$2
+    shift 2
+    wget --tries 20 --retry-connrefused --waitretry=3 -O "$out" "$@" "$url"
+}
+
+# Assert that $2 (an extended regular expression) appears in the file $1,
+# reporting "<label>: PASSED" or failing the test.  The file is printed on
+# failure -- what the server actually returned is the first thing anyone reading
+# a CI log wants.
+assert_file_contains () {
+    local file=$1
+    local pattern=$2
+    local label=$3
+    if grep -Eq "$pattern" "$file"; then
+        echo "${label}: PASSED"
+    else
+        echo "content of ${file} was:"
+        cat "$file"
+        fail "${label}: FAILED - '${pattern}' not found in ${file}"
+    fi
+}
+
+# Assert that $2 does NOT appear in the file $1.
+assert_file_not_contains () {
+    local file=$1
+    local pattern=$2
+    local label=$3
+    if grep -Eq "$pattern" "$file"; then
+        echo "content of ${file} was:"
+        cat "$file"
+        fail "${label}: FAILED - '${pattern}' unexpectedly found in ${file}"
+    else
+        echo "${label}: PASSED"
+    fi
+}
+
+# Assert that $1 is not served -- fetching it must fail.  Call this while the
+# server is still up, or it passes for the wrong reason.  A single attempt: the
+# expected outcome is an immediate refusal from a server known to be running.
+assert_url_not_served () {
+    local url=$1
+    local label=$2
+    if wget -q --tries 1 -O /dev/null "$url"; then
+        fail "${label}: FAILED - ${url} was served but should not be"
+    fi
+    echo "${label}: PASSED"
 }
