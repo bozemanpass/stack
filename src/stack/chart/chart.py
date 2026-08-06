@@ -21,7 +21,6 @@ from mermaid_builder.flowchart import Chart, Node, NodeShape, Subgraph, ChartDir
 from stack.deploy.stack import resolve_stack
 from stack.log import output_main
 
-
 _theme = {
     "super_stack": "stroke:#FFF176,fill:#FFFEEF,color:#6B5E13,stroke-width:2px,font-size:small;",
     "stack": "stroke:#00C9A7,fill:#EDFDFB,color:#1A3A38,stroke-width:2px,font-size:small;",
@@ -46,6 +45,21 @@ def _depends_on(svc_config):
     depends = svc_config.get("depends_on") or []
     # Compose allows either a plain list or a mapping of name -> condition.
     return list(depends.keys()) if isinstance(depends, dict) else list(depends)
+
+
+def _split_volume(volume):
+    """Split a compose volume ('name:/mount') into its name and mount point."""
+    volume_name, _, mount = str(volume).partition(":")
+    return volume_name, mount
+
+
+def _used_class_names(chart):
+    """Every class actually referenced by a chart and its subgraphs."""
+    used = {node.class_name for node in chart.nodes if node.class_name}
+    used.update(attachment.class_name for attachment in chart.class_attachments)
+    for subgraph in chart.subgraphs:
+        used.update(_used_class_names(subgraph))
+    return used
 
 
 def _render_stack_text(stack, show_http_targets, show_ports, show_volumes, indent="", lines=None):
@@ -93,13 +107,121 @@ def _render_stack_text(stack, show_http_targets, show_ports, show_volumes, inden
             lines.append(f"{detail_indent}port {port}")
 
         for volume in volumes.get(svc, []):
-            volume_name, _, mount = str(volume).partition(":")
+            volume_name, mount = _split_volume(volume)
             lines.append(f"{detail_indent}volume {volume_name}" + (f" -> {mount}" if mount else ""))
 
         for dep in _depends_on(services[svc]):
             lines.append(f"{detail_indent}needs {dep}")
 
     return lines
+
+
+def _add_http_targets(chart, stack, svc, svc_node, parent_stack):
+    """Attach an ingress node per http-proxy target, and return the ports so attached."""
+    attached = set()
+    for ht in stack.get_http_proxy_targets():
+        if ht["service"] != svc:
+            continue
+        path = ht.get("path", "/")
+        if parent_stack:
+            http_prefix = parent_stack.http_prefix_for(stack.file_path.parent)
+            if http_prefix and http_prefix != "/":
+                path = f"{http_prefix}{path}"
+        attached.add(ht["port"])
+
+        http_node = Node(
+            id=f"{stack.name}-{svc}-http",
+            title=f'''":{ht['port']} ({path})"''',
+            shape=NodeShape.ASSYMETRIC,
+            class_name="http_target",
+        )
+        chart.add_node(http_node)
+        chart.add_link_between(http_node, svc_node)
+        svc_node.class_name = "http_service"
+    return attached
+
+
+def _add_ports(chart, stack, svc, svc_node, shown_http_ports):
+    for port in stack.get_ports().get(svc, []):
+        if port in shown_http_ports:
+            continue
+        port_node = Node(id=f"{stack.name}-{svc}-port-{port}", title=f":{port}", shape=NodeShape.ASSYMETRIC, class_name="port")
+        chart.add_node(port_node)
+        chart.add_link_between(port_node, svc_node)
+
+
+def _add_volumes(subgraph, stack, svc, svc_node):
+    for volume in stack.get_volumes().get(svc, []):
+        # Only the volume's name goes in the node: the mount path is long enough to
+        # stretch the whole subgraph to fit it, so it rides on the edge instead.
+        volume_name, mount = _split_volume(volume)
+        volume_node = Node(
+            id=f"{stack.name}-{svc}-volume-{volume_name}",
+            title=volume_name,
+            shape=NodeShape.RECT_ROUND,
+            class_name="volume",
+        )
+        subgraph.add_node(volume_node)
+        subgraph.add_link_between(svc_node, volume_node, text=mount or None)
+
+
+def _add_stack(chart, stack, show_http_targets, show_ports, show_volumes, parent_graph=None, parent_stack=None):
+    subgraph = Subgraph(stack.name)
+    subgraph.get_id()  # we need this to be set
+
+    if stack.is_super_stack():
+        chart.attach_class(subgraph.title, "super_stack")
+        for child in stack.get_required_stacks_paths():
+            child = resolve_stack(child)
+            _add_stack(chart, child, show_http_targets, show_ports, show_volumes, parent_graph=subgraph, parent_stack=stack)
+    else:
+        chart.attach_class(subgraph.title, "stack")
+
+    services = stack.get_services()
+    svc_nodes = {}
+
+    for svc in services:
+        svc_node = Node(id=f"{stack.name}-{svc}", title=svc, shape=NodeShape.SUBROUTINE, class_name="service")
+        subgraph.add_node(svc_node)
+        svc_nodes[svc] = svc_node
+
+        shown_http_ports = _add_http_targets(chart, stack, svc, svc_node, parent_stack) if show_http_targets else set()
+        if show_ports:
+            _add_ports(chart, stack, svc, svc_node, shown_http_ports)
+        if show_volumes:
+            _add_volumes(subgraph, stack, svc, svc_node)
+
+    # Dependencies are drawn once every service node exists, since depends_on
+    # routinely names a service declared later in the file.
+    for svc, svc_node in svc_nodes.items():
+        for dep in _depends_on(services[svc]):
+            if dep in svc_nodes:
+                subgraph.add_link_between(svc_node, svc_nodes[dep])
+
+    if parent_graph:
+        for s in parent_graph.subgraphs:
+            if s.id != subgraph.id:
+                chart.add_link_between(s.id, subgraph.id)
+                chart.add_link_between(subgraph.id, s.id)
+        parent_graph.add_subgraph(subgraph)
+    else:
+        chart.add_subgraph(subgraph)
+
+
+def _render_stack_mermaid(stack, show_http_targets, show_ports, show_volumes, direction):
+    """Render the stack as the lines of a mermaid flowchart."""
+    chart = Chart(direction=ChartDir[direction])
+    _add_stack(chart, stack, show_http_targets, show_ports, show_volumes)
+
+    # Styling the whole theme regardless of what is on the chart leaves unreferenced
+    # classDef lines in the output, which is noise wherever the diagram gets pasted.
+    used = _used_class_names(chart)
+    for cls, style in _theme.items():
+        if cls in used:
+            chart.add_class_def(ClassDef(cls, f"{style}"))
+
+    # A subgraph's own direction would override the one asked for on the command line.
+    return [line for line in str(chart).splitlines() if "direction" not in line]
 
 
 @click.command()
@@ -114,8 +236,14 @@ def _render_stack_text(stack, show_http_targets, show_ports, show_volumes, inden
     default="mermaid",
     help="render as a mermaid diagram, or as a plain text tree",
 )
+@click.option(
+    "--direction",
+    type=click.Choice([d.name for d in ChartDir]),
+    default=ChartDir.LR.name,
+    help="direction the mermaid diagram flows in",
+)
 @click.pass_context
-def command(ctx, stack, show_ports, show_http_targets, show_volumes, output_format):
+def command(ctx, stack, show_ports, show_http_targets, show_volumes, output_format, direction):
     """generate a mermaid graph of the stack"""
 
     parent_stack = resolve_stack(stack)
@@ -125,81 +253,5 @@ def command(ctx, stack, show_ports, show_http_targets, show_volumes, output_form
             output_main(line)
         return
 
-    chart = Chart(direction=ChartDir.RL)
-
-    for cls, style in _theme.items():
-        chart.add_class_def(ClassDef(cls, f"{style}"))
-
-    def add_stack(stack, show_http_targets=True, show_ports=False, show_volumes=False, parent_graph=None, parent_stack=None):
-        subgraph = Subgraph(stack.name)
-        subgraph.get_id()  # we need this to be set
-
-        if stack.is_super_stack():
-            chart.attach_class(subgraph.title, "super_stack")
-            for child in stack.get_required_stacks_paths():
-                child = resolve_stack(child)
-                add_stack(child, show_http_targets, show_ports, show_volumes, parent_graph=subgraph, parent_stack=stack)
-        else:
-            chart.attach_class(subgraph.title, "stack")
-
-        for svc in stack.get_services():
-            svc_node = Node(id=f"{stack.name}-{svc}", title=svc, shape=NodeShape.SUBROUTINE, class_name="service")
-            subgraph.add_node(svc_node)
-
-            shown_http_ports = {}
-            if show_http_targets:
-                http_targets = stack.get_http_proxy_targets()
-                for ht in http_targets:
-                    if ht["service"] == svc:
-                        path = ht.get("path", "/")
-                        if parent_stack:
-                            http_prefix = parent_stack.http_prefix_for(stack.file_path.parent)
-                            if http_prefix and http_prefix != "/":
-                                path = f"{http_prefix}{path}"
-                        shown_http_ports[svc] = ht["port"]
-
-                        http_node = Node(
-                            id=f"{stack.name}-{svc}-http",
-                            title=f'''":{ht['port']} ({path})"''',
-                            shape=NodeShape.ASSYMETRIC,
-                            class_name="http_target",
-                        )
-                        chart.add_node(http_node)
-                        chart.add_link_between(http_node, svc_node)
-                        svc_node.class_name = "http_service"
-
-            if show_ports:
-                ports = stack.get_ports().get(svc, [])
-                for port in ports:
-                    if svc in shown_http_ports and port == shown_http_ports[svc]:
-                        continue
-                    port_node = Node(
-                        id=f"{stack.name}-{svc}-port-{port}", title=f":{port}", shape=NodeShape.ASSYMETRIC, class_name="port"
-                    )
-                    chart.add_node(port_node)
-                    chart.add_link_between(port_node, svc_node)
-
-            if show_volumes:
-                volumes = stack.get_volumes().get(svc, [])
-                for volume in volumes:
-                    volume_node = Node(
-                        id=f"{stack.name}-{svc}-volume-{volume}", title=f"{volume}", shape=NodeShape.RECT_ROUND, class_name="volume"
-                    )
-                    subgraph.add_node(volume_node)
-                    subgraph.add_link_between(svc_node, volume_node)
-
-        if parent_graph:
-            for s in parent_graph.subgraphs:
-                if s.id != subgraph.id:
-                    chart.add_link_between(s.id, subgraph.id)
-                    chart.add_link_between(subgraph.id, s.id)
-            parent_graph.add_subgraph(subgraph)
-        else:
-            chart.add_subgraph(subgraph)
-
-    add_stack(parent_stack, show_http_targets, show_ports, show_volumes)
-
-    out = str(chart)
-    for line in out.splitlines():
-        if "direction" not in line:
-            output_main(line)
+    for line in _render_stack_mermaid(parent_stack, show_http_targets, show_ports, show_volumes, direction):
+        output_main(line)
