@@ -14,21 +14,11 @@
 # NOTE: this fetches the test stacks and the backup stack from GitHub, so the
 # `test-backup-stack` additions in bozemanpass/stack-test-stacks and the
 # bozemanpass/backup-stack repo must be pushed for this to run.
-set -e
-if [ -n "$STACK_SCRIPT_DEBUG" ]; then
-    set -x
-fi
+source "$( dirname -- "${BASH_SOURCE[0]}" )/../lib/common.sh"
 
-if ! command -v docker &> /dev/null; then
-    echo "Error: 'docker' is not installed or not available on the PATH"
-    exit 1
-fi
+require_commands docker
 
-if [ "$1" == "from-path" ]; then
-    TEST_TARGET_STACK="stack"
-else
-    TEST_TARGET_STACK=$( ls -t1 ./package/stack* | head -1 )
-fi
+select_test_target "$@"
 
 app_stack="test-backup-stack"
 backup_stack="backup"
@@ -43,60 +33,10 @@ export STACK_BACKUP_S3_BUCKET=stack-backups
 
 payload="backup-test-payload-$$"   # a value unique to this run
 
-# Run a command inside a deployment container. The stack `exec` wraps the command in
-# `sh -c`, so the whole command must be passed as a single argument.
-dexec () { $TEST_TARGET_STACK manage --dir "$test_deployment_dir" exec "$1" "$2"; }
-
-# Containers write into the bind-mounted volume dirs as root, so the resulting files cannot
-# be removed by the (non-root) host user. Remove such a dir via a throwaway container.
-force_rm () {
-    if [ -d "$1" ]; then
-        docker run --rm -v "$(dirname "$1")":/w alpine rm -rf "/w/$(basename "$1")" || rm -rf "$1"
-    fi
-}
-
-# Dump container logs on failure. The backup container's own output does not reveal why the
-# S3 store (SeaweedFS) rejected a request, so capture every service's logs - especially s3 -
-# before the deployment is torn down.
-dump_diagnostics () {
-    echo "===================== FAILURE DIAGNOSTICS ====================="
-    echo "----- ps -----"
-    $TEST_TARGET_STACK manage --dir "$test_deployment_dir" ps || true
-    echo "----- container logs (last 200 lines per service) -----"
-    $TEST_TARGET_STACK manage --dir "$test_deployment_dir" logs -n 200 || true
-    echo "=============================================================="
-}
-
-cleanup_exit () {
-    dump_diagnostics
-    $TEST_TARGET_STACK manage --dir "$test_deployment_dir" stop --delete-volumes || true
-    exit 1
-}
-
-wait_for_pods_started () {
-    for i in {1..50}; do
-        local ps_output
-        ps_output=$( $TEST_TARGET_STACK manage --dir "$test_deployment_dir" ps )
-        if [[ "$ps_output" == *"id:"* ]]; then
-            return
-        fi
-        sleep 5
-    done
-    echo "waiting for pods to start: FAILED"
-    cleanup_exit
-}
-
-STACK_TEST_DIR=~/stack-test/backup-test-dir
-export STACK_REPO_BASE_DIR=${STACK_TEST_DIR}/repo-base-dir
-echo "Testing this package: $TEST_TARGET_STACK"
-$TEST_TARGET_STACK version
-echo "Using test directory: $STACK_TEST_DIR"
-force_rm "$STACK_TEST_DIR"
-mkdir -p "$STACK_REPO_BASE_DIR"
+setup_test_dir backup-test-dir
 
 # Force a rebuild of the backup image so the test exercises current sources.
-existing=$(docker image ls -q --filter=reference=bozemanpass/backup | uniq)
-if [ -n "$existing" ]; then docker image rm -f ${existing} || true; fi
+remove_local_images bozemanpass/backup
 
 # Fetch and prepare the stacks.
 $TEST_TARGET_STACK fetch repo github.com/bozemanpass/stack-test-stacks
@@ -120,22 +60,21 @@ $TEST_TARGET_STACK init --stack ${backup_stack} --output "$test_backup_spec" \
     --config AWS_SECRET_ACCESS_KEY=test-secret-key
 
 # Deploy, mixing in the backup stack.
+stop_deployment_on_exit "$test_deployment_dir"
 $TEST_TARGET_STACK deploy \
     --spec-file "$test_backup_spec" \
     --spec-file "$test_app_spec" \
     --deployment-dir "$test_deployment_dir"
 if [ ! -d "$test_deployment_dir" ]; then
-    echo "deploy create test: deployment directory not present"
-    echo "deploy create test: FAILED"
-    exit 1
+    fail "deploy create test: FAILED - deployment directory not present"
 fi
 echo "deploy create test: passed"
 
 $TEST_TARGET_STACK manage --dir "$test_deployment_dir" start
-wait_for_pods_started
+wait_for_containers_started
 
 # 1. Write a known payload into the app's data volume (via the app).
-dexec app "echo ${payload} > /data/payload.txt"
+deployment_exec app "echo ${payload} > /data/payload.txt"
 echo "wrote payload: ${payload}"
 
 # 2. Take a backup. backup.sh's ensure_repo already waits for the S3 store to finish
@@ -145,48 +84,43 @@ echo "wrote payload: ${payload}"
 #    hiccup; genuine unavailability fails promptly.
 backed_up=
 for i in {1..3}; do
-    if dexec backup "/scripts/backup.sh"; then backed_up=1; break; fi
+    if deployment_exec backup "/scripts/backup.sh"; then backed_up=1; break; fi
     echo "backup attempt ${i} failed, retrying"
     sleep 5
 done
 if [ -z "$backed_up" ]; then
-    echo "Backup test: FAILED"
-    cleanup_exit
+    fail "Backup test: FAILED"
 fi
 echo "Backup test: passed"
 
 # 3. Simulate data loss by wiping the app volume (through the backup container's rw mount).
-dexec backup "rm -rf /backup/app-data/*"
-gone=$( dexec backup "ls /backup/app-data" || true )
+deployment_exec backup "rm -rf /backup/app-data/*"
+gone=$( deployment_exec backup "ls /backup/app-data" || true )
 if [[ "$gone" == *"payload.txt"* ]]; then
-    echo "Simulate data loss: FAILED (payload still present)"
-    cleanup_exit
+    fail "Simulate data loss: FAILED (payload still present)"
 fi
 echo "Simulate data loss: passed (payload gone)"
 
 # 4. Restore from the latest snapshot.
-dexec backup "/scripts/restore.sh latest"
+deployment_exec backup "/scripts/restore.sh latest"
 
 # 5. Assert the payload came back, reading it through the app.
-restored=$( dexec app "cat /data/payload.txt" || true )
+restored=$( deployment_exec app "cat /data/payload.txt" || true )
 if [[ "$restored" == *"$payload"* ]]; then
     echo "Restore content test: passed"
 else
-    echo "Restore content test: FAILED (expected '${payload}', got '${restored}')"
-    cleanup_exit
+    fail "Restore content test: FAILED (expected '${payload}', got '${restored}')"
 fi
 
 # 6. Assert the excluded s3 store volume was NOT mounted into / captured by the backup.
-listing=$( dexec backup "ls /backup" || true )
+listing=$( deployment_exec backup "ls /backup" || true )
 if [[ "$listing" == *"s3-data"* ]]; then
-    echo "Exclude annotation test: FAILED (s3-data was backed up)"
-    cleanup_exit
+    fail "Exclude annotation test: FAILED (s3-data was backed up)"
 fi
 if [[ "$listing" != *"app-data"* ]]; then
-    echo "Exclude annotation test: FAILED (app-data missing from backup)"
-    cleanup_exit
+    fail "Exclude annotation test: FAILED (app-data missing from backup)"
 fi
 echo "Exclude annotation test: passed (s3-data excluded, app-data backed up)"
 
-$TEST_TARGET_STACK manage --dir "$test_deployment_dir" stop --delete-volumes
+# The registered teardown stops the deployment and deletes its volumes.
 echo "Test passed"

@@ -1,110 +1,65 @@
 #!/usr/bin/env bash
-set -e
+source "$( dirname -- "${BASH_SOURCE[0]}" )/../lib/common.sh"
 
-if [ -n "$STACK_SCRIPT_DEBUG" ]; then
-  set -x
-fi
-
-# Dump environment variables for debugging
-echo "Environment variables:"
-env
 # Test basic stack webapp
 echo "Running stack webapp test"
-if [ "$1" == "from-path" ]; then
-    TEST_TARGET_SO="stack"
-else
-    TEST_TARGET_SO=$( ls -t1 ./package/stack* | head -1 )
-fi
-# Set a non-default repo dir
-export STACK_REPO_BASE_DIR=~/stack-test/repo-base-dir
-echo "Testing this package: $TEST_TARGET_SO"
-echo "Test version command"
-reported_version_string=$( $TEST_TARGET_SO version )
-echo "Version reported is: ${reported_version_string}"
+select_test_target "$@"
+setup_test_dir webapp-test-dir
+# Fetched pages are written here rather than the working directory, so a failed
+# run does not leave test.* files scattered in the repo.
+scratch=$STACK_TEST_DIR/fetched
+mkdir -p $scratch
 echo "Cloning repositories into: $STACK_REPO_BASE_DIR"
-rm -rf $STACK_REPO_BASE_DIR
-mkdir -p $STACK_REPO_BASE_DIR
 git clone https://github.com/bozemanpass/test-progressive-web-app.git $STACK_REPO_BASE_DIR/test-progressive-web-app
 
 # Test webapp command execution
-$TEST_TARGET_SO webapp build --source-repo $STACK_REPO_BASE_DIR/test-progressive-web-app
+$TEST_TARGET_STACK webapp build --source-repo $STACK_REPO_BASE_DIR/test-progressive-web-app
 
 CHECK="SPECIAL_01234567890_TEST_STRING"
 
-set +e
-
 app_image_name="bozemanpass/test-progressive-web-app:stack"
 
-CONTAINER_ID=$(docker run -p 3000:80 -d -e STACK_SCRIPT_DEBUG=$STACK_SCRIPT_DEBUG ${app_image_name})
-if [ $? -ne 0 ]; then
-  echo "Failed to start container from image ${app_image_name}"
-  exit 1
-fi
+# Without the config variable set, the app must not contain the test string.
+# -m so that the check covers the resources the page pulls in, not just the page.
+#
+# The mirror is best-effort: the app references a robots.txt, an apple-icon and
+# two favicons that it does not ship, so wget always ends with 404s and a
+# non-zero status. The assertions below are the real check.
+start_container -p 3000:80 -d -e STACK_SCRIPT_DEBUG=$STACK_SCRIPT_DEBUG ${app_image_name}
 sleep 3
-wget --tries 20 --retry-connrefused --waitretry=3 -O test.before -m http://localhost:3000
+fetch_url http://localhost:3000 $scratch/test.before -m || true
 
 docker logs $CONTAINER_ID
-if [ $? -ne 0 ]; then
-  echo "Failed to get logs from container ${CONTAINER_ID}"
-  exit 1
-fi
 docker stop $CONTAINER_ID
-if [ $? -ne 0 ]; then
-  echo "Failed to stop container ${CONTAINER_ID}"
-  exit 1
-fi
 
+# With it set, the app must pick it up at run time.
 echo "Running app container test"
-CONTAINER_ID=$(docker run -p 3000:80 -e CERC_WEBAPP_DEBUG=$CHECK -e STACK_SCRIPT_DEBUG=$STACK_SCRIPT_DEBUG -d ${app_image_name})
-if [ $? -ne 0 ]; then
-  echo "Failed to start container from image ${app_image_name}"
-  exit 1
-fi
+start_container -p 3000:80 -e CERC_WEBAPP_DEBUG=$CHECK -e STACK_SCRIPT_DEBUG=$STACK_SCRIPT_DEBUG -d ${app_image_name}
 sleep 3
-wget --tries 20 --retry-connrefused --waitretry=3 -O test.after -m http://localhost:3000
+fetch_url http://localhost:3000 $scratch/test.after -m || true
 
 docker logs $CONTAINER_ID
-if [ $? -ne 0 ]; then
-  echo "Failed to get logs from container ${CONTAINER_ID}"
-  exit 1
-fi
 docker stop $CONTAINER_ID
-if [ $? -ne 0 ]; then
-  echo "Failed to stop container ${CONTAINER_ID}"
-  exit 1
-fi
 
 echo "###########################################################################"
 echo ""
 
-grep "$CHECK" test.before > /dev/null
-if [ $? -ne 1 ]; then
-  echo "BEFORE: FAILED"
-  exit 1
-else
-  echo "BEFORE: PASSED"
-fi
-
-grep "$CHECK" test.after > /dev/null
-if [ $? -ne 0 ]; then
-  echo "AFTER: FAILED"
-  exit 1
-else
-  echo "AFTER: PASSED"
-fi
+# Assert the app was actually served before asserting the string is absent from
+# it -- an empty download would satisfy the negative check for the wrong reason.
+assert_file_contains $scratch/test.before "WEBAPP_DEBUG has value" APP-SERVED
+assert_file_not_contains $scratch/test.before "$CHECK" BEFORE
+assert_file_contains $scratch/test.after "$CHECK" AFTER
 
 echo "Running deployment create test"
 # Note: this is not a full test -- all we're testing here is that the webapp deploy command doesn't crash
-test_deployment_dir=$STACK_REPO_BASE_DIR/test-deployment-dir
-fake_k8s_config_file=$STACK_REPO_BASE_DIR/kube-config.yml
+test_deployment_dir=$STACK_TEST_DIR/test-deployment-dir
+fake_k8s_config_file=$STACK_TEST_DIR/kube-config.yml
 touch ${fake_k8s_config_file}
 
-$TEST_TARGET_SO webapp deploy --kube-config ${fake_k8s_config_file} --deployment-dir ${test_deployment_dir} --image ${app_image_name} --url https://my-test-app.example.com
-if [ -d ${test_deployment_dir} ]; then
-  echo "PASSED"
-else
-  echo "FAILED"
-  exit 1
+$TEST_TARGET_STACK webapp deploy --kube-config ${fake_k8s_config_file} --deployment-dir ${test_deployment_dir} --image ${app_image_name} --url https://my-test-app.example.com
+if [ ! -d ${test_deployment_dir} ]; then
+  fail "DEPLOY-CREATE: FAILED - deployment directory not present"
 fi
+echo "DEPLOY-CREATE: PASSED"
 
-exit 0
+echo "Test passed"

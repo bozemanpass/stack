@@ -57,4 +57,5 @@ jobs:
           STACK_IMAGE_REGISTRY_USER: ${{ secrets.K3S_TEST_REGISTRY_TOKEN }}
           STACK_IMAGE_REGISTRY_TOKEN: ${{ secrets.K3S_TEST_REGISTRY_TOKEN }}
           LETSENCRYPT_EMAIL: ${{ vars.K3S_TEST_LETSENCRYPT_EMAIL }}
+          STACK_SCRIPT_DEBUG: ${{ runner.debug }}
         run: MACHINE_SSH_KEY_FILE=$HOME/.ssh/k3s-test-key ./tests/k3s-deploy/run-k3s-deploy-test.sh

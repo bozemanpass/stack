@@ -47,11 +47,7 @@
 #                            (default: the main branch)
 #   MACHINE_CMD              The machine command to run (default: machine)
 #
-set -e
-
-if [ -n "$STACK_SCRIPT_DEBUG" ]; then
-  set -x
-fi
+source "$( dirname -- "${BASH_SOURCE[0]}" )/../lib/common.sh"
 
 script_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
@@ -67,12 +63,7 @@ MACHINE_NEW_USER=stacktest
 # cert-manager etc. (seconds).
 PROVISION_TIMEOUT=1800
 
-for cmd in "$MACHINE_CMD" jq ssh docker; do
-  if ! command -v "$cmd" &> /dev/null; then
-    echo "Error: $cmd is not installed."
-    exit 1
-  fi
-done
+require_commands "$MACHINE_CMD" jq ssh docker
 
 missing=""
 for var in MACHINE_DO_TOKEN MACHINE_SSH_KEY_NAME MACHINE_SSH_KEY_FILE MACHINE_DNS_ZONE \
@@ -206,9 +197,16 @@ if ! grep -q "$machine_fqdn" "$kube_config"; then
 fi
 echo "Fetched kubeconfig"
 
-# So that push-images can push to the registry.
+# So that push-images can push to the registry.  The token is an argument here,
+# so under STACK_SCRIPT_DEBUG it would be echoed verbatim by xtrace; suppress
+# tracing across the login and restore whatever it was afterward.  (Heredoc
+# bodies and pipe contents are not traced, so the machine config and the
+# kubeconfig need no such guard.)
+xtrace_was_set=""
+case $- in *x*) xtrace_was_set=1; set +x ;; esac
 echo "$STACK_IMAGE_REGISTRY_TOKEN" | docker login "${STACK_IMAGE_REGISTRY%%/*}" \
   --username "$STACK_IMAGE_REGISTRY_USER" --password-stdin
+if [ -n "$xtrace_was_set" ]; then set -x; fi
 
 # The test hostname must resolve locally before the HTTP checks can pass (the
 # authoritative record was just created; Let's Encrypt resolves it
