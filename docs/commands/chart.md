@@ -27,6 +27,7 @@ so the `--show-*` options apply to either.
 | `--show-ports/--no-show-ports` | FLAG | Show port mappings in the chart | False |
 | `--show-http-targets/--no-show-http-targets` | FLAG | Show HTTP proxy targets in the chart | True |
 | `--show-volumes/--no-show-volumes` | FLAG | Show volume mounts in the chart | True |
+| `--direction` | CHOICE | Direction the mermaid diagram flows in (`LR`, `TD`, `TB`, `RL`, `BT`) | `LR` |
 
 ## Output Format
 
@@ -36,6 +37,57 @@ Generates a Mermaid diagram that can be rendered using:
 - Mermaid CLI tools
 - Markdown renderers with Mermaid support
 - Online Mermaid editors
+
+For example, the [example todo list](https://github.com/bozemanpass/example-todo-list)
+stack charts as:
+
+````
+flowchart LR
+  todo-backend-http>":5000 (/api/todos)"]:::http_target
+  todo-frontend-http>":3000 (/)"]:::http_target
+  todo-backend-http --> todo-backend
+  todo-frontend-http --> todo-frontend
+  subgraph todo [todo]
+    todo-backend[[backend]]:::http_service
+    todo-frontend[[frontend]]:::http_service
+    todo-db[[db]]:::service
+    todo-db-volume-db-data(db-data):::volume
+    todo-db --> |/var/lib/postgresql/data|todo-db-volume-db-data
+    todo-backend --> todo-db
+  end
+  classDef stack stroke:#00C9A7,fill:#EDFDFB,color:#1A3A38,stroke-width:2px,font-size:small;
+  classDef service stroke:#43E97B,fill:#F5FFF7,color:#236247,stroke-width:2px;
+  classDef http_service stroke:#FFB236,fill:#FFFAF4,color:#7A5800,stroke-width:2px;
+  classDef http_target stroke:#FF6363,fill:#FFF5F5,color:#7C2323,stroke-width:2px;
+  classDef volume stroke:#A259DF,fill:#F4EEFB,color:#320963,stroke-width:2px,font-size:x-small;
+  class todo stack;
+````
+
+Pasted into a `mermaid` fenced block, that renders as:
+
+```mermaid
+flowchart LR
+  todo-backend-http>":5000 (/api/todos)"]:::http_target
+  todo-frontend-http>":3000 (/)"]:::http_target
+  todo-backend-http --> todo-backend
+  todo-frontend-http --> todo-frontend
+  subgraph todo [todo]
+    todo-backend[[backend]]:::http_service
+    todo-frontend[[frontend]]:::http_service
+    todo-db[[db]]:::service
+    todo-db-volume-db-data(db-data):::volume
+    todo-db --> |/var/lib/postgresql/data|todo-db-volume-db-data
+    todo-backend --> todo-db
+  end
+  classDef stack stroke:#00C9A7,fill:#EDFDFB,color:#1A3A38,stroke-width:2px,font-size:small;
+  classDef service stroke:#43E97B,fill:#F5FFF7,color:#236247,stroke-width:2px;
+  classDef http_service stroke:#FFB236,fill:#FFFAF4,color:#7A5800,stroke-width:2px;
+  classDef http_target stroke:#FF6363,fill:#FFF5F5,color:#7C2323,stroke-width:2px;
+  classDef volume stroke:#A259DF,fill:#F4EEFB,color:#320963,stroke-width:2px,font-size:x-small;
+  class todo stack;
+```
+
+This is the same stack the text example below is taken from.
 
 ### `--format text`
 
