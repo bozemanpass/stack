@@ -9,8 +9,29 @@ setup_test_dir webapp-test-dir
 # run does not leave test.* files scattered in the repo.
 scratch=$STACK_TEST_DIR/fetched
 mkdir -p $scratch
+# Overridable for local testing against an unpushed app repo, and used by the
+# test-progressive-web-app repo's own CI to run this test against a checkout of
+# a change before it is merged -- a rename or a dependency bump there breaks
+# this test, and the useful place to find that out is on that repo's PR.  A
+# local directory works as a clone source, so the override takes a path as
+# readily as a URL.
+TEST_WEBAPP_REPO=${STACK_TEST_WEBAPP_REPO:-https://github.com/bozemanpass/test-progressive-web-app.git}
 echo "Cloning repositories into: $STACK_REPO_BASE_DIR"
-git clone https://github.com/bozemanpass/test-progressive-web-app.git $STACK_REPO_BASE_DIR/test-progressive-web-app
+git clone $TEST_WEBAPP_REPO $STACK_REPO_BASE_DIR/test-progressive-web-app
+
+# Likewise for the wrapper: the stack-wrapper-webapp repo's CI points this at
+# its own checkout so a wrapper change is exercised against a real app before it
+# is merged.  Wrappers are found by searching STACK_REPO_BASE_DIR for a
+# wrapper.yml, so dropping the checkout anywhere inside it is enough.
+#
+# Note that a *clean* checkout may still be served from a prebuilt image: the
+# base container is looked up by the wrapper repo's commit hash.  That is the
+# image consumers of that commit will get, so it is the right thing to test; a
+# dirty checkout, as when testing by hand, always builds locally.
+if [ -n "$STACK_TEST_WRAPPER_DIR" ]; then
+  echo "Using wrapper checkout: $STACK_TEST_WRAPPER_DIR"
+  cp -a "$STACK_TEST_WRAPPER_DIR" $STACK_REPO_BASE_DIR/wrapper-under-test
+fi
 
 # Test webapp command execution
 $TEST_TARGET_STACK webapp build --source-repo $STACK_REPO_BASE_DIR/test-progressive-web-app

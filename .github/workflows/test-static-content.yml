@@ -1,5 +1,8 @@
 name: Static Content Test
 
+# Scheduled as well as per-PR for the same reason as the webapp test: it builds
+# a separate content repo with a separately built wrapper image, so it can start
+# failing without a commit here.
 on:
   pull_request:
     branches:
@@ -7,6 +10,10 @@ on:
   push:
     branches:
       - '*'
+  schedule:
+    # Run weekly on Monday at 06:30 UTC
+    - cron: "30 6 * * 1"
+  workflow_dispatch:
 
 jobs:
   test:
