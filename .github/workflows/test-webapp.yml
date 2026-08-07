@@ -1,5 +1,10 @@
 name: Webapp Test
 
+# Also run on a schedule, because this test can break with no commit in any of
+# our repositories: it builds an app repo from its default branch, with a
+# wrapper base image built from whatever the package registries hold that day.
+# A dependency that drops the wrapper's node version, or an app repo change
+# landing without this test running, shows up here and nowhere else.
 on:
   pull_request:
     branches:
@@ -7,6 +12,10 @@ on:
   push:
     branches:
       - '*'
+  schedule:
+    # Run weekly on Monday at 06:00 UTC
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
 
 jobs:
   test:
