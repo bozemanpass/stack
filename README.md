@@ -87,6 +87,9 @@ stack manage --dir ~/deployments/todo-k8s stop
  - A [sign in with Ethereum](https://docs.login.xyz/) web app with fixturenet blockchain: https://github.com/bozemanpass/siwe-express-example
  - Todo List Web App with back-end: https://github.com/bozemanpass/example-todo-list
 
+For the wider set of related projects — wrapper schemes, companion stacks, test fixtures and the
+host-provisioning tools — see [docs/related-repositories.md](./docs/related-repositories.md).
+
 ## Install
 
 Stack runs on Linux, macos and Windows under WSL2. Both x86-64 and ARM64 are supported.
