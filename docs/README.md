@@ -55,3 +55,4 @@ stack authors should read [stack-files.md](stack-files.md) first.
 | --- | --- |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute: developer-mode install, coding standards, and submitting changes. |
 | [recent-features.md](recent-features.md) | Changelog of recently added features, with links to the pull requests that introduced them. |
+| [related-repositories.md](related-repositories.md) | The other repositories in the `stack` orbit — wrapper schemes, companion stacks, examples, test fixtures, and the host-provisioning tools — and each one's relationship to this project. |
