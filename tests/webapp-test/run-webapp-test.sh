@@ -43,9 +43,9 @@ app_image_name="bozemanpass/test-progressive-web-app:stack"
 # Without the config variable set, the app must not contain the test string.
 # -m so that the check covers the resources the page pulls in, not just the page.
 #
-# The mirror is best-effort: the app references a robots.txt, an apple-icon and
-# two favicons that it does not ship, so wget always ends with 404s and a
-# non-zero status. The assertions below are the real check.
+# The mirror is best-effort: mirroring fetches /robots.txt, which the app does
+# not serve, so wget always ends with a 404 and a non-zero status. The
+# assertions below are the real check.
 start_container -p 3000:80 -d -e STACK_SCRIPT_DEBUG=$STACK_SCRIPT_DEBUG ${app_image_name}
 sleep 3
 fetch_url http://localhost:3000 $scratch/test.before -m || true
@@ -55,7 +55,7 @@ docker stop $CONTAINER_ID
 
 # With it set, the app must pick it up at run time.
 echo "Running app container test"
-start_container -p 3000:80 -e CERC_WEBAPP_DEBUG=$CHECK -e STACK_SCRIPT_DEBUG=$STACK_SCRIPT_DEBUG -d ${app_image_name}
+start_container -p 3000:80 -e BPI_WEBAPP_DEBUG=$CHECK -e STACK_SCRIPT_DEBUG=$STACK_SCRIPT_DEBUG -d ${app_image_name}
 sleep 3
 fetch_url http://localhost:3000 $scratch/test.after -m || true
 
