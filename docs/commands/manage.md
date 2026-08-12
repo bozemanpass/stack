@@ -113,6 +113,11 @@ Push container images/tags to the image registry
 stack manage --dir DEPLOYMENT_DIR push-images
 ```
 
+Only images the deployment will pull from the staging registry are uploaded.
+An image that is already published to its canonical registry is deployed under
+that reference and is skipped here. See
+[image-names.md](../image-names.md) for the resolution order.
+
 ### reload
 
 Reload the stack to pick up config changes

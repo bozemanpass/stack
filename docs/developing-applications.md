@@ -159,6 +159,11 @@ rewrites the pod images to exactly that reference. The tag is per-*deployment*, 
 per-*build*, so it does not care whether the image is a `stackdev-` build — which is what
 makes this the right path for uncommitted work.
 
+(An image that is already published to its canonical registry is pulled from there instead,
+and `push-images` skips it. That never applies to the `stackdev-` images this loop produces,
+so the loop below is unaffected — but it does mean a stack's untouched, prebuilt containers
+are not copied into the staging registry just to be deployed.)
+
 Per edit:
 
 ```bash

@@ -140,7 +140,22 @@ At manifest-generation time, each image reference is resolved per image
 1. **Not a locally-built tag** (e.g. an explicit upstream image like
    `postgres:16`): passed through untouched, pulled exactly as the pod file
    names it.
-2. **Locally-built tag (`:stack`/`:local`), staging registry configured**:
+2. **Locally-built tag (`:stack`/`:local`) that is already published**: the
+   published canonical reference is used, *whether or not* a staging registry
+   is configured. `prepare` and `--publish-images` leave the answer in the
+   local docker daemon's tags — a pulled or published image carries
+   `ghcr.io/exampleorg/myapp:<hash>` alongside the `exampleorg/myapp:<hash>`
+   and `:stack` cross-tags — so the resolver inspects the local image and
+   uses the registry-qualified sibling tag whose version matches. The cluster
+   then pulls directly from the canonical registry.
+
+   The canonical tag is the recipe repo's commit hash, so it already gives a
+   deployment the version isolation the staging tag exists to provide;
+   staging it as well would upload a byte-identical copy under a second name.
+   Note this is a *local* lookup: `stack` does not contact the registry at
+   deploy time. `stackdev-` versions are excluded — they are published
+   nowhere, by construction — so the uncommitted-work loop still stages.
+3. **Locally-built tag, not published, staging registry configured**:
    rewritten to the deployment-private staging name
 
    ```
@@ -148,15 +163,10 @@ At manifest-generation time, each image reference is resolved per image
    ```
 
    (registry host replaced, org namespace kept). `stack manage --dir <dir>
-   push-images` performs the matching upload: it tags every locally-built
-   image with exactly that name and pushes it to the staging registry.
-3. **Locally-built tag, no staging registry**: the published canonical
-   reference is used. `prepare` and `--publish-images` leave the answer in
-   the local docker daemon's tags — a pulled or published image carries
-   `ghcr.io/exampleorg/myapp:<hash>` alongside the `exampleorg/myapp:<hash>`
-   and `:stack` cross-tags — so the resolver inspects the local image and
-   uses the registry-qualified sibling tag whose version matches. The
-   cluster then pulls directly from the canonical registry.
+   push-images` performs the matching upload, applying this same rule so that
+   push and manifest generation cannot disagree: it tags and pushes exactly
+   the images that resolve to a staging name, and skips the ones the cluster
+   will pull from where they are published.
 4. **Neither available** (built locally, unpublished, no staging registry):
    the deployment cannot work, so manifest generation fails immediately with
    the remedy, instead of the cluster reporting `ImagePullBackOff` later.
@@ -175,8 +185,9 @@ cluster out of band, at cluster-configuration time.
   referenced unconditionally — deployments that pull only from public
   registries see a harmless but noisy `FailedToRetrieveImagePullSecret`
   warning on every pod.
-- When an image is both published canonically and staged, the staging
-  registry wins; there is no per-deployment switch to prefer the canonical
-  reference while still configuring a staging registry for other images.
+- A published image is always pulled from its canonical registry, even when
+  the deployment configures a staging registry. There is no switch to force
+  it through staging instead — which is what a cluster that can reach the
+  private staging registry but not the canonical one would need.
 - Deployment-private staging tags (`deploy-<id>`) accumulate in the staging
   registry; nothing cleans them up when a deployment is destroyed.

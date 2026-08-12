@@ -22,7 +22,7 @@ from stack import constants
 from stack.deploy.deployment_context import DeploymentContext
 from stack.deploy.deploy_types import DeployCommandContext
 from stack.deploy.deploy_util import images_for_deployment
-from stack.log import log_debug
+from stack.log import log_debug, log_info
 from stack.util import error_exit
 
 
@@ -70,7 +70,13 @@ def _image_needs_pushed(image: str):
     # Only an image stack built locally has to be uploaded; everything else is already
     # wherever it is pulled from.  Shares the tag parse with the rewriters below so that
     # "is this ours" and "rename it" cannot disagree about a reference.
-    return _split_image_reference(image)[1] in LOCALLY_BUILT_TAGS
+    #
+    # A locally built tag that is also published (a prebuilt image prepare pulled, or one
+    # a previous --publish-images uploaded) is deployed under that published reference, so
+    # it does not need staging either -- see resolve_image_for_deployment.
+    if _split_image_reference(image)[1] not in LOCALLY_BUILT_TAGS:
+        return False
+    return _published_reference_for_image(image) is None
 
 
 def _remote_tag_for_image(image: str, remote_repo_url: str):
@@ -160,20 +166,26 @@ def resolve_image_for_deployment(image: str, image_registry: str, deployment_id:
     """Return the image reference a (non-kind) k8s pod spec should use.
 
     Images not tagged as locally built are pulled exactly as the pod file names them.
-    A locally built image is redirected at the deployment's staging registry when the
-    spec configures one (matching what push-images uploads); otherwise its published
-    registry-qualified reference is used.  If neither exists the deployment cannot
-    work, so fail now with the remedy rather than as an ImagePullBackOff later.
+
+    A locally built image that is already published -- a prebuilt image `prepare` pulled,
+    or one `--publish-images` uploaded -- is pulled under that published reference.  Its
+    tag is the content-addressed recipe hash, so it already isolates deployments from each
+    other the way a staging tag does, and staging it again would push a byte-identical copy
+    under a second name.  Only an image with no published reference is redirected at the
+    deployment's staging registry, matching what push-images uploads.
+
+    If neither exists the deployment cannot work, so fail now with the remedy rather than
+    as an ImagePullBackOff later.
     """
     _, image_version = _split_image_reference(image)
     if image_version not in LOCALLY_BUILT_TAGS:
         return image
-    if image_registry:
-        return remote_tag_for_image_unique(image, image_registry, deployment_id)
     published = _published_reference_for_image(image)
     if published:
         log_debug(f"Using published image {published} for {image}")
         return published
+    if image_registry:
+        return remote_tag_for_image_unique(image, image_registry, deployment_id)
     error_exit(
         f"Cannot resolve image {image} for deployment: it is not published to a registry and"
         f" the spec has no image-registry to stage it through.  Either publish it"
@@ -189,6 +201,13 @@ def push_images_operation(command_context: DeployCommandContext, deployment_cont
     # Get the list of images for the stack
     cluster_context = command_context.cluster_context
     images: Set[str] = images_for_deployment(cluster_context.compose_files)
+    # Only images the deployment will actually pull from the staging registry are uploaded.
+    # This is the same test resolve_image_for_deployment applies, so the two cannot disagree
+    # about which images are staged and which are pulled from where they are published.
+    images_to_push = sorted(image for image in images if _image_needs_pushed(image))
+    if not images_to_push:
+        log_info("No images need pushing: every image is already published or is pulled as named.")
+        return
     # Tag the images for the remote repo
     remote_repo_url = deployment_context.spec.obj.get(constants.image_registry_key)
     if not remote_repo_url:
@@ -197,14 +216,12 @@ def push_images_operation(command_context: DeployCommandContext, deployment_cont
             "  Re-run 'stack init' with --image-registry <url> to configure one."
         )
     docker = DockerClient()
-    for image in images:
-        if _image_needs_pushed(image):
-            remote_tag = remote_tag_for_image_unique(image, remote_repo_url, deployment_context.id)
-            log_debug(f"Tagging {image} to {remote_tag}")
-            docker.image.tag(image, remote_tag)
+    for image in images_to_push:
+        remote_tag = remote_tag_for_image_unique(image, remote_repo_url, deployment_context.id)
+        log_debug(f"Tagging {image} to {remote_tag}")
+        docker.image.tag(image, remote_tag)
     # Run docker push commands to upload
-    for image in images:
-        if _image_needs_pushed(image):
-            remote_tag = remote_tag_for_image_unique(image, remote_repo_url, deployment_context.id)
-            log_debug(f"Pushing image {remote_tag}")
-            docker.image.push(remote_tag)
+    for image in images_to_push:
+        remote_tag = remote_tag_for_image_unique(image, remote_repo_url, deployment_context.id)
+        log_debug(f"Pushing image {remote_tag}")
+        docker.image.push(remote_tag)
