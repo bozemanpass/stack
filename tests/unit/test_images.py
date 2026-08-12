@@ -48,7 +48,8 @@ HASH = "0123456789abcdef0123456789abcdef01234567"
         ("nginx:stackdev-abc123", False),
     ],
 )
-def test_image_needs_pushed(image, expected):
+def test_image_needs_pushed(image, expected, local_repo_tags):
+    local_repo_tags(None)  # unpublished: nothing but the locally built tags exist
     assert _image_needs_pushed(image) is expected
 
 
@@ -242,14 +243,30 @@ def test_published_reference_none_when_image_absent(local_repo_tags):
     assert _published_reference_for_image("exampleorg/myapp:stack") is None
 
 
-def test_resolve_prefers_staging_registry_when_configured(local_repo_tags):
-    # With a staging registry in the spec, the deployment pulls what push-images
-    # uploads, even if the image is also published somewhere.
+def test_resolve_prefers_published_reference_over_staging_registry(local_repo_tags):
+    # A published image is pulled from where it is published even when the spec configures
+    # a staging registry: its tag is the content hash, so it already isolates deployments,
+    # and staging would push an identical copy under a tag nothing has uploaded.
     local_repo_tags(["exampleorg/myapp:stack", f"ghcr.io/exampleorg/myapp:{HASH}", f"exampleorg/myapp:{HASH}"])
+    assert (
+        resolve_image_for_deployment("exampleorg/myapp:stack", REGISTRY, DEPLOYMENT_ID)
+        == f"ghcr.io/exampleorg/myapp:{HASH}"
+    )
+
+
+def test_resolve_stages_unpublished_image_when_registry_configured(local_repo_tags):
+    # Built here and published nowhere: the staging registry is what makes it reachable.
+    local_repo_tags(["exampleorg/myapp:stack", "exampleorg/myapp:stackdev-abc123"])
     assert (
         resolve_image_for_deployment("exampleorg/myapp:stack", REGISTRY, DEPLOYMENT_ID)
         == f"{REGISTRY}/exampleorg/myapp:deploy-89abcdef"
     )
+
+
+def test_image_needs_pushed_is_false_for_a_published_image(local_repo_tags):
+    # push-images and the resolver must agree about which images are staged.
+    local_repo_tags(["exampleorg/myapp:stack", f"ghcr.io/exampleorg/myapp:{HASH}", f"exampleorg/myapp:{HASH}"])
+    assert _image_needs_pushed("exampleorg/myapp:stack") is False
 
 
 def test_resolve_uses_published_reference_without_staging_registry(local_repo_tags):
