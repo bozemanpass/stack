@@ -360,19 +360,22 @@ def init_operation(  # noqa: C901
     if named_volumes:
         volume_descriptors = {}
         configmap_descriptors = {}
+        # A volume's data lives in ./data/<name> under the deployment directory,
+        # for kind as well as compose: the kind cluster bind mounts that directory
+        # into its node (see _generate_kind_mounts), so the data outlives the
+        # cluster -- which matters because stopping a kind deployment deletes it.
+        #
+        # A remote cluster is the exception, being the one target whose data cannot
+        # live in the deployment directory. There the volume is left unmapped, which
+        # gets it a PVC from the cluster's default storage class.
+        data_is_local = deployer_type != constants.k8s_deploy_type
         for named_volume in named_volumes["rw"]:
-            if "k8s" in deployer_type:
-                volume_descriptors[named_volume] = None
-            else:
-                volume_descriptors[named_volume] = f"./data/{named_volume}"
+            volume_descriptors[named_volume] = f"./data/{named_volume}" if data_is_local else None
         for named_volume in named_volumes["ro"]:
-            if "k8s" in deployer_type:
-                if "config" in named_volume:
-                    configmap_descriptors[named_volume] = f"./configmaps/{named_volume}"
-                else:
-                    volume_descriptors[named_volume] = None
+            if "k8s" in deployer_type and "config" in named_volume:
+                configmap_descriptors[named_volume] = f"./configmaps/{named_volume}"
             else:
-                volume_descriptors[named_volume] = f"./data/{named_volume}"
+                volume_descriptors[named_volume] = f"./data/{named_volume}" if data_is_local else None
         if volume_descriptors:
             spec_file_content["volumes"] = volume_descriptors
         if configmap_descriptors:
@@ -422,7 +425,12 @@ def _create_deployment_file(deployment_dir: Path, cluster=None):
 
 
 def _check_volume_definitions(spec):
-    if spec.is_kubernetes_deployment():
+    # A remote cluster's volume path is a path on one of its nodes, so it has to be
+    # absolute -- there is nothing sensible to resolve it against. A kind cluster's
+    # node runs on this machine, and a relative path is resolved against the
+    # deployment directory when its bind mount is generated
+    # (_make_absolute_host_path), so ./data/<name> works there and is what init writes.
+    if spec.is_kubernetes_deployment() and not spec.is_kind_deployment():
         for volume_name, volume_path in spec.get_volumes().items():
             if volume_path:
                 if not os.path.isabs(volume_path):

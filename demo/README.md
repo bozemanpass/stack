@@ -32,7 +32,7 @@ overridable with `STACK_DEMO_STATE_DIR`.
   [releases page](https://github.com/charmbracelet/vhs/releases))
 * [`machine`](https://github.com/stirlingbridge/machine), for `k8s-host.sh`
 * Environment for the cloud host and the image registry — the same variable
-  names the k3s CI job passes to `tests/k3s-deploy/run-k3s-deploy-test.sh`:
+  names the k3s CI job passes to `tests/k3s-deploy/with-k3s-cluster.sh`:
   `MACHINE_DO_TOKEN`, `MACHINE_SSH_KEY_NAME`, `MACHINE_SSH_KEY_FILE`,
   `MACHINE_DNS_ZONE`, `MACHINE_PROJECT`, `STACK_IMAGE_REGISTRY`,
   `STACK_IMAGE_REGISTRY_USER`, `STACK_IMAGE_REGISTRY_TOKEN`,

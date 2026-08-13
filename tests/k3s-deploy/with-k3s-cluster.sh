@@ -1,16 +1,36 @@
 #!/usr/bin/env bash
 #
-# Deploy test against a real k3s cluster on a real cloud VM.
+# Run tests against a real k3s cluster on a real cloud VM.
 #
 # Provisions a single-node k3s cluster by invoking the "machine" utility with a
 # config that runs the machine-provisioning combine.sh/k3s-node.sh scripts on
-# first boot, then runs the standard k8s deploy test (tests/k8s-deploy) against
-# it in remote mode. Unlike the kind-based run of that test, this exercises the
-# whole production arrangement: a remote kubeconfig, images pushed to and
-# pulled from a real registry, DNS, and HTTPS with a real Let's Encrypt
-# certificate obtained over ACME HTTP-01.
+# first boot, then runs each test script named on the command line against it,
+# with STACK_TEST_TARGET=remote:
+#
+#   ./tests/k3s-deploy/with-k3s-cluster.sh \
+#       ./tests/app-deploy/run-test.sh ./tests/database/run-test.sh
+#
+# Unlike a kind-based run of those tests, this exercises the whole production
+# arrangement: a remote kubeconfig, images pushed to and pulled from a real
+# registry, DNS, and HTTPS with a real Let's Encrypt certificate obtained over
+# ACME HTTP-01.
 #
 # The VM is destroyed (and its DNS record deleted) on exit, pass or fail.
+#
+# Provisioning the VM costs most of the wall-clock time and all of the money, so
+# the tests share one: they run in sequence against the same cluster, each in
+# its own namespace (a deployment's namespace is its compose project name), and
+# a failure does not stop the ones after it -- the VM is already paid for, and
+# the run may as well report every failure it can find. The exit status is
+# non-zero if any test failed.
+#
+# Sequential, not parallel, and for two reasons: the deployments would contend
+# for the single hostname's HTTP route, and each deployment that claims that
+# hostname triggers a fresh Let's Encrypt issuance, where the duplicate
+# certificate limit is 5 per week for an identical name set. Every run gets a
+# fresh random hostname so runs do not interfere with each other, but that limit
+# is the ceiling on how many HTTPS-serving tests one VM can carry. Tests with no
+# HTTP endpoint (the database test) do not count against it.
 #
 # Requires: machine (https://github.com/stirlingbridge/machine), docker, jq,
 # ssh. The SSH key named by MACHINE_SSH_KEY_NAME must be registered with the
@@ -49,7 +69,18 @@
 #
 source "$( dirname -- "${BASH_SOURCE[0]}" )/../lib/common.sh"
 
-script_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+if [ $# -eq 0 ]; then
+  echo "Usage: $0 <test-script> [<test-script> ...]"
+  echo "Runs each test script against a freshly provisioned k3s cluster."
+  exit 1
+fi
+
+for test_script in "$@"; do
+  if [ ! -x "$test_script" ]; then
+    echo "Error: $test_script is not an executable file"
+    exit 1
+  fi
+done
 
 MACHINE_CMD=${MACHINE_CMD:-machine}
 MACHINE_REGION=${MACHINE_REGION:-nyc3}
@@ -219,16 +250,16 @@ for i in {1..60}; do
   sleep 5
 done
 
-# Hand over to the standard k8s deploy test in remote mode.
-export STACK_K8S_REMOTE=true
+# Hand over to the tests, in remote mode.
+export STACK_TEST_TARGET=remote
 export STACK_KUBE_CONFIG=$kube_config
 export STACK_K8S_HOSTNAME=$machine_fqdn
 export STACK_IMAGE_REGISTRY
 
-echo "Running the k8s deploy test against $machine_fqdn"
-if ! "${script_dir}/../k8s-deploy/run-deploy-test.sh"; then
-  # The machine is destroyed on exit, so capture cluster state now.
-  echo "Test failed; dumping cluster diagnostics:"
+# The machine is destroyed on exit, so cluster state has to be captured while
+# the failure is fresh -- afterwards there is nothing left to look at.
+dump_cluster_diagnostics () {
+  echo "----- cluster diagnostics -----"
   ssh -i "$MACHINE_SSH_KEY_FILE" -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile="$work_dir/known_hosts" \
     ${MACHINE_NEW_USER}@${machine_fqdn} \
     "sudo kubectl get pods -A -o wide; \
@@ -236,5 +267,24 @@ if ! "${script_dir}/../k8s-deploy/run-deploy-test.sh"; then
      sudo kubectl get ingress -A 2>/dev/null; \
      sudo kubectl get certificate,order,challenge -A 2>/dev/null; \
      sudo kubectl describe gateway -A 2>/dev/null" || true
+}
+
+failed_tests=""
+for test_script in "$@"; do
+  echo "================================================================"
+  echo "Running $test_script against $machine_fqdn"
+  echo "================================================================"
+  if "$test_script"; then
+    echo "===== PASSED: $test_script"
+  else
+    echo "===== FAILED: $test_script"
+    failed_tests="$failed_tests $test_script"
+    dump_cluster_diagnostics
+  fi
+done
+
+if [ -n "$failed_tests" ]; then
+  echo "Failed tests:$failed_tests"
   exit 1
 fi
+echo "All tests passed"

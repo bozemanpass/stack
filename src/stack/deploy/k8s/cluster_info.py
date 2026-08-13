@@ -343,7 +343,13 @@ class ClusterInfo:
                 log_debug(f"{volume_name} not in pod files")
                 continue
 
-            if not os.path.isabs(volume_path):
+            # A remote cluster binds the spec's path on one of its own nodes, so
+            # only an absolute path means anything there. A kind deployment binds
+            # the path named below instead, which is derived from the volume name
+            # and not from the spec at all -- the spec's path only has to locate
+            # the data on this machine, and is resolved against the deployment
+            # directory when the node's mount is generated (_make_absolute_host_path).
+            if not self.spec.is_kind_deployment() and not os.path.isabs(volume_path):
                 log_warn(f"WARN: {volume_name}:{volume_path} is not absolute, cannot bind volume.")
                 continue
 

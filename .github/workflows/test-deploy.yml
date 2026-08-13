@@ -25,7 +25,12 @@ jobs:
         run: ./scripts/build_shiv_package.sh
       - name: "Run deploy tests"
         env:
+          # The compose run of the app deploy test is also where the builtin
+          # stack definitions are exercised; the k8s runs use the stack.yml in
+          # the app repo.
+          STACK_TEST_TARGET: compose
+          STACK_TEST_BUILTIN_STACK: "true"
           # "Enable debug logging" on a re-run sets runner.debug; pass it through
           # so the test script turns on xtrace and dumps its environment.
           STACK_SCRIPT_DEBUG: ${{ runner.debug }}
-        run: ./tests/deploy/run-deploy-test.sh
+        run: ./tests/app-deploy/run-test.sh

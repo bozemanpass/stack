@@ -50,12 +50,34 @@ The integration tests are **bash shell scripts**, not pytest. They require Docke
 # Smoke tests (basic CLI functionality)
 ./tests/smoke-test/run-smoke-test.sh
 
-# Docker deployment tests
-./tests/deploy/run-deploy-test.sh
+# App deployment test (Docker by default)
+./tests/app-deploy/run-test.sh
 
-# Kubernetes deployment tests
-./tests/k8s-deploy/run-deploy-test.sh
+# Volume persistence test, against a local kind cluster
+STACK_TEST_TARGET=kind ./tests/database/run-test.sh
 ```
+
+There are three deployment targets, and a test that works against more than one
+calls `select_deploy_target` (in `tests/lib/common.sh`) and is pointed at one
+with `STACK_TEST_TARGET`: `compose` (the default), `kind`, or `remote`. Tests
+that are only about general behaviour stay on compose; the ones likely to find
+target-specific bugs — currently `app-deploy` and `database` — are written to
+run on any of the three. Anything genuinely target-shaped belongs in
+`select_deploy_target` rather than in an `if` inside a test.
+
+Which combinations CI actually runs is a separate question from which ones a
+test supports, and is decided by cost: `app-deploy` and `database` both run on
+compose and kind per-PR, and on remote weekly.
+
+Compose is worth keeping in that set for a reason beyond docker coverage: it is
+the only target that does not restart a failed container, so a service that only
+ever comes up because something restarted it fails there and passes on k8s.
+
+The `remote` target needs a real cluster, which costs money and minutes, so it
+is never triggered per-PR. `tests/k3s-deploy/with-k3s-cluster.sh` provisions one
+on a cloud VM and runs the test scripts named on its command line against it,
+sharing the one cluster; the "Real K8S Deploy Test" workflow runs it weekly and
+on manual dispatch.
 
 Run them from the repo root. By default each one tests the most recently built
 shiv package in `./package` (`./scripts/build_shiv_package.sh`); pass `from-path`
