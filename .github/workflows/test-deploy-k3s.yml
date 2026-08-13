@@ -19,33 +19,75 @@ on:
         description: "combine.sh URL (to test a machine-provisioning branch)"
         required: false
       tests:
-        description: "Test scripts to run (space separated); default is the per-mode set below"
+        description: "Test scripts to run (space separated); default is the per-leg set in the plan job"
         required: false
+      mode:
+        description: "Which leg to run; each one provisions its own VM"
+        required: false
+        type: choice
+        default: both
+        options: [both, gateway, ingress]
   schedule:
     # Run weekly on Monday at 07:00 UTC
     - cron: "0 7 * * 1"
 
 jobs:
+  # Which legs run, and what each one runs, decided before anything is
+  # provisioned. This is a separate job because each leg provisions its own VM,
+  # so a dispatch that only wants one of them must not start the other -- and a
+  # job-level `if` cannot do the filtering, since the matrix context is not
+  # available there. Building the matrix is the only way to leave a leg out
+  # rather than start it and skip its steps.
+  plan:
+    name: "Choose the legs to run"
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.legs.outputs.matrix }}
+    steps:
+      - name: "Pick the legs"
+        id: legs
+        env:
+          MODE: ${{ inputs.mode }}
+          TESTS: ${{ inputs.tests }}
+        run: |
+          set -euo pipefail
+          # gateway = Gateway API + traefik + per-app HTTP-01 certificates;
+          # ingress = the legacy nginx ingress arrangement.
+          #
+          # The gateway leg carries the full suite: it is the primary path, and
+          # the tests that are not about routing (the database test, which has
+          # no HTTP endpoint at all) only need to run once. The ingress leg runs
+          # just the app deploy test, which is the one that actually exercises
+          # the difference between the two arrangements.
+          gateway_tests="./tests/app-deploy/run-test.sh ./tests/database/run-test.sh"
+          ingress_tests="./tests/app-deploy/run-test.sh"
+          if [ -n "${TESTS}" ]; then
+            gateway_tests="${TESTS}"
+            ingress_tests="${TESTS}"
+          fi
+          gateway="{\"mode\":\"gateway\",\"tests\":\"${gateway_tests}\"}"
+          ingress="{\"mode\":\"ingress\",\"tests\":\"${ingress_tests}\"}"
+          # A scheduled run sets no inputs, so the empty case runs both.
+          case "${MODE}" in
+            gateway) include="${gateway}" ;;
+            ingress) include="${ingress}" ;;
+            *)       include="${gateway},${ingress}" ;;
+          esac
+          matrix="{\"include\":[${include}]}"
+          # Malformed JSON here would fail in the matrix expansion below, where
+          # the error says nothing useful about why.
+          echo "${matrix}" | jq . > /dev/null
+          echo "Running: ${matrix}"
+          echo "matrix=${matrix}" >> "$GITHUB_OUTPUT"
+
   test:
     name: "Deploy to real k3s (${{ matrix.mode }})"
+    needs: plan
     runs-on: ubuntu-24.04
     environment: k3s-test
     strategy:
       fail-fast: false
-      matrix:
-        # gateway = Gateway API + traefik + per-app HTTP-01 certificates;
-        # ingress = the legacy nginx ingress arrangement.
-        #
-        # The gateway leg carries the full suite: it is the primary path, and
-        # the tests that are not about routing (the database test, which has no
-        # HTTP endpoint at all) only need to run once. The ingress leg runs just
-        # the app deploy test, which is the one that actually exercises the
-        # difference between the two arrangements.
-        include:
-          - mode: gateway
-            tests: "./tests/app-deploy/run-test.sh ./tests/database/run-test.sh"
-          - mode: ingress
-            tests: "./tests/app-deploy/run-test.sh"
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     steps:
       - name: "Clone project repository"
         uses: actions/checkout@v5
@@ -77,5 +119,7 @@ jobs:
           STACK_IMAGE_REGISTRY_TOKEN: ${{ secrets.K3S_TEST_REGISTRY_TOKEN }}
           LETSENCRYPT_EMAIL: ${{ vars.K3S_TEST_LETSENCRYPT_EMAIL }}
           STACK_SCRIPT_DEBUG: ${{ runner.debug }}
-          TESTS: ${{ inputs.tests || matrix.tests }}
+          # Already reflects the `tests` input, if one was given: the plan job
+          # applies it to every leg it emits.
+          TESTS: ${{ matrix.tests }}
         run: MACHINE_SSH_KEY_FILE=$HOME/.ssh/k3s-test-key ./tests/k3s-deploy/with-k3s-cluster.sh $TESTS
