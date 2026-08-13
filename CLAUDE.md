@@ -34,7 +34,12 @@ uv run stack
 uv run flake8 --config tox.ini
 ```
 
-Formatting uses `black` (available via `uv run black`). Linting config is in `tox.ini`.
+Linting config is in `tox.ini`; `./scripts/lint.sh` runs what CI runs.
+
+There is no autoformatter, deliberately. `max-line-length` is a ceiling, not a target: code
+wrapped shorter than it is wrapped that way on purpose, and a formatter that joins those
+lines back up to the limit is not wanted here. Match the wrapping of the surrounding code
+by hand.
 
 ## Testing
 

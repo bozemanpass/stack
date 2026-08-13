@@ -32,12 +32,7 @@ requires-python = ">=3.10"
 stack = "stack:main.cli"
 
 [dependency-groups]
-dev = ["flake8", "black", "pytest"]
-
-[tool.black]
-# Matches flake8's max-line-length in tox.ini. Without this black defaults to 88
-# and reformats the whole file it is pointed at, so keep the two in step.
-line-length = 132
+dev = ["flake8", "pytest"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests/unit"]
