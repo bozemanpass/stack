@@ -46,14 +46,13 @@ if [ ! -f "$test_deployment_spec" ]; then
 fi
 echo "deploy init test: passed"
 
-# On kind, point the data dir at a full path so it is provisioned as a host bind
-# mounted volume and preserved beyond the lifetime of the cluster's node
-# container.  The other two targets keep the default: compose gets a volume
-# under the deployment directory, and a real cluster gets a PVC from the default
-# storage class, which is the arrangement a production deployment would use and
-# so the one worth exercising here.
+# On kind the data has to live on the host to survive the stop/start below,
+# because stopping deletes the cluster.  The other two targets keep the default:
+# compose gets a volume under the deployment directory, and a real cluster gets
+# a PVC from the default storage class, which is the arrangement a production
+# deployment would use and so the one worth exercising here.
 if [ "$TEST_TARGET_ENV" == "kind" ]; then
-    sed -i "s|^\(\s*db-data:$\)$|\1 ${test_deployment_dir}/data/db-data|" $test_deployment_spec
+    map_volume_to_host_path "$test_deployment_spec" db-data "${test_deployment_dir}/data/db-data"
 fi
 
 stop_deployment_on_exit $test_deployment_dir

@@ -75,6 +75,13 @@ if [ ! -f "$test_deployment_spec" ]; then
 fi
 echo "deploy init test: passed"
 
+# The restart check below stops and starts the deployment. On kind that deletes
+# and recreates the cluster, taking any volume stored inside it, so the app's
+# database has to be mapped onto the host for the data to survive.
+if [ "$TEST_TARGET_ENV" == "kind" ]; then
+    map_volume_to_host_path "$test_deployment_spec" db-data "${test_deployment_dir}/data/db-data"
+fi
+
 stop_deployment_on_exit $test_deployment_dir
 $TEST_TARGET_STACK deploy --spec-file $test_deployment_spec --deployment-dir $test_deployment_dir
 # Check the deployment dir exists

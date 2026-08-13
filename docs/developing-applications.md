@@ -137,6 +137,20 @@ stack manage --dir ~/deployments/todo-kind start
 with no tag surgery. Use it to check the Kubernetes *shape* of a deployment — pods, volumes,
 ingress — without a real cluster.
 
+Be aware that `stop` deletes the kind cluster and `start` builds a new one, so a volume left
+to the cluster's own storage is emptied by that loop — a database will come back up freshly
+initialized. Give the volume a full path in the spec to have it bind mounted from the host
+instead, and its data will outlive the cluster:
+
+```yaml
+volumes:
+  db-data: /home/me/deployments/todo-kind/data/db-data
+```
+
+A real cluster does not behave this way: there `stop` removes the deployment's objects while
+its PVCs survive, so this is a kind-specific thing to know rather than something to design
+around.
+
 ## 5. The remote Kubernetes loop
 
 A remote cluster cannot see your local docker daemon, so the image has to travel through a

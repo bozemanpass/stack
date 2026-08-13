@@ -8,29 +8,30 @@ on:
     branches:
       - '*'
 
-# This test depends on having kind installed in the runner environment. It turns
-# out that kind is pre-installed in the ubuntu-latest. It may be worthwhile
-# checking which version is installed in the event that unexplained test
-# failures occur.
+# The kind leg of this test depends on having kind installed in the runner
+# environment. It turns out that kind is pre-installed in the ubuntu-latest. It
+# may be worthwhile checking which version is installed in the event that
+# unexplained test failures occur.
 #
 # The same test also runs against a real cluster, but on a schedule rather than
 # per-PR, because that costs a VM: see test-deploy-k3s.yml.
 #
-# The test script also runs on the compose target, but that leg is not wired up
-# here yet. It found that the test client's wait-for-database loop never
-# retried: under `set -e` the bare psql call exited the script on the first
-# failure, so the client made exactly one attempt. On k8s that was invisible,
-# because the pod was restarted until an attempt happened to land after the
-# database was up -- the restart was doing the waiting. Compose does not restart
-# it, so the client just died. Add the compose leg here once the fix to run.sh
-# in bozemanpass/stack-test-stacks is merged.
+# The compose leg is worth its runtime for more than docker volume coverage: it
+# is the one target that does not restart a failed container, so a service that
+# only ever comes up because something restarted it fails here and passes on
+# k8s. That is exactly how the test client's wait-for-database loop was found to
+# have never retried.
 
 jobs:
   test:
-    name: "Run database test on k8s"
+    name: "Run database test (${{ matrix.target }})"
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [compose, kind]
     env:
-      STACK_TEST_TARGET: kind
+      STACK_TEST_TARGET: ${{ matrix.target }}
     steps:
       - name: "Clone project repository"
         uses: actions/checkout@v5
@@ -39,6 +40,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: "Print kind version"
+        if: matrix.target == 'kind'
         run: kind version
       - name: "Generate build version file"
         run: ./scripts/create_build_tag_file.sh

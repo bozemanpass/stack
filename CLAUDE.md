@@ -66,10 +66,12 @@ run on any of the three. Anything genuinely target-shaped belongs in
 `select_deploy_target` rather than in an `if` inside a test.
 
 Which combinations CI actually runs is a separate question from which ones a
-test supports, and is decided by cost: `app-deploy` runs on compose and kind
-per-PR and on remote weekly, while `database` runs on kind per-PR and remote
-weekly (its compose leg is blocked on a fix in the test stack — see the comment
-in `test-database.yml`).
+test supports, and is decided by cost: `app-deploy` and `database` both run on
+compose and kind per-PR, and on remote weekly.
+
+Compose is worth keeping in that set for a reason beyond docker coverage: it is
+the only target that does not restart a failed container, so a service that only
+ever comes up because something restarted it fails there and passes on k8s.
 
 The `remote` target needs a real cluster, which costs money and minutes, so it
 is never triggered per-PR. `tests/k3s-deploy/with-k3s-cluster.sh` provisions one
