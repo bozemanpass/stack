@@ -8,14 +8,29 @@ on:
     branches:
       - '*'
 
-# Note: this test depends on having kind installed in the runner environment.
-# It turns out that kind is pre-installed in the ubuntu-latest. It may be worthwhile
-# checking which version is installed in the event that unexplained test failures occur.
+# This test depends on having kind installed in the runner environment. It turns
+# out that kind is pre-installed in the ubuntu-latest. It may be worthwhile
+# checking which version is installed in the event that unexplained test
+# failures occur.
+#
+# The same test also runs against a real cluster, but on a schedule rather than
+# per-PR, because that costs a VM: see test-deploy-k3s.yml.
+#
+# The test script also runs on the compose target, but that leg is not wired up
+# here yet. It found that the test client's wait-for-database loop never
+# retried: under `set -e` the bare psql call exited the script on the first
+# failure, so the client made exactly one attempt. On k8s that was invisible,
+# because the pod was restarted until an attempt happened to land after the
+# database was up -- the restart was doing the waiting. Compose does not restart
+# it, so the client just died. Add the compose leg here once the fix to run.sh
+# in bozemanpass/stack-test-stacks is merged.
 
 jobs:
   test:
     name: "Run database test on k8s"
     runs-on: ubuntu-24.04
+    env:
+      STACK_TEST_TARGET: kind
     steps:
       - name: "Clone project repository"
         uses: actions/checkout@v5
@@ -29,7 +44,7 @@ jobs:
         run: ./scripts/create_build_tag_file.sh
       - name: "Build local shiv package"
         run: ./scripts/build_shiv_package.sh
-      - name: "Run k8s deploy tests"
+      - name: "Run database test"
         env:
           # "Enable debug logging" on a re-run sets runner.debug; pass it through
           # so the test script turns on xtrace and dumps its environment.

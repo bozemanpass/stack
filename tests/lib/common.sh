@@ -80,6 +80,84 @@ select_test_target () {
     echo "Version reported is: $( $TEST_TARGET_STACK version )"
 }
 
+# --- deployment targets ------------------------------------------------------
+
+# Select the deployment target the test runs against, from STACK_TEST_TARGET:
+#
+#   compose   Docker Compose on the local machine (the default)
+#   kind      a local kind cluster
+#   remote    a real k8s cluster elsewhere, described by STACK_KUBE_CONFIG,
+#             STACK_IMAGE_REGISTRY and STACK_K8S_HOSTNAME (the k3s cluster
+#             harness in tests/k3s-deploy sets all four)
+#
+# A test that works on more than one target calls this instead of hardcoding a
+# --deploy-to, and uses what it sets:
+#
+#   TEST_TARGET_ENV         the selected target, for the few genuinely
+#                           target-shaped decisions a test still has to make
+#   TEST_INIT_ARGS          target plumbing for `stack init`: the --deploy-to,
+#                           and on a remote cluster the kubeconfig and registry
+#   TEST_PROXY_INIT_ARGS    how a test that serves HTTP is reached from outside:
+#                           published host ports on compose, the HTTP proxy
+#                           hostname on k8s.  Separate from TEST_INIT_ARGS
+#                           because a test with no HTTP endpoint should pass
+#                           neither (init warns about an --http-proxy-fqdn with
+#                           nothing to proxy).
+#   TEST_SCHEME             https on a real cluster, which has a real
+#   TEST_HOSTNAME           certificate; http on the local targets
+#   TEST_START_CHECK_LIMIT  checks to allow for startup, for wait_for_running:
+#                           on a cluster the images come from a registry over
+#                           the network, which is minutes on a cold node
+#
+# The point of routing every target difference through here is that the
+# per-target divergence of a test stays in one place and stays visible, rather
+# than each test growing its own copy.
+select_deploy_target () {
+    TEST_TARGET_ENV=${STACK_TEST_TARGET:-compose}
+    case "$TEST_TARGET_ENV" in
+        compose)
+            TEST_INIT_ARGS=""
+            # localhost-same publishes each declared container port on the same
+            # port of the host, so the test reaches services directly.
+            TEST_PROXY_INIT_ARGS="--map-ports-to-host localhost-same"
+            TEST_SCHEME="http"
+            TEST_HOSTNAME="localhost"
+            TEST_START_CHECK_LIMIT=10
+            ;;
+        kind)
+            require_commands kind
+            TEST_INIT_ARGS="--deploy-to k8s-kind"
+            TEST_PROXY_INIT_ARGS="--http-proxy-fqdn localhost"
+            TEST_SCHEME="http"
+            TEST_HOSTNAME="localhost"
+            TEST_START_CHECK_LIMIT=60
+            ;;
+        remote)
+            if [ -z "$STACK_KUBE_CONFIG" ] || [ -z "$STACK_IMAGE_REGISTRY" ] || [ -z "$STACK_K8S_HOSTNAME" ]; then
+                fail "Error: the remote target requires STACK_KUBE_CONFIG, STACK_IMAGE_REGISTRY and STACK_K8S_HOSTNAME"
+            fi
+            TEST_INIT_ARGS="--deploy-to k8s --kube-config $STACK_KUBE_CONFIG --image-registry $STACK_IMAGE_REGISTRY"
+            TEST_PROXY_INIT_ARGS="--http-proxy-fqdn $STACK_K8S_HOSTNAME"
+            TEST_SCHEME="https"
+            TEST_HOSTNAME="$STACK_K8S_HOSTNAME"
+            TEST_START_CHECK_LIMIT=60
+            ;;
+        *)
+            fail "Error: STACK_TEST_TARGET must be compose, kind or remote, not $TEST_TARGET_ENV"
+            ;;
+    esac
+    echo "Testing against the $TEST_TARGET_ENV target"
+}
+
+# Push the deployment's images to the registry the cluster pulls from.  Only a
+# remote cluster needs this: compose runs the images from the local daemon, and
+# kind loads them into its nodes itself.
+push_images_if_needed () {
+    if [ "$TEST_TARGET_ENV" == "remote" ]; then
+        $TEST_TARGET_STACK manage --dir "$1" push-images
+    fi
+}
+
 # --- test directories --------------------------------------------------------
 
 # Remove a directory even when it holds root-owned files.  Containers write into

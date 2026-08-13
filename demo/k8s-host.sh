@@ -14,7 +14,7 @@
 #     ./demo/k8s-host.sh destroy     # when you are done for the day
 #
 # The VM is provisioned exactly the way the k3s CI job provisions its test
-# cluster (tests/k3s-deploy/run-k3s-deploy-test.sh) -- the same "machine"
+# cluster (tests/k3s-deploy/with-k3s-cluster.sh) -- the same "machine"
 # utility, the same machine-provisioning scripts, the same environment variable
 # names -- so a host that works for one works for the other.
 #
