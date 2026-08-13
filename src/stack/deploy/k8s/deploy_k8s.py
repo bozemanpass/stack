@@ -611,7 +611,12 @@ class K8sDeployer(Deployer):
                         container_log = self.core_api.read_namespaced_pod_log(
                             k8s_pod_name, namespace=self.k8s_namespace, container=container, tail_lines=tail
                         )
-                        container_log_lines = container_log.splitlines()
+                        # A container that is running but has not written anything yet
+                        # returns an empty body, which the client deserializes to None
+                        # rather than "". Common against a real cluster, where a caller
+                        # polling for a log line reaches a container whose image has only
+                        # just finished being pulled.
+                        container_log_lines = (container_log or "").splitlines()
                         for line in container_log_lines:
                             log_data += f"{container}: {line}\n"
                 except client.exceptions.ApiException as e:
