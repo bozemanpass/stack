@@ -149,29 +149,6 @@ select_deploy_target () {
     echo "Testing against the $TEST_TARGET_ENV target"
 }
 
-# Point one of a spec's volumes at a host path, so that its data outlives the
-# deployment being stopped:
-#
-#     map_volume_to_host_path "$spec_file" db-data "$deployment_dir/data/db-data"
-#
-# Needed on kind, where `stack manage stop` deletes the cluster and `start`
-# builds a new one -- a volume left to the cluster's own storage goes with it,
-# and only a host bind mount survives.  The other two targets keep their data
-# across a stop/start without help (a docker volume, a real PVC), so a test
-# should only reach for this on kind.
-#
-# The spec declares an unmapped volume as a bare "  <name>:" line, which is what
-# this substitutes into; if the volume already has a path it is left alone.
-map_volume_to_host_path () {
-    local spec_file=$1
-    local volume=$2
-    local host_path=$3
-    if ! grep -Eq "^\s*${volume}:$" "$spec_file"; then
-        fail "map_volume_to_host_path: no unmapped volume '${volume}' in ${spec_file}"
-    fi
-    sed -i "s|^\(\s*${volume}:$\)$|\1 ${host_path}|" "$spec_file"
-}
-
 # Push the deployment's images to the registry the cluster pulls from.  Only a
 # remote cluster needs this: compose runs the images from the local daemon, and
 # kind loads them into its nodes itself.

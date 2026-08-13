@@ -75,13 +75,6 @@ if [ ! -f "$test_deployment_spec" ]; then
 fi
 echo "deploy init test: passed"
 
-# The restart check below stops and starts the deployment. On kind that deletes
-# and recreates the cluster, taking any volume stored inside it, so the app's
-# database has to be mapped onto the host for the data to survive.
-if [ "$TEST_TARGET_ENV" == "kind" ]; then
-    map_volume_to_host_path "$test_deployment_spec" db-data "${test_deployment_dir}/data/db-data"
-fi
-
 stop_deployment_on_exit $test_deployment_dir
 $TEST_TARGET_STACK deploy --spec-file $test_deployment_spec --deployment-dir $test_deployment_dir
 # Check the deployment dir exists
@@ -106,7 +99,9 @@ fi
 
 # Stop and restart the stack without deleting volumes, and check the todo is
 # still there: the data outlives the containers on every target, but by quite
-# different means (a docker volume, a kind host mount, a real PVC).
+# different means (a docker volume, a kind node bind mount of the deployment's
+# data directory -- stopping a kind deployment deletes the cluster -- and a real
+# PVC).
 $TEST_TARGET_STACK manage --dir $test_deployment_dir stop
 $TEST_TARGET_STACK manage --dir $test_deployment_dir start
 wait_for_running 3 $TEST_START_CHECK_LIMIT
