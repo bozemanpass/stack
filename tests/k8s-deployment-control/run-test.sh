@@ -1,145 +1,70 @@
 #!/usr/bin/env bash
-set -e
-if [ -n "$STACK_SCRIPT_DEBUG" ]; then
-  set -x
-  echo "Environment variables:"
-  env
+#
+# Check that the k8s pod placement controls -- node affinity and taint
+# toleration, see docs/k8s-deployment-enhancements.md -- actually place the
+# stack's pod where they say they will.
+#
+# This is deliberately a test of its own rather than something bolted onto the
+# main deploy test: placement control is a niche k8s feature, and testing it
+# needs a cluster built specially for it, with labelled and tainted worker nodes
+# that no other test wants.
+#
+# Kind-only, and not because of a shortcut: the test has to construct a
+# multi-node cluster with labels and taints of its choosing, and kind is the only
+# target where the test owns the cluster.  It still goes through
+# select_deploy_target so the init plumbing stays shared with the other tests.
+source "$( dirname -- "${BASH_SOURCE[0]}" )/../lib/common.sh"
+
+require_commands kind kubectl
+
+if [ -n "$STACK_TEST_TARGET" ] && [ "$STACK_TEST_TARGET" != "kind" ]; then
+    fail "Error: this test builds its own multi-node cluster and runs on kind only, not $STACK_TEST_TARGET"
 fi
+export STACK_TEST_TARGET=kind
 
-if [ "$1" == "from-path" ]; then
-    TEST_TARGET_SO="stack"
-else
-    TEST_TARGET_SO=$( ls -t1 ./package/stack* | head -1 )
-fi
+STACK_NAME="test"
 
-# Helper functions: TODO move into a separate file
-wait_for_pods_started () {
-    for i in {1..50}
-    do
-        local ps_output=$( $TEST_TARGET_SO manage --dir $test_deployment_dir ps )
+echo "Running k8s deployment control test"
+select_test_target "$@"
+select_deploy_target
+setup_test_dir k8s-deployment-control-test-dir
 
-        if [[ "$ps_output" == *"Running containers:"* ]]; then
-            # if ready, return
-            return
-        else
-            # if not ready, wait
-            sleep 5
-        fi
-    done
-    # Timed out, error exit
-    echo "waiting for pods to start: FAILED"
-    delete_cluster_exit
-}
+$TEST_TARGET_STACK fetch repo github.com/bozemanpass/stack-test-stacks
+$TEST_TARGET_STACK prepare --stack $STACK_NAME
 
-wait_for_log_output () {
-    for i in {1..50}
-    do
-
-        local log_output=$( $TEST_TARGET_SO manage --dir $test_deployment_dir logs )
-
-        if [[ ! -z "$log_output" ]]; then
-            # if ready, return
-            return
-        else
-            # if not ready, wait
-            sleep 5
-        fi
-    done
-    # Timed out, error exit
-    echo "waiting for pods log content: FAILED"
-    delete_cluster_exit
-}
-
-delete_cluster_exit () {
-    $TEST_TARGET_SO manage --dir $test_deployment_dir stop --delete-volumes
-    exit 1
-}
-
-export STACK_USE_BUILTIN_STACK=true
-
-# Set a non-default repo dir
-STACK_TEST_DIR=~/stack-test/k8s-deployment-control-test-dir
-export STACK_REPO_BASE_DIR=${STACK_TEST_DIR}/repo-base-dir
-echo "Testing this package: $TEST_TARGET_SO"
-echo "Test version command"
-reported_version_string=$( $TEST_TARGET_SO version )
-echo "Version reported is: ${reported_version_string}"
-echo "Cloning repositories into: $STACK_REPO_BASE_DIR"
-rm -rf $STACK_TEST_DIR
-mkdir -p $STACK_REPO_BASE_DIR
-$TEST_TARGET_SO fetch repositories --stack test
-$TEST_TARGET_SO build containers --stack test
-# Test basic stack deploy to k8s
 # Deployment artifacts live outside the repo base dir, so the deployment's copy
 # of the stack files is not seen when resolving stacks by name.
 test_deployment_dir=$STACK_TEST_DIR/test-deployment-dir
 test_deployment_spec=$STACK_TEST_DIR/test-deployment-spec.yml
 
-# Create a deployment that we can use to check our test cases
-$TEST_TARGET_SO --stack test deploy --deploy-to k8s-kind init --output $test_deployment_spec
-# Check the file now exists
+$TEST_TARGET_STACK init \
+    --stack $STACK_NAME \
+    --output $test_deployment_spec \
+    $TEST_INIT_ARGS
+
 if [ ! -f "$test_deployment_spec" ]; then
-    echo "deploy init test: spec file not present"
-    echo "deploy init test: FAILED"
-    exit 1
+    fail "deploy init test: FAILED - spec file not present"
 fi
 echo "deploy init test: passed"
 
-$TEST_TARGET_SO --stack test deploy --spec-file $test_deployment_spec --deployment-dir $test_deployment_dir
-# Check the deployment dir exists
+stop_deployment_on_exit $test_deployment_dir
+$TEST_TARGET_STACK deploy --spec-file $test_deployment_spec --deployment-dir $test_deployment_dir
 if [ ! -d "$test_deployment_dir" ]; then
-    echo "deploy create test: deployment directory not present"
-    echo "deploy create test: FAILED"
-    exit 1
+    fail "deploy create test: FAILED - deployment directory not present"
 fi
 echo "deploy create test: passed"
-# Check the file writted by the create command in the stack now exists
-if [ ! -f "$test_deployment_dir/create-file" ]; then
-    echo "deploy create test: create output file not present"
-    echo "deploy create test: FAILED"
-    exit 1
-fi
-echo "deploy create output file test: passed"
 
-# At this point the deployment's kind-config.yml will look like this:
-# kind: Cluster
-# apiVersion: kind.x-k8s.io/v1alpha4
-# nodes:
-# - role: control-plane
-#   kubeadmConfigPatches:
-#     - |
-#       kind: InitConfiguration
-#       nodeRegistration:
-#         kubeletExtraArgs:
-#           node-labels: "ingress-ready=true"
-#   extraPortMappings:
-#   - containerPort: 80
-#    hostPort: 80
-
-# We need to change it to this:
-# Note we also turn up the log level on the scheduler in order to diagnose placement errors
-# See logs like: kubectl -n kube-system logs kube-scheduler-laconic-f185cd245d8dba98-control-plane
-kind_config_file=${test_deployment_dir}/kind-config.yml
-cat << EOF > ${kind_config_file} 
-kind: Cluster
-apiVersion: kind.x-k8s.io/v1alpha4
-kubeadmConfigPatches:
-- |
-  kind: ClusterConfiguration
-  scheduler:
-    extraArgs:
-      v: "3"
-nodes:
-- role: control-plane
-  kubeadmConfigPatches:
-    - |
-      kind: InitConfiguration
-      nodeRegistration:
-        kubeletExtraArgs:
-          node-labels: "ingress-ready=true"
-  extraPortMappings:
-  - containerPort: 80
-    hostPort: 80
+# `deploy` has written a single-node kind config, carrying the port mappings and
+# the bind mounts for the deployment's volumes.  Append to it rather than
+# replacing it: the mounts belong to the control-plane node entry, and a
+# hand-written replacement would silently drop them, leaving a deployment whose
+# pod has nowhere to mount /data.
+#
+# Three workers are added, labelled nodetype=a/b/c, with worker3 additionally
+# tainted nodeavoid=c.  A top-level kubeadm patch turns the scheduler's log level
+# up, so that a placement failure leaves something to read:
+#   kubectl -n kube-system logs kube-scheduler-<cluster>-control-plane
+cat << EOF >> ${test_deployment_dir}/kind-config.yml
 - role: worker
   labels:
     nodetype: a
@@ -157,30 +82,38 @@ nodes:
         - key: "nodeavoid"
           value: "c"
           effect: "NoSchedule"
+kubeadmConfigPatches:
+- |
+  kind: ClusterConfiguration
+  scheduler:
+    extraArgs:
+      v: "3"
 EOF
 
-# At this point we should have 4 nodes, three labeled like this:
+# The cluster that produces, with the labels this test placed (trailing column
+# elided -- each node also carries the usual beta.kubernetes.io/* and
+# kubernetes.io/* labels):
+#
 # $ kubectl get nodes --show-labels=true
-# NAME                                     STATUS   ROLES           AGE     VERSION   LABELS
-# laconic-3af549a3ba0e3a3c-control-plane   Ready    control-plane   2m37s   v1.30.0   ...,ingress-ready=true
-# laconic-3af549a3ba0e3a3c-worker          Ready    <none>          2m18s   v1.30.0   ...,nodetype=a
-# laconic-3af549a3ba0e3a3c-worker2         Ready    <none>          2m18s   v1.30.0   ...,nodetype=b
-# laconic-3af549a3ba0e3a3c-worker3         Ready    <none>          2m18s   v1.30.0   ...,nodetype=c
-
-# And with taints like this:
+# NAME                                   STATUS   ROLES           AGE   VERSION   LABELS
+# stack-ffe2210246715ae3-control-plane   Ready    control-plane   91s   v1.34.0   ...,ingress-ready=true,...
+# stack-ffe2210246715ae3-worker          Ready    <none>          82s   v1.34.0   ...,nodetype=a
+# stack-ffe2210246715ae3-worker2         Ready    <none>          82s   v1.34.0   ...,nodetype=b
+# stack-ffe2210246715ae3-worker3         Ready    <none>          82s   v1.34.0   ...,nodetype=c
+#
+# and with these taints:
+#
 # $ kubectl get nodes -o custom-columns=NAME:.metadata.name,TAINTS:.spec.taints --no-headers
-# laconic-3af549a3ba0e3a3c-control-plane   [map[effect:NoSchedule key:node-role.kubernetes.io/control-plane]]
-# laconic-3af549a3ba0e3a3c-worker          <none>
-# laconic-3af549a3ba0e3a3c-worker2         <none>
-# laconic-3af549a3ba0e3a3c-worker3         [map[effect:NoSchedule key:nodeavoid value:c]]
+# stack-ffe2210246715ae3-control-plane   [map[effect:NoSchedule key:node-role.kubernetes.io/control-plane]]
+# stack-ffe2210246715ae3-worker          <none>
+# stack-ffe2210246715ae3-worker2         <none>
+# stack-ffe2210246715ae3-worker3         [map[effect:NoSchedule key:nodeavoid value:c]]
 
-# We can now modify the deployment spec file to require a set of affinity and/or taint combinations
-# then bring up the deployment and check that the pod is scheduled to an expected node.
-
-# Add a requirement to schedule on a node labeled nodetype=c and
-# a toleration such that no other pods schedule on that node
-deployment_spec_file=${test_deployment_dir}/spec.yml
-cat << EOF >> ${deployment_spec_file}
+# Require the pod to land on a node labelled nodetype=c, and let it tolerate the
+# taint that keeps everything else off that node.  Between them, exactly one node
+# is a legal placement -- so the check below distinguishes the controls working
+# from the scheduler having picked that node anyway.
+cat << EOF >> ${test_deployment_dir}/spec.yml
 node-affinities:
   - label: nodetype
     value: c
@@ -189,38 +122,23 @@ node-tolerations:
     value: c
 EOF
 
-# Get the deployment ID so we can generate low level kubectl commands later
-deployment_id=$(cat ${test_deployment_dir}/deployment.yml | cut -d ' ' -f 2)
+# The deployment id is the kind cluster name, the namespace, and the pod's "app"
+# label, so the kubectl calls below need only this one value.
+deployment_id=$( grep '^cluster-id:' ${test_deployment_dir}/deployment.yml | cut -d ' ' -f 2 )
 
-# Try to start the deployment
-$TEST_TARGET_SO manage --dir $test_deployment_dir start
-wait_for_pods_started
-# Check logs command works
-wait_for_log_output
-sleep 1
-log_output_1=$( $TEST_TARGET_SO manage --dir $test_deployment_dir logs )
-if [[ "$log_output_1" == *"filesystem is fresh"* ]]; then
-    echo "deployment of pod test: passed"
-else
-    echo "deployment pod test: FAILED"
-    echo $log_output_1
-    delete_cluster_exit
-fi
+$TEST_TARGET_STACK manage --dir $test_deployment_dir start
+wait_for_running 1 $TEST_START_CHECK_LIMIT
+wait_for_log_content "filesystem is fresh"
+echo "deployment of pod test: passed"
 
-# The deployment's pod should be scheduled onto node: worker3
-# Check that's what happened
-# Get get the node onto which the stack pod has been deployed
-deployment_node=$(kubectl get pods -l app=${deployment_id} -o=jsonpath='{.items..spec.nodeName}')
+deployment_node=$( kubectl --context kind-${deployment_id} -n ${deployment_id} \
+    get pods -l app=${deployment_id} -o=jsonpath='{.items..spec.nodeName}' )
 expected_node=${deployment_id}-worker3
 echo "Stack pod deployed to node: ${deployment_node}"
-if [[ ${deployment_node} == ${expected_node} ]]; then
-    echo "deployment of pod test: passed"
-else
-    echo "deployment pod test: FAILED"
-    echo "Stack pod deployed to node: ${deployment_node}, expected node: ${expected_node}"
-    delete_cluster_exit
+if [ "${deployment_node}" != "${expected_node}" ]; then
+    kubectl --context kind-${deployment_id} get nodes --show-labels=true || true
+    fail "pod placement test: FAILED - pod on node ${deployment_node}, expected ${expected_node}"
 fi
+echo "pod placement test: passed"
 
-# Stop and clean up
-$TEST_TARGET_SO manage --dir $test_deployment_dir stop --delete-volumes
 echo "Test passed"
