@@ -103,6 +103,7 @@ fi
 # data directory -- stopping a kind deployment deletes the cluster -- and a real
 # PVC).
 $TEST_TARGET_STACK manage --dir $test_deployment_dir stop
+wait_for_stopped
 $TEST_TARGET_STACK manage --dir $test_deployment_dir start
 wait_for_running 3 $TEST_START_CHECK_LIMIT
 
