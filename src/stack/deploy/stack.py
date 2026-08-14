@@ -340,7 +340,10 @@ class Stack:
         result: Set[Path] = set()
         for pod in self.get_pods():
             if type(pod) is str:
-                result.add(get_stack_path(self.name))
+                # Pass the stack itself, not its name: get_stack_path() resolves an
+                # object via its file_path, but a bare name only to Path(name) -- a
+                # relative path that exists nowhere, so the hooks were never found.
+                result.add(get_stack_path(self))
             else:
                 pod_root_dir = os.path.join(
                     get_dev_root_path(),

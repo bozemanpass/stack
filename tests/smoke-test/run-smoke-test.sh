@@ -21,7 +21,18 @@ test_deployment_dir=$STACK_TEST_DIR/test-deployment-dir
 test_deployment_spec=$STACK_TEST_DIR/test-deployment-spec.yml
 # Deploy the test container
 $TEST_TARGET_STACK init --stack test --output $test_deployment_spec
+# The test stack ships deploy hooks in its deploy/commands.py, and `init` calls the
+# first of them: it adds a config variable to the spec being generated.
+assert_file_contains $test_deployment_spec "test-variable-1: test-value-1" "deploy init hook"
 $TEST_TARGET_STACK deploy --spec-file $test_deployment_spec --deployment-dir $test_deployment_dir
+# ...and `deploy` calls the second, which writes a known file into the deployment
+# directory.  Assert on the side effects rather than on the commands exiting 0: a
+# missed hook lookup is silent, which is exactly how these went uncalled for months
+# without a test noticing (bozemanpass/stack#232).
+if [ ! -f "$test_deployment_dir/create-file" ]; then
+    fail "deploy create hook: FAILED - create-file not written"
+fi
+assert_file_contains $test_deployment_dir/create-file "create-command-output-data" "deploy create hook"
 # Up
 $TEST_TARGET_STACK manage --dir $test_deployment_dir start
 # Down

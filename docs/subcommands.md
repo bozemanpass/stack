@@ -1,5 +1,12 @@
 # Stack-specific Subcommands
 
+> **Note:** the invocation shown below does not currently work.  Loading a stack's
+> subcommands is triggered by a `--stack` argument that the CLI no longer accepts, so there is
+> at present no way to reach one.  See
+> [issue #233](https://github.com/bozemanpass/stack/issues/233); this page needs updating with
+> whatever invocation the fix settles on.  Everything about the directory layout and the
+> command code itself is still accurate.
+
 A stack can add its own subcommands to the `stack` command line.  To do so, it simply needs
 to have a `subcommands` directory alongside the `stack.yml` with appropriate command files.
 
