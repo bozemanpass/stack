@@ -39,6 +39,8 @@ from stack.deploy.k8s.helpers import (
 )
 from stack.deploy.k8s.helpers import generate_kind_config
 from stack.deploy.k8s import gateway
+from stack.deploy.k8s import k8up
+from stack.deploy.backup import backup_settings
 from stack.deploy.k8s.cluster_info import ClusterInfo
 from stack.opts import opts
 from stack.deploy.deployment_context import DeploymentContext
@@ -179,6 +181,32 @@ class K8sDeployer(Deployer):
                 log_debug("ConfigMap created:")
                 log_debug(f"{cfg_rsp}")
 
+    def _backup_settings(self):
+        """This deployment's backup settings, or None if backup is switched off.
+
+        Fails rather than deploying a half-configured backup: a deployment that
+        believes it is being backed up and is not is the one outcome worth
+        refusing outright.
+        """
+        settings = backup_settings()
+        if not settings.enabled:
+            return None
+        missing = settings.missing_settings()
+        if missing:
+            error_exit(f"Error: backup is enabled but these settings are not configured: {', '.join(missing)}")
+        if not opts.o.dry_run and not k8up.k8up_available(self.custom_obj_api):
+            error_exit(
+                "Error: backup is enabled but K8up is not installed on this cluster. "
+                "K8up runs the backups; stack only configures them."
+            )
+        return settings
+
+    def _create_backup_configuration(self):
+        settings = self._backup_settings()
+        if not settings or opts.o.dry_run:
+            return
+        k8up.ensure_backup_configured(self.core_api, self.custom_obj_api, self.k8s_namespace, settings)
+
     def _create_deployments(self):
         # Process compose files into a Deployment
         deployments = self.cluster_info.get_deployments(image_pull_policy=None if self.is_kind() else "Always")
@@ -293,6 +321,7 @@ class K8sDeployer(Deployer):
                         raise
 
             self._create_volume_data()
+            self._create_backup_configuration()
             self._create_deployments()
 
             http_proxy_info = self.cluster_info.spec.get_http_proxy()
@@ -381,6 +410,12 @@ class K8sDeployer(Deployer):
                     self.core_api.delete_namespaced_service(namespace=self.k8s_namespace, name=svc.metadata.name)
                 except client.exceptions.ApiException as e:
                     _check_delete_exception(e)
+
+            # Only the scheduling stops; the repository the backups are in is
+            # deliberately left alone, since backups exist to outlive the
+            # deployment that made them.
+            if backup_settings().enabled and k8up.k8up_available(self.custom_obj_api):
+                k8up.delete_backup_configuration(self.core_api, self.custom_obj_api, self.k8s_namespace)
 
             if self.cluster_info.spec.get_http_proxy() and gateway.gateway_api_available(self.custom_obj_api):
                 gateway.delete_http_route(self.custom_obj_api, self.k8s_namespace)
@@ -562,6 +597,56 @@ class K8sDeployer(Deployer):
             sys.exit(response.returncode)
 
         output_main(response.read_stdout())
+
+    def _connect_for_backup(self):
+        self.connect_api()
+        settings = self._backup_settings()
+        if not settings:
+            error_exit("Error: backup is not enabled (set the 'backup' setting or STACK_BACKUP)")
+        return settings
+
+    def backup_now(self):
+        settings = self._connect_for_backup()
+        k8up.run_backup(self.custom_obj_api, self.k8s_namespace, settings)
+
+    def backup_list(self):
+        self._connect_for_backup()
+        return k8up.list_snapshots(self.custom_obj_api, self.k8s_namespace)
+
+    def backup_restore(self, snapshot, volumes):
+        settings = self._connect_for_backup()
+        # K8up backs each volume up as its own snapshot and restores one claim at
+        # a time, so a restore is one Restore per volume.  What to restore comes
+        # from the repository rather than from the spec: a volume the deployment
+        # declares but that was never backed up (added since the last backup, or
+        # excluded) has nothing to restore and must not fail the whole operation.
+        available = k8up.list_snapshots(self.custom_obj_api, self.k8s_namespace)
+        if snapshot and snapshot != "latest":
+            chosen = [s for s in available if s["id"].startswith(snapshot)]
+            if not chosen:
+                error_exit(f"Error: no snapshot {snapshot} in this deployment's repository")
+            targets = [(volume, chosen[0]["id"]) for volume in chosen[0]["volumes"]]
+        else:
+            # "latest" is resolved per volume rather than passed through: K8up
+            # takes the newest snapshot in the repository whatever volume it
+            # holds, which for a deployment of several is usually another's.
+            # list_snapshots is oldest first, so the last write per volume wins.
+            latest = {}
+            for available_snapshot in available:
+                for volume in available_snapshot["volumes"]:
+                    latest[volume] = available_snapshot["id"]
+            targets = list(latest.items())
+
+        if volumes:
+            targets = [(volume, snapshot_id) for volume, snapshot_id in targets if volume in volumes]
+            missing = set(volumes) - {volume for volume, _ in targets}
+            if missing:
+                error_exit(f"Error: nothing to restore for: {', '.join(sorted(missing))}")
+        if not targets:
+            error_exit("Error: this deployment has no snapshots to restore")
+
+        for volume, snapshot_id in targets:
+            k8up.run_restore(self.custom_obj_api, self.k8s_namespace, settings, volume, snapshot_id)
 
     def logs(self, services, tail, follow, stream):
         self.connect_api()

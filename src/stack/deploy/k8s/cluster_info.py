@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any, List, Set
 
 from stack import constants
+from stack.deploy.k8s import k8up
 from stack.log import log_debug, log_warn
 from stack.util import env_var_map_from_file
 from stack.deploy.k8s.helpers import (
@@ -262,6 +263,10 @@ class ClusterInfo:
         result = []
         spec_volumes = self.spec.get_volumes()
         named_volumes = named_volumes_from_pod_files(self.parsed_pod_yaml_map)
+        # Volumes the stack author marked `@stack backup-exclude`.  K8up backs up
+        # every PVC in the namespace, so the exclusion has to travel with the
+        # claim as its own opt-out annotation.
+        backup_exclude = set(self.spec.get_backup().get("exclude", []))
         log_debug(f"Spec Volumes: {spec_volumes}")
         log_debug(f"Named Volumes: {named_volumes}")
         for volume_name, volume_path in spec_volumes.items():
@@ -292,8 +297,9 @@ class ClusterInfo:
                 resources=to_k8s_resource_requirements(resources),
                 volume_name=k8s_volume_name,
             )
+            annotations = {k8up.BACKUP_ANNOTATION: "false"} if volume_name in backup_exclude else None
             pvc = client.V1PersistentVolumeClaim(
-                metadata=client.V1ObjectMeta(name=volume_name, labels=labels),
+                metadata=client.V1ObjectMeta(name=volume_name, labels=labels, annotations=annotations),
                 spec=spec,
             )
             result.append(pvc)

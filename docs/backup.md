@@ -1,8 +1,8 @@
 # Backup &amp; Restore
 
-> **Status: design proposal — not yet implemented.** This document describes the intended design for
-> backing up and restoring service data. It is written to be reviewed and refined before any code is
-> written. Where it describes commands or behaviour, read those as *proposed*.
+> **Status: implemented on both targets**, with the parts listed under
+> [Not built yet](#not-built-yet) still outstanding. Backups run on a schedule, and
+> `stack manage … backup now | list | restore` operate on them.
 
 Stacks keep their software components and configuration under revision control in git. Once a stack is
 running, however, it accumulates **persistent data** in mounted volumes that git does not track. This
@@ -64,22 +64,34 @@ it, with no per-stack input.
 | ------------------------------------------- | ----------------------------------------------- | -------------- |
 | `backup` / `STACK_BACKUP`                   | Master switch — enable backup for deployments.  | `false`        |
 | `backup-s3-endpoint`                        | Object store endpoint.                          | —              |
-| `backup-s3-bucket`                          | Bucket / repository location.                   | —              |
-| `aws-access-key-id`, `aws-secret-access-key`| Object store credentials.                       | —              |
-| `restic-password`                           | **Encryption key** (see warning below).         | —              |
+| `backup-s3-bucket`                          | Bucket the repositories are written in.         | —              |
+| `backup-s3-key-id`, `backup-s3-key`         | Object store credentials.                       | —              |
+| `backup-restic-password`                    | **Encryption key** (see warning below).         | —              |
 | `backup-schedule`                           | Cron schedule.                                  | `0 3 * * *`    |
+| `backup-prune-schedule`                     | Cron schedule for applying the retention policy.| `0 4 * * 0`    |
 | `backup-retention`                          | `forget`/`prune` policy.                        | `--keep-daily 7 --keep-weekly 4 --keep-monthly 6` |
 
 Typical one-time setup for an environment:
 
 ```bash
 $ stack config set backup true
-$ stack config set backup-s3-endpoint s3.us-west-2.amazonaws.com
+$ stack config set backup-s3-endpoint https://s3.us-west-2.amazonaws.com
 $ stack config set backup-s3-bucket my-stack-backups
-$ stack config set aws-access-key-id AKIA...
-$ stack config set aws-secret-access-key ...
-$ stack config set restic-password ...
+$ stack config set backup-s3-key-id AKIA...
+$ stack config set backup-s3-key ...
+$ stack config set backup-restic-password ...
 ```
+
+Every setting is required once the master switch is on, the encryption key included: a
+deployment that believes it is being backed up and is not is worse than one that is not,
+so a Kubernetes deployment with any of them missing fails at `deploy` naming what is
+missing, rather than running unbacked.
+
+**Each deployment gets its own restic repository**, named for the deployment inside that
+bucket (`<bucket>/<deployment-name>`), on both targets. Beyond keeping deployments'
+snapshots from mixing, this is load-bearing on Kubernetes: K8up restores the most recent
+snapshot in a repository with no filter for who wrote it, so deployments sharing one could
+restore each other's data.
 
 After that, **every** deployment is backed up with no further action:
 
@@ -91,7 +103,7 @@ $ stack manage --dir ~/deployments/todo start
 
 > #### ⚠ The encryption key cannot be purely ephemeral
 >
-> restic cannot decrypt a repository without its password. If `restic-password` is auto-generated and
+> restic cannot decrypt a repository without its password. If `backup-restic-password` is auto-generated and
 > lives *only* in an environment that is later lost, the backups become **permanently unrecoverable** — an
 > encrypted bucket that can never be read. The password must therefore either be set explicitly by the
 > operator, or be auto-generated **and persisted and surfaced for the operator to escrow**. This is the one
@@ -172,10 +184,10 @@ matching services for ingress:
 
 2. **Spec to backup container** — during `stack deploy`, the tool reads the merged deployment's volumes
    (`Spec.get_volumes()`) and:
-   - mounts every non-excluded read-write volume **read-only** into the backup container
-     (`- <volume>:/backup/<volume>:ro`), and
-   - injects the ambiently-resolved schedule, retention, object-store, and per-service `backup-command`
-     hook settings as environment / config for the container.
+   - mounts every non-excluded volume into the backup container (`- <volume>:/backup/<volume>:rw`,
+     read-write so that the same container can restore in place; scheduled backups only read), and
+   - injects the ambiently-resolved schedule, retention, object-store and repository settings as
+     environment for the container.
 
 3. **The backup container runs restic on a schedule** — on each cron tick it runs any configured
    pre-backup hooks (the logical dumps) and then `restic backup` of the mounted volume tree, applying the
@@ -184,6 +196,11 @@ matching services for ingress:
 Because every named volume on the Docker target is already realised as a bind mount under
 `<deployment-dir>/data/<volume-name>/`, the set of paths to back up is fully deterministic.
 
+The backup stack is mixed into the deployment by hand, with an extra `--spec-file`, exactly
+as the ingress stack is. It is a **Docker-target mix-in only**: on Kubernetes the engine is
+the cluster's operator, and a backup container deployed there would sit idle holding no
+data mounts, so `deploy` warns if one is mixed into a Kubernetes deployment.
+
 ## Kubernetes
 
 On Kubernetes the work is delegated to [K8up](https://k8up.io), a restic-based backup operator. This
@@ -191,17 +208,24 @@ follows the same assume-present contract the stack tool already uses for `ingres
 (it references an `ingress_class_name="nginx"` and a `cert-manager.io/cluster-issuer` it does not install):
 `stack` does not install K8up; it only emits resources that *reference* it.
 
-- During `stack deploy`, the tool emits a K8up `Schedule` for the deployment's namespace (one namespace per
-  deployment), so all of its PVCs are backed up, together with `k8up.io/backupcommand` /
-  `k8up.io/file-extension` annotations derived from the `@stack backup-*` annotations.
-- K8up writes a **standard restic repository** to the same object store, with the same encryption — so the
-  repositories are interchangeable with those produced on the Docker target.
+- During `stack deploy`, the tool emits, into the deployment's own namespace: a `Secret` holding the
+  repository password and the object store credentials, and a K8up `Schedule` naming that Secret, the
+  bucket, and the backup and prune schedules. K8up then backs up **every PVC in the namespace**, mounting
+  each at `/data/<claim-name>` in its backup job — so what is backed up follows from the deployment, with
+  no list to maintain.
+- A volume the stack author marked `@stack backup-exclude` gets `k8up.io/backup: "false"` on its PVC, which
+  is K8up's own opt-out.
+- K8up writes a **standard restic repository**, with the same encryption as the Docker target — so a
+  repository written on one target is readable on the other, and with the bare `restic` CLI from outside
+  the deployment entirely.
+- One thing differs between the targets and is worth knowing before reading a snapshot list: K8up backs
+  each volume up as its **own snapshot** (paths `/data/<volume>`), where the Docker target takes one
+  snapshot of the whole `/backup` tree.
 
-K8up itself is provisioned by the **`cluster`** tool (the batteries-included checker/fixer for required
-cluster components), exactly as `cluster` is responsible for `cert-manager` and `ingress-nginx`. A
-backup-enabled deployment fails recognisably — the same way an ingress deployment fails today when
-`cert-manager` is absent — if K8up has not been provisioned. The readiness probe is concrete: K8up's CRDs
-registered and its operator `Deployment` healthy.
+K8up itself is installed by the **machine provisioning** scripts (`k3s-node.sh` installs it by default,
+alongside cert-manager), not by `stack`. A backup-enabled deployment to a cluster without it fails
+recognisably at `deploy`, the same way an ingress deployment fails when `cert-manager` is absent; the check
+is that K8up's API is registered on the cluster.
 
 > Because the deployment uses a single node (or node affinity to co-locate data), K8up's backup `Job` can
 > mount the `ReadWriteOnce` PVCs alongside the running application pod. Cross-node volume access is
@@ -209,22 +233,19 @@ registered and its operator `Deployment` healthy.
 
 ## Restore
 
-Restore is deliberately modelled as a distinct mode rather than a live operation, which neatly sidesteps the
-problem of two consumers mounting the same volume at once. At restore time **nothing else holds the
-volumes**, so even `ReadWriteOnce` PVCs can be attached by the restore job.
+`stack manage … backup restore` restores **in place**, into the deployment's existing volumes:
 
-The flow:
+- **Docker:** `restic restore` in the backup container, which mounts the data volumes read-write for
+  exactly this reason.
+- **Kubernetes:** a K8up `Restore` per volume, targeting that volume's PVC. K8up trims the `/data/<claim>`
+  prefix as it writes, so a volume's files land back at the root of the volume they came from. "Restore the
+  latest" is resolved to a specific snapshot id per volume before the resource is created, because K8up's
+  own "latest" is the newest snapshot in the repository whatever volume it holds.
 
-1. The full stack is stopped (if running).
-2. The volumes are (re)created empty.
-3. A **backup-only** variant of the deployment is brought up, running a restore of the chosen snapshot:
-   - **Docker:** bring up only the backup container with a restore command, restoring into the now-empty
-     bind-mounted volumes.
-   - **Kubernetes:** create a K8up `Restore` resource targeting the freshly-created PVCs.
-4. The backup-only variant is torn down once the restore completes.
-5. The full stack is started; its volumes now contain the restored data.
-
-This is driven by a single command (see below) so the operator does not orchestrate the steps by hand.
+**Stopping the deployment first is the operator's job**, and on a live deployment it is the right thing to
+do: restoring underneath a running service overwrites files it has open. Orchestrating that — stop,
+restore, start — behind the one command is the intended shape and is listed under
+[Not built yet](#not-built-yet).
 
 ## Command structure
 
@@ -239,17 +260,25 @@ stack manage --dir <dir> backup <subcommand>
 
 | Command                                                        | Description                                                        |
 | -------------------------------------------------------------- | ------------------------------------------------------------------ |
-| `stack manage --dir <dir> backup now`                          | Run a backup immediately, outside the schedule.                    |
-| `stack manage --dir <dir> backup status`                       | Show the result of the last run and repository health.             |
-| `stack manage --dir <dir> backup list`                         | List snapshots (the available epochs) with timestamps and tags.    |
-| `stack manage --dir <dir> backup restore [--snapshot <id>]`    | Orchestrate the full stop → restore → restart flow. Defaults to the latest snapshot; `--volume <name>` restores a single volume; `--and-start` restarts the full stack on completion. |
-| `stack manage --dir <dir> backup prune`                        | Apply the retention policy (`forget` + `prune`).                   |
-| `stack manage --dir <dir> backup check`                        | Verify repository integrity.                                       |
+| `stack manage --dir <dir> backup now`                          | Run a backup immediately, outside the schedule, and wait for it.   |
+| `stack manage --dir <dir> backup list`                         | List the snapshots available to restore.                           |
+| `stack manage --dir <dir> backup restore [--snapshot <id>] [--volume <name>]` | Restore in place, defaulting to the latest snapshot and every volume. |
 
 `backup` is a Click sub-group of the existing `manage` group, so it inherits `--dir` and the deployment
-context. Internally each subcommand dispatches to the active target: on Docker it `exec`s restic in the
-backup container (or runs a one-off restore deployment); on Kubernetes it creates/reads the corresponding
-K8up resources.
+context. Internally each subcommand dispatches to the active target: on Docker it `exec`s the backup
+container's scripts; on Kubernetes it creates and waits on K8up resources, and reads snapshots from the
+`Snapshot` objects K8up syncs into the namespace.
+
+`backup list` prints one line per snapshot — id, time, and the volumes it holds — which is the same on both
+targets even though the engines differ:
+
+```
+$ stack manage --dir ~/deployments/todo backup list
+6478d2ea	2026-08-14T15:10:34Z	app-data,app-data2
+```
+
+That last column is where an exclusion shows up: a volume marked `@stack backup-exclude` is visibly absent
+from it.
 
 > The earlier sketch of `stack deploy backup status` is intentionally **not** the chosen shape: `deploy`
 > creates a deployment from specs and exits, whereas backup status/restore/list are operations *on an
@@ -269,5 +298,23 @@ K8up resources.
 - **Monitoring.** Surfacing backup success/failure (a healthcheck or status that `backup status` can read)
 
   so that a silently failing backup is not mistaken for a working one.
-- **New repository.** The Docker backup container lives in its own repo (e.g. `bozemanpass/backup-stack`),
-  mirroring `bozemanpass/docker-ingress-stack`.
+
+## Not built yet
+
+- **Application consistency.** `@stack backup-command` / `@stack backup-file-extension` are parsed no
+  further than `backup-exclude` is: `Stack.get_backup_targets` returns an empty `commands` map. Neither the
+  Docker target's hook runner nor the Kubernetes `k8up.io/backupcommand` annotation is wired up, so a
+  database in a stack is backed up file-level today — see [Application consistency](#application-consistency)
+  for why that is not enough for one.
+- **`backup restore` does not stop the deployment.** The stop → restore → start orchestration described
+  under [Restore](#restore) is the operator's to perform for now.
+- **`backup status`, `backup prune` and `backup check`.** Retention is applied on its own schedule; there
+  is no command to trigger or inspect it.
+- **Auto-including the backup stack.** On the Docker target it is mixed in by hand, with an extra
+  `--spec-file`, exactly as the ingress stack is.
+
+Also worth knowing about the Docker engine: a repository created against an object store that is not yet
+ready can be written and then never read back (restic reports the init as successful, and every later
+attempt fails on "already initialized"). The container detects that and says so rather than looping, but
+recovering means removing the repository from the store by hand. A managed object store is always ready;
+this is reachable with a store that starts alongside the deployment.

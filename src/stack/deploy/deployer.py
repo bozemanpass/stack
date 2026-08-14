@@ -50,6 +50,24 @@ class Deployer(ABC):
     def logs(self, services, tail, follow, stream):
         pass
 
+    # Backup operations.  The engine differs by target -- restic in the mixed-in
+    # backup container on Docker, K8up on Kubernetes -- but both write the same
+    # restic repository format, so what these mean does not.
+    @abstractmethod
+    def backup_now(self):
+        """Take a backup immediately, outside the schedule, and wait for it."""
+        pass
+
+    @abstractmethod
+    def backup_list(self):
+        """The snapshots in the repository, as {id, date, volumes} dicts."""
+        pass
+
+    @abstractmethod
+    def backup_restore(self, snapshot, volumes):
+        """Restore volumes (all of them, if none named) from a snapshot."""
+        pass
+
     @abstractmethod
     def run(
         self,

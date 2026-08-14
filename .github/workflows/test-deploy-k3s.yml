@@ -55,11 +55,15 @@ jobs:
           # ingress = the legacy nginx ingress arrangement.
           #
           # The gateway leg carries the full suite: it is the primary path, and
-          # the tests that are not about routing (the database test, which has
-          # no HTTP endpoint at all) only need to run once. The ingress leg runs
-          # just the app deploy test, which is the one that actually exercises
-          # the difference between the two arrangements.
-          gateway_tests="./tests/app-deploy/run-test.sh ./tests/database/run-test.sh"
+          # the tests that are not about routing (the database and backup tests,
+          # neither of which has an HTTP endpoint at all) only need to run once.
+          # The ingress leg runs just the app deploy test, which is the one that
+          # actually exercises the difference between the two arrangements.
+          #
+          # The backup test only runs here: K8up, which runs backups on a
+          # cluster, is installed by the machine provisioning and is not present
+          # on a kind cluster.
+          gateway_tests="./tests/app-deploy/run-test.sh ./tests/database/run-test.sh ./tests/backup/run-test.sh"
           ingress_tests="./tests/app-deploy/run-test.sh"
           if [ -n "${TESTS}" ]; then
             gateway_tests="${TESTS}"
@@ -118,6 +122,13 @@ jobs:
           STACK_IMAGE_REGISTRY_USER: ${{ secrets.K3S_TEST_REGISTRY_TOKEN }}
           STACK_IMAGE_REGISTRY_TOKEN: ${{ secrets.K3S_TEST_REGISTRY_TOKEN }}
           LETSENCRYPT_EMAIL: ${{ vars.K3S_TEST_LETSENCRYPT_EMAIL }}
+          # Where the backup test's backups go. The bucket may be given as its
+          # URL; the test splits out the endpoint. The repository password is
+          # generated per run by the test, since each run backs up a deployment
+          # that did not exist before.
+          STACK_BACKUP_S3_BUCKET: ${{ vars.K3S_TEST_BACKUP_S3_BUCKET }}
+          STACK_BACKUP_S3_KEY_ID: ${{ secrets.K3S_TEST_BACKUP_S3_KEY_ID }}
+          STACK_BACKUP_S3_KEY: ${{ secrets.K3S_TEST_BACKUP_S3_KEY }}
           STACK_SCRIPT_DEBUG: ${{ runner.debug }}
           # Already reflects the `tests` input, if one was given: the plan job
           # applies it to every leg it emits.

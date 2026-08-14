@@ -1,8 +1,9 @@
 # Backup — implementation sketch
 
-> **Status: design sketch — not yet implemented.** Companion to [backup.md](./backup.md). This pins the
-> design down to concrete functions and insertion points in the existing code, mirroring how ingress is
-> implemented, so the work can be reviewed before it is written. Code below is illustrative, not final.
+> **Status: built, and this describes the Docker target's deploy-time pass as it was designed.** Companion
+> to [backup.md](./backup.md), which is the document to read for what backup does now — including the
+> Kubernetes path (K8up), which this sketch does not cover. Code below is illustrative and has drifted from
+> what was written; where the two disagree, the code and backup.md are right.
 
 ## Scope of this sketch
 

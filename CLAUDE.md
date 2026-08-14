@@ -73,6 +73,12 @@ target-specific bugs — currently `app-deploy` and `database` — are written t
 run on any of the three. Anything genuinely target-shaped belongs in
 `select_deploy_target` rather than in an `if` inside a test.
 
+`backup` runs on `compose` and `remote` but not `kind`, and the reason is the
+backup engine rather than the test: on a cluster, backups are run by K8up, which
+the machine provisioning installs and a kind cluster does not have. Its
+per-target divergence (which object store, and whether the backup stack has to be
+mixed in) lives in `select_backup_target`, next to `select_deploy_target`.
+
 A test can also be legitimately single-target: `k8s-deployment-control` appends
 labelled and tainted worker nodes to the deployment's kind config, so it only
 works where the test owns the cluster. It still goes through
@@ -81,7 +87,8 @@ other than `kind` rather than silently testing nothing.
 
 Which combinations CI actually runs is a separate question from which ones a
 test supports, and is decided by cost: `app-deploy` and `database` both run on
-compose and kind per-PR, and on remote weekly.
+compose and kind per-PR, and on remote weekly. `backup` runs on compose per-PR
+and on remote weekly.
 
 Compose is worth keeping in that set for a reason beyond docker coverage: it is
 the only target that does not restart a failed container, so a service that only
