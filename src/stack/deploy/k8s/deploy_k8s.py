@@ -32,6 +32,7 @@ from stack.deploy.k8s.helpers import (
 )
 from stack.deploy.k8s.helpers import install_ingress_for_kind, wait_for_ingress_in_kind
 from stack.deploy.k8s.helpers import (
+    live_pods,
     pods_in_deployment,
     containers_in_pod,
     log_stream_from_string,
@@ -419,7 +420,7 @@ class K8sDeployer(Deployer):
             label_selector=f"app={self.cluster_info.app_name}",
             watch=False,
         )
-        pods = pod_response.items if pod_response.items else []
+        pods = live_pods(pod_response.items) if pod_response.items else []
 
         if not pods:
             return
@@ -504,7 +505,7 @@ class K8sDeployer(Deployer):
 
         ret = []
 
-        for p in pod_response.items:
+        for p in live_pods(pod_response.items):
             pod_ip = p.status.pod_ip
             ports = AttrDict()
             for c in p.spec.containers:

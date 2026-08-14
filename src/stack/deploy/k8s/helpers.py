@@ -88,11 +88,24 @@ def load_images_into_kind(kind_cluster_name: str, image_set: Set[str]):
             raise DeployerException(f"kind create cluster failed: {result}")
 
 
+def live_pods(pod_items):
+    """The pods that are still part of the deployment, dropping any being deleted.
+
+    A deleted pod keeps being listed until its containers have actually stopped,
+    which on a real cluster is a graceful shutdown lasting tens of seconds. It is
+    on its way out, and nothing the user asks about the deployment should count
+    it: "ps" and "status" would report a container that has already been told to
+    go, "logs" would replay output from before a restart, and "exec" could land
+    in a pod that is about to disappear underneath it.
+    """
+    return [pod for pod in pod_items if pod.metadata.deletion_timestamp is None]
+
+
 def pods_in_deployment(core_api: client.CoreV1Api, deployment_name: str, namespace: str = DEFAULT_K8S_NAMESPACE):
     pods = []
     pod_response = core_api.list_namespaced_pod(namespace=namespace, label_selector=f"app={deployment_name}")
     log_debug(f"pod_response: {pod_response}")
-    for pod_info in pod_response.items:
+    for pod_info in live_pods(pod_response.items):
         pod_name = pod_info.metadata.name
         pods.append(pod_name)
     return pods

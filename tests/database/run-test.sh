@@ -68,10 +68,12 @@ else
     fail "Create database content test: FAILED"
 fi
 
-# Stop then start again and check the volume was preserved
+# Stop then start again and check the volume was preserved.  The wait for the
+# containers to be gone is what makes the log check below mean anything: a pod
+# still terminating carries this test's own output from before the restart, and
+# the wait for "test complete" would match that instead of the new run.
 $TEST_TARGET_STACK manage --dir $test_deployment_dir stop
-# Sleep a bit just in case
-sleep 20
+wait_for_stopped
 $TEST_TARGET_STACK manage --dir $test_deployment_dir start
 wait_for_containers_started
 wait_for_log_content "Database test client: test complete"

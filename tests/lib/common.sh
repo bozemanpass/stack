@@ -312,6 +312,31 @@ wait_for_containers_started () {
     fail "waiting for containers to start: FAILED"
 }
 
+# Wait until the deployment's containers are gone, after a stop.  $1 overrides
+# the number of 5-second checks (default 24, so two minutes).
+#
+# `stop` returns once it has deleted the objects, not once they are gone. On a
+# real cluster a pod terminates gracefully and lingers for a while, and both `ps`
+# and `logs` keep reporting it -- so a test that stops, starts, and then waits
+# for a log line can match the *previous* run's output from a pod that is on its
+# way out, and carry on before the new one has done anything at all. That is a
+# race the local targets usually win and a real cluster usually loses.
+wait_for_stopped () {
+    local check_limit=${1:-24}
+    local check=0
+    local ps_output
+    while [ $check -lt $check_limit ]; do
+        check=$((check + 1))
+        ps_output=$( $TEST_TARGET_STACK manage --dir "$TEST_DEPLOYMENT_DIR" ps ) || true
+        if [[ "$ps_output" != *"id:"* ]]; then
+            return
+        fi
+        echo "waiting for containers to stop..."
+        sleep 5
+    done
+    fail "waiting for containers to stop: FAILED"
+}
+
 # Wait until `manage logs` output contains $1 -- or, with no argument, until it
 # produces any output at all.  $2 overrides the number of 5-second checks
 # (default 50).
