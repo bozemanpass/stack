@@ -209,10 +209,17 @@ select_backup_target () {
                         ;;
                 esac
             fi
-            # Each deployment writes its own restic repository (the tool names it
-            # for the deployment inside the bucket), and a deployment is new every
-            # run, so a repository password per run is enough and no long-lived
-            # secret has to exist for the test.
+            # Each deployment writes its own restic repository, which the tool
+            # names for the deployment inside the bucket -- so runs cannot collide
+            # and a password supplied here is not shared with anything else.
+            #
+            # Supply one (CI does) and the repositories a run leaves behind stay
+            # readable afterwards, which is what makes them usable later: to
+            # restore one by hand, or as the fixture for a test that restores a
+            # backup an earlier run took. Without one this falls back to a
+            # password that exists only for the length of the run, and its
+            # repository becomes unreadable the moment the run ends -- correct
+            # for a throwaway local run, useless to keep.
             export STACK_BACKUP_RESTIC_PASSWORD=${STACK_BACKUP_RESTIC_PASSWORD:-backup-test-$$}
             TEST_BACKUP_MIX_IN=""
             TEST_BACKUP_SERVICE_COUNT=1
