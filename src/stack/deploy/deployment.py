@@ -33,6 +33,11 @@ from stack.deploy.deploy import (
     create_deploy_context,
     update_operation,
 )
+from stack.deploy.deploy import (
+    backup_now_operation,
+    backup_list_operation,
+    backup_restore_operation,
+)
 from stack.deploy.deploy_types import DeployCommandContext
 from stack.deploy.deployment_context import DeploymentContext
 from stack.deploy.explain import explain_op
@@ -184,6 +189,49 @@ def reload(ctx):
     """reload the stack to pick up config changes"""
     ctx.obj = make_deploy_context(ctx)
     update_operation(ctx)
+
+
+@command.group()
+@click.pass_context
+def backup(ctx):
+    """back up and restore the deployment's data"""
+    # Nothing to do here: the subcommands below build their own deploy context.
+    # Backup configuration itself is ambient (see docs/backup.md), so there is
+    # no per-invocation configuration to collect.
+
+
+# A subcommand of a sub-group sits one level deeper than the rest of `manage`, so
+# it hands make_deploy_context the group's own context: that is the one whose
+# parents are `manage` and then the top-level cli, which is where the global
+# options live.
+def _backup_deploy_context(ctx):
+    return make_deploy_context(ctx.parent)
+
+
+@backup.command()
+@click.pass_context
+def now(ctx):
+    """back up the deployment's data immediately"""
+    ctx.obj = _backup_deploy_context(ctx)
+    backup_now_operation(ctx)
+
+
+@backup.command(name="list")
+@click.pass_context
+def list_snapshots(ctx):
+    """list the snapshots available to restore"""
+    ctx.obj = _backup_deploy_context(ctx)
+    backup_list_operation(ctx)
+
+
+@backup.command()
+@click.option("--snapshot", default="latest", help="snapshot to restore (default: the most recent)")
+@click.option("--volume", "volumes", multiple=True, help="restore only this volume (repeatable)")
+@click.pass_context
+def restore(ctx, snapshot, volumes):
+    """restore the deployment's data from a snapshot"""
+    ctx.obj = _backup_deploy_context(ctx)
+    backup_restore_operation(ctx, snapshot, list(volumes))
 
 
 @command.command()

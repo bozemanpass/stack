@@ -27,7 +27,7 @@ from typing import List
 
 from stack import constants
 from stack.deploy.compose.helpers import add_env_var
-from stack.config.util import get_config_setting
+from stack.deploy.backup import backup_settings
 from stack.log import log_debug, log_warn, log_info
 from stack.util import (
     get_stack_path,
@@ -531,6 +531,18 @@ def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec,
         log_debug(f"extra config dirs: {extra_config_dirs}")
         _fixup_pod_file(parsed_pod_file, parsed_spec, destination_compose_dir)
 
+        # The backup stack fills a gap that only the Docker target has: on
+        # Kubernetes the backup engine is K8up, configured by the deployer from
+        # the same ambient settings, and a backup container deployed there would
+        # sit idle holding no data mounts.
+        if parsed_spec.is_kubernetes_deployment() and constants.backup_service_name in parsed_pod_file.get(
+            constants.services_key, {}
+        ):
+            log_warn(
+                "WARN: the backup stack is a Docker-target mix-in and does nothing on Kubernetes, "
+                "where backups are run by K8up (see docs/backup.md)"
+            )
+
         if deployment_type == "compose":
             # Inject the shared config.env file into the compose file.  We don't need to do this for k8s.
             services = parsed_pod_file["services"]
@@ -582,28 +594,46 @@ def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec,
                 # backup-stack) with read-only mounts of the deployment's data volumes plus the
                 # backup engine configuration. Mirrors the VIRTUAL_HOST injection above.
                 # See docs/backup-implementation.md.
-                if get_config_setting("backup", False) and service_name == constants.backup_service_name:
-                    backup_cfg = parsed_spec.get_backup()
-                    exclude = set(backup_cfg.get("exclude", []))
-                    mounts = service_info.setdefault("volumes", [])
-                    for vol_name, vol_path in parsed_spec.get_volumes().items():
-                        if vol_name in exclude or not vol_path:
-                            continue
-                        # Same host path the named volume binds to (see _fixup_pod_file).
-                        # Mounted rw so the same container can restore in place; scheduled
-                        # backups only read. See docs/backup.md "Restore".
-                        device = vol_path if Path(vol_path).is_absolute() else f".{vol_path}"
-                        mounts.append(f"{device}:/backup/{vol_name}:rw")
-                    backup_env = service_info.get("environment", {})
-                    add_env_var("BACKUP_S3_ENDPOINT", get_config_setting("backup-s3-endpoint", ""), backup_env)
-                    add_env_var("BACKUP_S3_BUCKET", get_config_setting("backup-s3-bucket", ""), backup_env)
-                    add_env_var("BACKUP_SCHEDULE", get_config_setting("backup-schedule", "0 3 * * *"), backup_env)
-                    add_env_var(
-                        "BACKUP_RETENTION",
-                        get_config_setting("backup-retention", "--keep-daily 7 --keep-weekly 4 --keep-monthly 6"),
-                        backup_env,
-                    )
-                    service_info["environment"] = backup_env
+                if service_name == constants.backup_service_name:
+                    settings = backup_settings()
+                    if settings.enabled:
+                        backup_cfg = parsed_spec.get_backup()
+                        exclude = set(backup_cfg.get("exclude", []))
+                        mounts = service_info.setdefault("volumes", [])
+                        for vol_name, vol_path in parsed_spec.get_volumes().items():
+                            if vol_name in exclude or not vol_path:
+                                continue
+                            # Same host path the named volume binds to (see _fixup_pod_file).
+                            # Mounted rw so the same container can restore in place; scheduled
+                            # backups only read. See docs/backup.md "Restore".
+                            device = vol_path if Path(vol_path).is_absolute() else f".{vol_path}"
+                            mounts.append(f"{device}:/backup/{vol_name}:rw")
+                        backup_env = service_info.get("environment", {})
+                        deployment_name = deployment_command_context.cluster_context.cluster
+                        # The restic host the snapshots are filed under.
+                        add_env_var("STACK_DEPLOYMENT", deployment_name, backup_env)
+                        add_env_var("BACKUP_S3_ENDPOINT", settings.s3_endpoint, backup_env)
+                        # Each deployment gets its own repository inside the
+                        # configured bucket, as it does on Kubernetes (see
+                        # k8s/k8up.py backend_spec for why they are kept apart).
+                        add_env_var(
+                            "BACKUP_S3_BUCKET",
+                            f"{settings.s3_bucket.rstrip('/')}/{deployment_name}",
+                            backup_env,
+                        )
+                        add_env_var("BACKUP_SCHEDULE", settings.schedule, backup_env)
+                        add_env_var("BACKUP_RETENTION", settings.retention, backup_env)
+                        # restic's own environment variables. Only set from the
+                        # ambient settings when they are configured, so that a
+                        # deployment supplying them another way (through the
+                        # shared config.env) keeps working.
+                        if settings.restic_password:
+                            add_env_var("RESTIC_PASSWORD", settings.restic_password, backup_env)
+                        if settings.s3_key_id:
+                            add_env_var("AWS_ACCESS_KEY_ID", settings.s3_key_id, backup_env)
+                        if settings.s3_key:
+                            add_env_var("AWS_SECRET_ACCESS_KEY", settings.s3_key, backup_env)
+                        service_info["environment"] = backup_env
 
         with open(destination_compose_dir.joinpath(f"{constants.compose_file_prefix}-%s.yml" % pod), "w") as output_file:
             yaml.dump(parsed_pod_file, output_file)

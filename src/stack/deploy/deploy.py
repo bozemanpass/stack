@@ -28,6 +28,7 @@ from stack.constants import compose_file_prefix
 from stack.log import log_debug, output_main
 from stack.util import include_exclude_check, stack_is_in_deployment, resolve_compose_file, error_exit
 from stack.deploy.deployer import Deployer, DeployerException
+from stack.opts import opts
 from stack.deploy.deployer_factory import getDeployer
 from stack.deploy.deploy_types import ClusterContext, DeployCommandContext
 from stack.deploy.deployment_context import DeploymentContext
@@ -157,6 +158,42 @@ def exec_operation(ctx, extra_args):
             ctx.obj.deployer.execute(service_name, command_to_exec, envs=container_exec_env, tty=True)
         except DeployerException:
             error_exit("container command returned error exit status")
+
+
+def backup_now_operation(ctx):
+    if not opts.o.dry_run:
+        try:
+            ctx.obj.deployer.backup_now()
+        except DeployerException as e:
+            error_exit(f"backup failed: {e}")
+
+
+def backup_list_operation(ctx):
+    if not opts.o.dry_run:
+        try:
+            snapshots = ctx.obj.deployer.backup_list()
+        except DeployerException as e:
+            error_exit(f"listing snapshots failed: {e}")
+        if not snapshots:
+            output_main("No snapshots")
+            return
+        # One line per snapshot, oldest first: the id to pass to restore, when it
+        # was taken, and which of the deployment's volumes it holds.
+        #
+        # The id is shortened to restic's own short-id length, which is what the
+        # Docker target reports natively and what K8up's Snapshot objects give in
+        # full. A restore matches on the prefix, so the short form is enough to
+        # name a snapshot with.
+        for snapshot in snapshots:
+            output_main(f"{snapshot['id'][:8]}\t{snapshot['date']}\t{','.join(snapshot['volumes'])}")
+
+
+def backup_restore_operation(ctx, snapshot: str, volumes):
+    if not opts.o.dry_run:
+        try:
+            ctx.obj.deployer.backup_restore(snapshot, volumes)
+        except DeployerException as e:
+            error_exit(f"restore failed: {e}")
 
 
 def logs_operation(ctx, tail: int, follow: bool, extra_args: str):

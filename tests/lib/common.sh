@@ -149,6 +149,114 @@ select_deploy_target () {
     echo "Testing against the $TEST_TARGET_ENV target"
 }
 
+# Configure where backups are written, for the one test that takes them.
+#
+# Backup is configured ambiently -- the stack tool reads STACK_BACKUP* from the
+# environment -- so this sets that environment, and the test itself contains no
+# backup configuration.  It is separate from select_deploy_target because the
+# backup engine differs by target in a way nothing else does:
+#
+#   compose   the backup stack runs restic, against a SeaweedFS store mixed into
+#             the deployment, so everything is local and disposable
+#   remote    K8up runs the backups, and it is pointed at a real object store
+#             (DigitalOcean Spaces) named by the environment -- so neither the
+#             backup container nor a local store is deployed there
+#   kind      unsupported: K8up is not installed on a kind cluster, deliberately
+#             (nobody runs kind in production, so a backup test there would be
+#             testing an arrangement nobody has -- see issue #227)
+#
+# Sets, for the test to use:
+#
+#   TEST_BACKUP_MIX_IN         non-empty if the deployment has to carry the backup
+#                              engine and its object store itself (the Docker
+#                              target); empty where the cluster provides both
+#   TEST_BACKUP_SERVICE_COUNT  services the deployment ends up with, for the
+#                              startup wait
+#   TEST_BACKUP_STORE_WARMUP   non-empty if the object store is one this test
+#                              starts, and so has to be waited for
+select_backup_target () {
+    export STACK_BACKUP=true
+    case "$TEST_TARGET_ENV" in
+        compose)
+            export STACK_BACKUP_S3_ENDPOINT=http://s3:8333
+            export STACK_BACKUP_S3_BUCKET=stack-backups
+            # Matching the S3 identity the test stack configures SeaweedFS with.
+            export STACK_BACKUP_S3_KEY_ID=test-access-key
+            export STACK_BACKUP_S3_KEY=test-secret-key
+            export STACK_BACKUP_RESTIC_PASSWORD=test-restic-password
+            TEST_BACKUP_MIX_IN=yes
+            TEST_BACKUP_SERVICE_COUNT=3
+            TEST_BACKUP_STORE_WARMUP=yes
+            ;;
+        remote)
+            if [ -z "$STACK_BACKUP_S3_BUCKET" ] || [ -z "$STACK_BACKUP_S3_KEY_ID" ] || [ -z "$STACK_BACKUP_S3_KEY" ]; then
+                fail "Error: the backup test on a real cluster requires STACK_BACKUP_S3_BUCKET, STACK_BACKUP_S3_KEY_ID and STACK_BACKUP_S3_KEY"
+            fi
+            # A Spaces bucket is handed out as a URL with the bucket as the first
+            # label (https://<bucket>.<region>.digitaloceanspaces.com), while the
+            # tool wants the endpoint and the bucket separately.  Accept either.
+            if [ -z "$STACK_BACKUP_S3_ENDPOINT" ]; then
+                case "$STACK_BACKUP_S3_BUCKET" in
+                    https://*|http://*)
+                        _scheme="${STACK_BACKUP_S3_BUCKET%%://*}"
+                        _host="${STACK_BACKUP_S3_BUCKET#*://}"
+                        _host="${_host%%/*}"
+                        export STACK_BACKUP_S3_BUCKET="${_host%%.*}"
+                        export STACK_BACKUP_S3_ENDPOINT="${_scheme}://${_host#*.}"
+                        ;;
+                    *)
+                        fail "Error: set STACK_BACKUP_S3_ENDPOINT, or give STACK_BACKUP_S3_BUCKET as the bucket's URL"
+                        ;;
+                esac
+            fi
+            # Each deployment writes its own restic repository (the tool names it
+            # for the deployment inside the bucket), and a deployment is new every
+            # run, so a repository password per run is enough and no long-lived
+            # secret has to exist for the test.
+            export STACK_BACKUP_RESTIC_PASSWORD=${STACK_BACKUP_RESTIC_PASSWORD:-backup-test-$$}
+            TEST_BACKUP_MIX_IN=""
+            TEST_BACKUP_SERVICE_COUNT=1
+            TEST_BACKUP_STORE_WARMUP=""
+            ;;
+        *)
+            fail "Error: the backup test does not support the $TEST_TARGET_ENV target (K8up, which runs backups on k8s, is not installed on a kind cluster)"
+            ;;
+    esac
+    echo "Backing up to ${STACK_BACKUP_S3_ENDPOINT}/${STACK_BACKUP_S3_BUCKET}"
+}
+
+# Wait until the object store backups go to can serve back what it accepts.
+#
+# Only the store this test starts itself needs this, and it needs it for a reason
+# worth stating: a SeaweedFS that has just started accepts a restic repository and
+# then serves something else for the reads, which leaves a repository that can
+# never be read -- restic will not initialize over it, so every later attempt fails
+# on "already initialized". Waiting for a container to be "running", or for the
+# store to answer HTTP, is not enough; the only question that distinguishes a store
+# that is ready is whether it reads back what it just wrote, so that is what this
+# asks, in a throwaway repository.
+#
+# A real object store is always ready, so this is skipped where the store is one.
+wait_for_backup_store () {
+    if [ -z "$TEST_BACKUP_STORE_WARMUP" ]; then
+        return
+    fi
+    local check_limit=${1:-24}
+    local check=0
+    while [ $check -lt $check_limit ]; do
+        check=$((check + 1))
+        # Each probe uses a repository of its own: a damaged one stays damaged, so
+        # probing the same path twice would report the first failure forever.
+        if deployment_exec backup "probe=s3:\${BACKUP_S3_ENDPOINT}/\${BACKUP_S3_BUCKET}-probe-${check}; \
+                restic -r \$probe init > /dev/null 2>&1 && restic -r \$probe cat config > /dev/null 2>&1"; then
+            return
+        fi
+        echo "waiting for the object store to become ready..."
+        sleep 5
+    done
+    fail "waiting for the object store: FAILED"
+}
+
 # Push the deployment's images to the registry the cluster pulls from.  Only a
 # remote cluster needs this: compose runs the images from the local daemon, and
 # kind loads them into its nodes itself.

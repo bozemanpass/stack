@@ -18,6 +18,7 @@ import os
 from pathlib import Path
 from python_on_whales import DockerClient, DockerException
 
+from stack import constants
 from stack.deploy.deployer import Deployer, DeployerException, DeployerConfigGenerator
 from stack.deploy.deployment_context import DeploymentContext
 from stack.log import output_main, log_info
@@ -140,6 +141,51 @@ class DockerDeployer(Deployer):
                 return self.docker.compose.logs(services=services, tail=tail, follow=follow, stream=stream)
             except DockerException as e:
                 raise DeployerException(e)
+
+    def _backup_exec(self, command):
+        """Run one of the backup container's scripts and return its output.
+
+        On this target the backup engine is the mixed-in backup service, which
+        holds the restic configuration and the data volume mounts; every backup
+        operation is therefore a script in that container rather than something
+        this process does itself.
+        """
+        try:
+            return self.docker.compose.execute(
+                service=constants.backup_service_name,
+                command=command,
+                tty=False,
+                envs={},
+            )
+        except DockerException as e:
+            raise DeployerException(e)
+
+    def backup_now(self):
+        if not opts.o.dry_run:
+            output_main(self._backup_exec(["/scripts/backup.sh"]))
+
+    def backup_list(self):
+        if opts.o.dry_run:
+            return []
+        snapshots = []
+        # One tab-separated "<id> <date> <volume,volume>" line per snapshot; see
+        # list.sh in the backup-stack repo.
+        for line in (self._backup_exec(["/scripts/list.sh"]) or "").splitlines():
+            fields = line.split("\t")
+            if len(fields) != 3:
+                continue
+            snapshots.append(
+                {
+                    "id": fields[0],
+                    "date": fields[1],
+                    "volumes": [v for v in fields[2].split(",") if v],
+                }
+            )
+        return snapshots
+
+    def backup_restore(self, snapshot, volumes):
+        if not opts.o.dry_run:
+            output_main(self._backup_exec(["/scripts/restore.sh", snapshot or "latest"] + list(volumes or [])))
 
     def run(
         self,
