@@ -504,3 +504,70 @@ def test_pod_list_empty(tmp_path):
     stack_file.write_text("name: teststack\n")
     stack = Stack("teststack").init_from_file(stack_file)
     assert stack.get_pod_list() == []
+
+
+# ---------------------------------------------------------------------------
+# plugin code paths
+# ---------------------------------------------------------------------------
+#
+# These are where the tool looks for a stack's deploy/commands.py hooks.  Getting
+# a relative path back here is not a visible failure: the caller checks
+# .exists(), finds nothing, and deploys as if the stack had no hooks at all.  So
+# assert the paths are absolute and land on the stack, rather than inferring it
+# from a deployment having come out right.
+
+
+def test_plugin_code_paths_for_string_pods(tmp_path):
+    """A stack whose pods are plain strings resolves to its own directory.
+
+    Regression test: this used to go through the stack's *name*, which resolves to
+    a bare relative Path("teststack") that exists nowhere, so the hooks were
+    silently never called.
+    """
+    stack_dir = tmp_path / "teststack"
+    stack_dir.mkdir()
+    stack_file = stack_dir / "stack.yml"
+    stack_file.write_text("name: teststack\npods:\n  - web\n")
+    stack = Stack("teststack").init_from_file(stack_file)
+
+    paths = stack.get_plugin_code_paths()
+
+    assert [p.is_absolute() for p in paths] == [True]
+    assert paths == [stack_dir]
+
+
+def test_plugin_code_paths_for_string_pods_independent_of_cwd(tmp_path, monkeypatch):
+    """The resolved path does not depend on where the tool was invoked from.
+
+    A relative result happens to "work" when the shell is sitting in the right
+    place, which is how a bug here stays hidden in a developer's checkout and
+    shows up only in CI.
+    """
+    stack_dir = tmp_path / "teststack"
+    stack_dir.mkdir()
+    stack_file = stack_dir / "stack.yml"
+    stack_file.write_text("name: teststack\npods:\n  - web\n")
+    stack = Stack("teststack").init_from_file(stack_file)
+
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+
+    assert stack.get_plugin_code_paths() == [stack_dir]
+
+
+def test_plugin_code_paths_for_dict_pods(tmp_path):
+    """The pod-per-directory format resolves through the pod's repo checkout."""
+    stack = load_stack(
+        tmp_path,
+        """\
+        services:
+          web:
+            image: nginx:local
+        """,
+    )
+
+    paths = stack.get_plugin_code_paths()
+
+    assert [p.is_absolute() for p in paths] == [True]
+    assert [p.name for p in paths] == ["stack"]

@@ -20,7 +20,7 @@ stack authors should read [stack-files.md](stack-files.md) first.
 | Document | Description |
 | --- | --- |
 | [stack-files.md](stack-files.md) | The `stack.yml` file format: containers, pods, pre/post-start commands, and stack composition. The core reference for stack authors. |
-| [hooks.md](hooks.md) | Extending the `init` and `deploy` commands on a per-pod basis with Python hook functions. |
+| [hooks.md](hooks.md) | Extending the `init` and `deploy` commands from a stack, with Python hook functions. |
 | [subcommands.md](subcommands.md) | Adding stack-specific subcommands to the `stack` command line from a `subcommands` directory. |
 | [wrappers.md](wrappers.md) | Container wrappers: packaging application source that has no container build of its own (static HTML, Next.js apps without a Dockerfile) into runnable images. |
 | [webapp.md](webapp.md) | Building and running static, React, and Next.js webapps with `webapp build` / `webapp run`, separating compilation from environment-specific configuration. |
