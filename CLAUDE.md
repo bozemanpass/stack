@@ -60,6 +60,9 @@ The integration tests are **bash shell scripts**, not pytest. They require Docke
 
 # Volume persistence test, against a local kind cluster
 STACK_TEST_TARGET=kind ./tests/database/run-test.sh
+
+# K8s pod placement controls (kind only — builds its own multi-node cluster)
+./tests/k8s-deployment-control/run-test.sh
 ```
 
 There are three deployment targets, and a test that works against more than one
@@ -69,6 +72,12 @@ that are only about general behaviour stay on compose; the ones likely to find
 target-specific bugs — currently `app-deploy` and `database` — are written to
 run on any of the three. Anything genuinely target-shaped belongs in
 `select_deploy_target` rather than in an `if` inside a test.
+
+A test can also be legitimately single-target: `k8s-deployment-control` appends
+labelled and tainted worker nodes to the deployment's kind config, so it only
+works where the test owns the cluster. It still goes through
+`select_deploy_target` for the init plumbing, and refuses a `STACK_TEST_TARGET`
+other than `kind` rather than silently testing nothing.
 
 Which combinations CI actually runs is a separate question from which ones a
 test supports, and is decided by cost: `app-deploy` and `database` both run on
@@ -166,4 +175,4 @@ Stacks can also provide custom subcommands loaded dynamically.
 
 - Build backend: `uv_build`
 - CI runs on GitHub Actions (see `.github/workflows/`)
-- Workflows: `lint.yml`, `test-unit.yml`, `test.yml`, `test-deploy.yml`, `test-deploy-k8s.yml`, `test-database.yml`, `test-webapp.yml`, `publish.yml`
+- Workflows: `lint.yml`, `test-unit.yml`, `test.yml`, `test-deploy.yml`, `test-deploy-k8s.yml`, `test-database.yml`, `test-deployment-control.yml`, `test-webapp.yml`, `publish.yml`

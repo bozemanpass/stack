@@ -25,3 +25,8 @@ node-tolerations:
 ```
 This example denotes that the stack's pods will tolerate a taint: `nodetype=typeb`
 
+## Testing
+Both mechanisms are covered by `tests/k8s-deployment-control/run-test.sh`, which builds a
+four node kind cluster with labelled workers, one of them tainted, and checks that the
+deployment's pod lands on the single node the affinity and toleration between them permit.
+
