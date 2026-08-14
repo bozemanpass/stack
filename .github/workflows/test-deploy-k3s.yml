@@ -123,12 +123,16 @@ jobs:
           STACK_IMAGE_REGISTRY_TOKEN: ${{ secrets.K3S_TEST_REGISTRY_TOKEN }}
           LETSENCRYPT_EMAIL: ${{ vars.K3S_TEST_LETSENCRYPT_EMAIL }}
           # Where the backup test's backups go. The bucket may be given as its
-          # URL; the test splits out the endpoint. The repository password is
-          # generated per run by the test, since each run backs up a deployment
-          # that did not exist before.
+          # URL; the test splits out the endpoint.
           STACK_BACKUP_S3_BUCKET: ${{ vars.K3S_TEST_BACKUP_S3_BUCKET }}
           STACK_BACKUP_S3_KEY_ID: ${{ secrets.K3S_TEST_BACKUP_S3_KEY_ID }}
           STACK_BACKUP_S3_KEY: ${{ secrets.K3S_TEST_BACKUP_S3_KEY }}
+          # A fixed repository password, so that the repositories runs leave in
+          # the bucket can still be read afterwards -- to restore one by hand, or
+          # as the fixture for a test that restores what an earlier run backed up.
+          # The test generates a per-run password when this is unset, and those
+          # repositories die with the run that wrote them.
+          STACK_BACKUP_RESTIC_PASSWORD: ${{ secrets.K3S_TEST_BACKUP_RESTIC_PASSWORD }}
           STACK_SCRIPT_DEBUG: ${{ runner.debug }}
           # Already reflects the `tests` input, if one was given: the plan job
           # applies it to every leg it emits.

@@ -53,6 +53,19 @@
 #   LETSENCRYPT_EMAIL        Let's Encrypt contact address
 #
 # Optional environment:
+#   STACK_BACKUP_S3_BUCKET   The object store the backup test backs up to, and
+#   STACK_BACKUP_S3_KEY_ID   the credentials for it. Required only when the
+#   STACK_BACKUP_S3_KEY      backup test is one of the scripts being run; it
+#                            refuses to run without them rather than testing a
+#                            deployment that is not really backed up. The bucket
+#                            may be given as its URL.
+#   STACK_BACKUP_RESTIC_PASSWORD
+#                            Repository password for the same test. Optional even
+#                            then: without it each run uses a password of its own
+#                            and the repository it leaves behind cannot be read
+#                            again, which is fine for a run nobody will look at
+#                            afterwards and no good as something to restore from
+#                            later.
 #   STACK_K3S_MODE           "gateway" (default) provisions the Gateway API
 #                            arrangement, which is k3s-node.sh's own default;
 #                            "ingress" provisions the legacy nginx arrangement
