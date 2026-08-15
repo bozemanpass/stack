@@ -27,6 +27,7 @@ from pathlib import Path
 from stack.constants import compose_file_prefix
 from stack.log import log_debug, output_main
 from stack.util import include_exclude_check, stack_is_in_deployment, resolve_compose_file, error_exit
+from stack.deploy.backup import backup_settings
 from stack.deploy.deployer import Deployer, DeployerException
 from stack.opts import opts
 from stack.deploy.deployer_factory import getDeployer
@@ -97,8 +98,33 @@ def down_operation(ctx, delete_volumes, extra_args_list, skip_cluster_management
     )
 
 
-def status_operation(ctx):
+def status_operation(ctx, deployment_context: DeploymentContext = None):
     ctx.obj.deployer.status()
+    if deployment_context:
+        _output_backup_status(deployment_context.spec)
+
+
+def _output_backup_status(spec):
+    """Summarize what backup, as configured right now, would capture.
+
+    The volume and dump lists come from the deployment's spec; whether anything acts
+    on them is the ambient `backup` switch, which can change after the deployment is
+    created -- so this reports the current settings, the same ones the engines read.
+    """
+    settings = backup_settings()
+    if not settings.enabled:
+        output_main("backup: not enabled")
+        return
+    output_main(f"backup: enabled (schedule: {settings.schedule})")
+    backup_cfg = spec.get_backup()
+    exclude = set(backup_cfg.get("exclude", []))
+    for volume_name in spec.get_volumes():
+        detail = "excluded" if volume_name in exclude else "backed up"
+        output_main(f"  volume {volume_name}: {detail}")
+    for svc, info in backup_cfg.get("commands", {}).items():
+        extension = info.get("file-extension")
+        suffix = f" (.{extension})" if extension else ""
+        output_main(f"  dump {svc}: {info['command']}{suffix}")
 
 
 def update_operation(ctx):

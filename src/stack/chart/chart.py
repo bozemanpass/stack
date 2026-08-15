@@ -86,6 +86,11 @@ def _render_stack_text(stack, show_http_targets, show_ports, show_volumes, inden
     http_targets = stack.get_http_proxy_targets() if show_http_targets else []
     ports = stack.get_ports() if show_ports else {}
     volumes = stack.get_volumes() if show_volumes else {}
+    # The stack's backup setup (see docs/backup.md), so what a backup would and
+    # would not capture is visible without deploying anything.
+    backup_targets = stack.get_backup_targets()
+    backup_exclude = set(backup_targets["exclude"])
+    backup_commands = backup_targets["commands"]
 
     name_width = max((len(s) for s in services), default=0)
     service_names = list(services)
@@ -108,7 +113,13 @@ def _render_stack_text(stack, show_http_targets, show_ports, show_volumes, inden
 
         for volume in volumes.get(svc, []):
             volume_name, mount = _split_volume(volume)
-            lines.append(f"{detail_indent}volume {volume_name}" + (f" -> {mount}" if mount else ""))
+            excluded = " (backup excluded)" if volume_name in backup_exclude else ""
+            lines.append(f"{detail_indent}volume {volume_name}" + (f" -> {mount}" if mount else "") + excluded)
+
+        if svc in backup_commands:
+            extension = backup_commands[svc].get("file-extension")
+            suffix = f" (.{extension})" if extension else ""
+            lines.append(f"{detail_indent}backup dump {backup_commands[svc]['command']}{suffix}")
 
         for dep in _depends_on(services[svc]):
             lines.append(f"{detail_indent}needs {dep}")

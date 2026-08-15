@@ -144,6 +144,28 @@ if [[ "$snapshots" != *"app-data"* ]]; then
 fi
 echo "Exclude annotation test: passed (app-data2 excluded, app-data backed up)"
 
+# 6b. Assert the `@stack backup-command` dump was captured. The stack annotates the app
+#     with a dump command (cat of the payload file, standing in for a database dump)
+#     whose stdout the backup stores as a snapshot of its own. Where that snapshot shows
+#     up differs by engine: the Docker target's backup container collects dumps under a
+#     _dumps directory it backs up like a volume (so its content can also be read back
+#     directly), while K8up stores the command output as a snapshot named for the pod,
+#     with the annotated file extension.
+if [ -n "$TEST_BACKUP_MIX_IN" ]; then
+    if [[ "$snapshots" != *"_dumps"* ]]; then
+        fail "Backup command test: FAILED (no _dumps snapshot in the list)"
+    fi
+    dumped=$( deployment_exec backup "cat /data/_dumps/app.txt" || true )
+    if [[ "$dumped" != *"$payload"* ]]; then
+        fail "Backup command test: FAILED (expected dump content '${payload}', got '${dumped}')"
+    fi
+else
+    if [[ "$snapshots" != *".txt"* ]]; then
+        fail "Backup command test: FAILED (no .txt dump snapshot in the list)"
+    fi
+fi
+echo "Backup command test: passed (dump captured)"
+
 # 7. Seed a *second*, independent deployment from the first one's backups. This is what
 #    recovers a deployment whose cluster is gone, and what makes several copies of one
 #    dataset -- so what it proves is that a backup is restorable by something other than

@@ -179,8 +179,9 @@ def logs(ctx, tail, follow, extra_args):
 @click.pass_context
 def status(ctx):
     """report stack and container status"""
+    deployment_context: DeploymentContext = ctx.obj
     ctx.obj = make_deploy_context(ctx)
-    status_operation(ctx)
+    status_operation(ctx, deployment_context)
 
 
 @command.command()

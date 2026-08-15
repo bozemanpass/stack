@@ -288,6 +288,77 @@ def test_backup_exclude_ignores_trailing_block_comment(tmp_path):
     assert stack.get_backup_targets() == {"exclude": [], "commands": {}}
 
 
+def test_backup_command_annotations(tmp_path):
+    # The documented shape: annotations as full-line comments after the service's
+    # last key (docs/backup.md "Application consistency").
+    stack = load_stack(
+        tmp_path,
+        """\
+        services:
+          db:
+            image: postgres:local
+            volumes:
+              - pgdata:/var/lib/postgresql/data   # @stack backup-exclude
+            # @stack backup-command pg_dump -U postgres -d todos
+            # @stack backup-file-extension sql
+        volumes:
+          pgdata:
+        """,
+    )
+    assert stack.get_backup_targets() == {
+        "exclude": ["pgdata"],
+        "commands": {"db": {"command": "pg_dump -U postgres -d todos", "file-extension": "sql"}},
+    }
+
+
+def test_backup_command_between_service_keys(tmp_path):
+    # The annotation may sit anywhere inside the service block, not only at its end;
+    # ruamel attaches it to different nodes depending on position, and all of them count.
+    stack = load_stack(
+        tmp_path,
+        """\
+        services:
+          db:
+            # @stack backup-command mydump --all
+            image: db:local
+          web:
+            image: nginx:local
+        """,
+    )
+    assert stack.get_backup_targets()["commands"] == {"db": {"command": "mydump --all"}}
+
+
+def test_backup_command_heading_a_service_is_ignored(tmp_path):
+    # A comment at the services' own indent is a heading for the *next* service, but
+    # ruamel attaches it to the previous one.  Counting it would silently give the
+    # command to the wrong service, so it is rejected (with a warning) instead.
+    stack = load_stack(
+        tmp_path,
+        """\
+        services:
+          web:
+            image: nginx:local
+          # @stack backup-command pg_dump -U postgres
+          db:
+            image: postgres:local
+        """,
+    )
+    assert stack.get_backup_targets()["commands"] == {}
+
+
+def test_backup_file_extension_without_command_is_ignored(tmp_path):
+    stack = load_stack(
+        tmp_path,
+        """\
+        services:
+          db:
+            image: postgres:local
+            # @stack backup-file-extension sql
+        """,
+    )
+    assert stack.get_backup_targets()["commands"] == {}
+
+
 # ---------------------------------------------------------------------------
 # get_named_volumes
 # ---------------------------------------------------------------------------

@@ -290,6 +290,22 @@ def test_container_reservations_only_yields_no_limits(tmp_path):
     assert container["resources"] == {"requests": {"memory": "256M"}}
 
 
+def test_backup_command_becomes_k8up_pod_annotations(tmp_path):
+    spec = k8s_spec(backup={"commands": {"web": {"command": "pg_dump -U postgres todos", "file-extension": "sql"}}})
+    cluster_info = make_cluster_info(tmp_path, MINIMAL_POD, spec)
+
+    annotations = k8s_dict(cluster_info.get_deployments()[0])["spec"]["template"]["metadata"]["annotations"]
+    assert annotations["k8up.io/backupcommand"] == "pg_dump -U postgres todos"
+    assert annotations["k8up.io/file-extension"] == ".sql"
+
+
+def test_no_k8up_pod_annotations_without_backup_command(tmp_path):
+    cluster_info = make_cluster_info(tmp_path, MINIMAL_POD, k8s_spec())
+
+    template_metadata = k8s_dict(cluster_info.get_deployments()[0])["spec"]["template"]["metadata"]
+    assert not template_metadata.get("annotations")
+
+
 # ---------------------------------------------------------------------------
 # PersistentVolumeClaims and PersistentVolumes
 # ---------------------------------------------------------------------------

@@ -29,6 +29,53 @@ from stack.log import log_debug, log_warn
 from stack.util import get_yaml, get_stack_path, error_exit, resolve_compose_file, STACK_USE_BUILTIN_STACK
 
 
+def _flatten_comment_tokens(entry):
+    """Yield the CommentTokens in one ruamel comment-attachment entry.
+
+    An entry is a token, a (possibly nested) list of tokens, or None, depending on
+    where the comment sat; this flattens all of those shapes.
+    """
+    if entry is None:
+        return
+    if isinstance(entry, list):
+        for item in entry:
+            yield from _flatten_comment_tokens(item)
+    else:
+        yield entry
+
+
+def _comment_tokens_in(node):
+    """Yield every CommentToken attached anywhere within node's subtree."""
+    ca = getattr(node, "ca", None)
+    if ca is not None:
+        yield from _flatten_comment_tokens(ca.comment)
+        for entry in ca.items.values():
+            yield from _flatten_comment_tokens(entry)
+    if isinstance(node, dict):
+        for value in node.values():
+            yield from _comment_tokens_in(value)
+    elif isinstance(node, list):
+        for value in node:
+            yield from _comment_tokens_in(value)
+
+
+def _comment_lines(tokens):
+    """Yield (column, text) for each non-empty comment line in the given tokens.
+
+    A token can span several source lines (an end-of-line comment followed by
+    full-line comments becomes one token).  The token's own column locates its
+    first line; the later lines carry their leading whitespace in the value, which
+    is their column.
+    """
+    for token in tokens:
+        for i, raw in enumerate(token.value.splitlines()):
+            text = raw.strip()
+            if not text:
+                continue
+            column = token.start_mark.column if i == 0 else len(raw) - len(raw.lstrip())
+            yield column, text
+
+
 class Stack:
     name: str
     file_path: Path
@@ -212,34 +259,91 @@ class Stack:
     def get_backup_targets(self):
         """Parse @stack backup-* annotations from the stack's composefiles.
 
-        Currently supports `backup-exclude` on a volume mount line, parsed the same way as the
-        http-proxy port annotations (see get_http_proxy_targets). Returns:
+        `backup-exclude` sits on a volume mount line, parsed the same way as the
+        http-proxy port annotations (see get_http_proxy_targets).  `backup-command`
+        and `backup-file-extension` are service-level: full-line comments written
+        anywhere *inside* the service's block (see docs/backup.md).  Returns:
 
-            {"exclude": [volume_name, ...], "commands": {}}
-
-        `commands` (per-service consistency dumps from `backup-command`) is reserved for a
-        follow-up; see docs/backup-implementation.md.
+            {"exclude": [volume_name, ...],
+             "commands": {service_name: {"command": str, "file-extension": str}}}
         """
         exclude = []
+        commands = {}
         for pod in self.get_pod_list():
             parsed_pod_file = self.load_pod_file(pod)
             if constants.services_key not in parsed_pod_file:
                 continue
-            for svc_name, svc in parsed_pod_file[constants.services_key].items():
-                if constants.volumes_key not in svc:
-                    continue
-                volumes_section = svc[constants.volumes_key]
-                for i, mount in enumerate(volumes_section):
-                    item_comments = volumes_section.ca.items.get(i)
-                    if item_comments and item_comments[0]:
-                        # Only the end-of-line comment (first line of the token) counts.
-                        # ruamel attaches trailing block comments (e.g. a comment that heads
-                        # the next service) to the preceding item; those must be ignored.
-                        comment = item_comments[0].value.split("\n", 1)[0].strip()
-                        if constants.stack_annotation_marker in comment \
-                                and constants.backup_exclude_annotation in comment:
-                            exclude.append(str(mount).split(":")[0])
-        return {"exclude": exclude, "commands": {}}
+            services = parsed_pod_file[constants.services_key]
+            for svc_name, svc in services.items():
+                if constants.volumes_key in svc:
+                    volumes_section = svc[constants.volumes_key]
+                    for i, mount in enumerate(volumes_section):
+                        item_comments = volumes_section.ca.items.get(i)
+                        if item_comments and item_comments[0]:
+                            # Only the end-of-line comment (first line of the token) counts.
+                            # ruamel attaches trailing block comments (e.g. a comment that heads
+                            # the next service) to the preceding item; those must be ignored.
+                            comment = item_comments[0].value.split("\n", 1)[0].strip()
+                            if constants.stack_annotation_marker in comment \
+                                    and constants.backup_exclude_annotation in comment:
+                                exclude.append(str(mount).split(":")[0])
+                self._parse_backup_command_annotations(services, svc_name, svc, commands)
+        for svc_name in list(commands):
+            if "command" not in commands[svc_name]:
+                log_warn(
+                    f"WARN: service '{svc_name}' has a {constants.backup_file_extension_annotation} "
+                    f"annotation but no {constants.backup_command_annotation}; ignoring it"
+                )
+                del commands[svc_name]
+        return {"exclude": exclude, "commands": commands}
+
+    @staticmethod
+    def _parse_backup_command_annotations(services, svc_name, svc, commands):
+        """Collect this service's backup-command / backup-file-extension annotations.
+
+        These are full-line comments written inside the service's block, so unlike the
+        mount-line annotations there is no YAML item for them to be an end-of-line
+        comment of: ruamel hangs them off whatever node precedes them, which varies
+        with where in the block they are written.  So every comment attached within
+        the service's subtree is scanned, line by line.
+
+        A comment written at less indent than the service's keys is a heading for
+        whatever comes next (typically the next service), which ruamel also attaches
+        to the preceding node -- the same trap noted for the mount-line parse above.
+        Those lines are rejected by their column, with a warning when one carries a
+        backup annotation, since silently attaching it to the wrong service would be
+        far worse than ignoring it.
+        """
+        # The column the service's keys start at; a genuinely in-block comment
+        # cannot be left of it.
+        svc_column = svc.lc.col if getattr(svc, "lc", None) else 0
+        # Comments between the "name:" line and the first key attach to the services
+        # map's entry for the name, not to the service itself, so both are scanned.
+        tokens = list(_comment_tokens_in(svc)) + list(_flatten_comment_tokens(services.ca.items.get(svc_name)))
+        for column, text in _comment_lines(tokens):
+            if constants.stack_annotation_marker not in text:
+                continue
+            words = text.split()
+            if constants.backup_command_annotation in words:
+                annotation = constants.backup_command_annotation
+            elif constants.backup_file_extension_annotation in words:
+                annotation = constants.backup_file_extension_annotation
+            else:
+                continue
+            if column < svc_column:
+                log_warn(
+                    f"WARN: ignoring {annotation} annotation not written inside a service block "
+                    f"(after service '{svc_name}'): {text}"
+                )
+                continue
+            value = text.split(annotation, 1)[1].strip()
+            if not value:
+                log_warn(f"WARN: ignoring empty {annotation} annotation on service '{svc_name}'")
+                continue
+            if annotation == constants.backup_command_annotation:
+                commands.setdefault(svc_name, {})["command"] = value
+            else:
+                commands.setdefault(svc_name, {})["file-extension"] = value.split()[0]
 
     def get_http_proxy_targets(self, prefix=None):
         if prefix:

@@ -62,6 +62,13 @@ S3_KEY_KEY = "s3-key"
 # K8up's opt-out annotation, applied to a PVC the stack author excluded.
 BACKUP_ANNOTATION = "k8up.io/backup"
 
+# K8up's consistency-dump annotations, applied to the pod of a service the stack
+# author gave a `@stack backup-command`: K8up execs the command in the pod at
+# backup time and stores its stdout as a snapshot of its own, named with the
+# given file extension.
+BACKUP_COMMAND_ANNOTATION = "k8up.io/backupcommand"
+FILE_EXTENSION_ANNOTATION = "k8up.io/file-extension"
+
 # How long to wait for an on-demand Backup or Restore to finish.  Both run as
 # ordinary Jobs whose pod has to be scheduled and pull an image first, so the
 # floor is not small; the ceiling only has to be larger than a real transfer.
