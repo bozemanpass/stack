@@ -218,6 +218,28 @@ Two things follow from "instead of (or alongside)":
   snapshot shows up in `backup list` like any other and can be pulled out with the bare `restic` CLI — or,
   on the Docker target, read straight out of the backup container under `/data/_dumps/`.
 
+Both of those routes to the dump go through the backup engine, which is awkward at exactly the moment it
+matters: the service that has to replay the dump cannot reach the place the engine keeps it. An author who
+wants the dump to come back within reach of the service writes it to a **volume of the service's own**
+instead of to stdout:
+
+```yaml
+services:
+  db:
+    image: bozemanpass/todo-db:stack
+    volumes:
+      - "pgdata:/var/lib/postgresql/data"   # @stack backup-exclude
+      - "dumps:/dumps"
+    # @stack backup-command pg_dump -U postgres -d todos -Fc -f /dumps/todos.dump
+```
+
+Nothing new is at work here: `dumps` is an ordinary volume, so it is backed up and restored like any other,
+and the command still runs inside the service's container at backup time, so what lands in it is still a
+consistent dump. What changes is where the dump is after a restore — `/dumps/todos.dump` in the service's
+own filesystem, where `pg_restore` can be pointed straight at it. This is what
+`tests/database/run-backup-test.sh` exercises end to end. The one cost is that the command now prints
+nothing, so the backup also carries a zero-length `_dumps` entry for it.
+
 ### Annotation summary
 
 There are only two optional annotations, both author-time, both with safe "just back it up" defaults:
@@ -443,10 +465,14 @@ It is where an exclusion shows up: a volume marked `@stack backup-exclude` never
   `backup list --from`. Restoring from elsewhere does not need it — the latest snapshot per volume is
   chosen by K8up — but naming a specific `--snapshot` in someone else's repository means finding the id
   another way.
-- **An end-to-end disaster-recovery test.** The backup test restores within one deployment, and seeds a
-  second deployment from the first, both on one cluster. The real exercise — back up, destroy the cluster,
-  provision a new one, restore into a fresh deployment, and check the data — spans two CI jobs that have to
-  agree on what was written, and is not built.
+- **A disaster-recovery test that destroys the *cluster*.** The deployment-level version of it is built and
+  runs per-PR (`tests/database/run-backup-test.sh`): a database stack is loaded and backed up, its
+  deployment is destroyed — containers, volumes and directory — and a new deployment of the same stack is
+  rebuilt from the backup, which is then read back through the database. It is the dump path rather than the
+  file path: the stack excludes its data directory, so the repository holds a `pg_dump` and no database
+  files, and `pg_restore` is what puts the database back. What that does not cover is the machine underneath
+  going with it: back up, destroy the cluster, provision a new one, restore into a fresh deployment. That
+  spans two CI jobs that have to agree on what was written, and is not built.
 - **Cross-target restore is not covered by a test.** Both directions were verified by hand when the layouts
   were aligned (a compose-written repository restored on a real cluster, and a K8up-written one restored on
   compose), but nothing re-checks it: a test would need a compose deployment writing to a real object store

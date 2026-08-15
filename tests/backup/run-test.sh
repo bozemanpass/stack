@@ -86,7 +86,9 @@ echo "deploy create test: passed"
 push_images_if_needed "$test_deployment_dir"
 
 $TEST_TARGET_STACK manage --dir "$test_deployment_dir" start
-wait_for_running $TEST_BACKUP_SERVICE_COUNT $TEST_START_CHECK_LIMIT
+# The app stack's one service, plus whatever the backup arrangement adds on this
+# target (the backup container and the store on Docker, nothing on a cluster).
+wait_for_running $(( 1 + TEST_BACKUP_EXTRA_SERVICES )) $TEST_START_CHECK_LIMIT
 wait_for_backup_store
 
 # 1. Write a known payload into the app's data volume (via the app).
@@ -194,7 +196,7 @@ if [ -n "$TEST_BACKUP_CAN_SEED" ]; then
 
     push_images_if_needed "$seeded_deployment_dir"
     $TEST_TARGET_STACK manage --dir "$seeded_deployment_dir" start
-    wait_for_running $TEST_BACKUP_SERVICE_COUNT $TEST_START_CHECK_LIMIT
+    wait_for_running $(( 1 + TEST_BACKUP_EXTRA_SERVICES )) $TEST_START_CHECK_LIMIT
 
     empty=$( deployment_exec app "cat /data/payload.txt" 2>/dev/null || true )
     if [[ "$empty" == *"$payload"* ]]; then

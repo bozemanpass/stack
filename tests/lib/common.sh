@@ -149,15 +149,22 @@ select_deploy_target () {
     echo "Testing against the $TEST_TARGET_ENV target"
 }
 
-# Configure where backups are written, for the one test that takes them.
+# The host's own address, as a container reaches it: the source address the
+# kernel would use to leave the machine.  Not 127.0.0.1, which inside a container
+# is the container, and not the docker bridge gateway, which differs per network.
+host_address () {
+    ip -4 route get 1 | awk '{for (i = 1; i < NF; i++) if ($i == "src") print $(i + 1); exit}'
+}
+
+# Configure where backups are written, for the tests that take them.
 #
 # Backup is configured ambiently -- the stack tool reads STACK_BACKUP* from the
 # environment -- so this sets that environment, and the test itself contains no
 # backup configuration.  It is separate from select_deploy_target because the
 # backup engine differs by target in a way nothing else does:
 #
-#   compose   the backup stack runs restic, against a SeaweedFS store mixed into
-#             the deployment, so everything is local and disposable
+#   compose   the backup stack runs restic, against a SeaweedFS store the test
+#             deploys, so everything is local and disposable
 #   remote    K8up runs the backups, and it is pointed at a real object store
 #             (DigitalOcean Spaces) named by the environment -- so neither the
 #             backup container nor a local store is deployed there
@@ -165,35 +172,59 @@ select_deploy_target () {
 #             (nobody runs kind in production, so a backup test there would be
 #             testing an arrangement nobody has -- see issue #227)
 #
+# Pass "external" for a test whose object store has to outlive the deployment
+# that wrote to it -- one that destroys a deployment and restores its backup into
+# a new one.  It changes nothing on a real cluster, whose store is already
+# external, and on the Docker target it moves SeaweedFS out of the deployment and
+# into a deployment of its own, reached over a published port rather than by
+# service name (see start_object_store_deployment).
+#
 # Sets, for the test to use:
 #
-#   TEST_BACKUP_MIX_IN         non-empty if the deployment has to carry the backup
-#                              engine and its object store itself (the Docker
-#                              target); empty where the cluster provides both
-#   TEST_BACKUP_SERVICE_COUNT  services the deployment ends up with, for the
-#                              startup wait
-#   TEST_BACKUP_STORE_WARMUP   non-empty if the object store is one this test
-#                              starts, and so has to be waited for
-#   TEST_BACKUP_CAN_SEED       non-empty if a second deployment can read the first
-#                              one's backups, so that seeding one deployment from
-#                              another can be tested. Only true of a store that is
-#                              outside the deployments: the Docker target's
-#                              SeaweedFS lives inside the first deployment and
-#                              publishes nothing, so nothing else can reach it
+#   TEST_BACKUP_MIX_IN          non-empty if the deployment has to carry the backup
+#                               engine itself (the Docker target); empty where the
+#                               cluster provides one
+#   TEST_BACKUP_EXTRA_SERVICES  how many services the backup arrangement adds to
+#                               the deployment, for the startup wait: the test adds
+#                               it to its own stack's service count rather than
+#                               knowing which target contributes what
+#   TEST_BACKUP_STORE_WARMUP    non-empty if the object store is one this test
+#                               starts, and so has to be waited for
+#   TEST_BACKUP_STORE_STACK     non-empty if the test has to deploy the object
+#                               store itself, as a deployment of its own
+#   TEST_BACKUP_CAN_SEED        non-empty if a second deployment can read the first
+#                               one's backups, so that seeding one deployment from
+#                               another can be tested. Only false of a store that
+#                               lives inside the first deployment and publishes
+#                               nothing, which is what "external" avoids
 select_backup_target () {
+    local store=${1:-in-deployment}
     export STACK_BACKUP=true
     case "$TEST_TARGET_ENV" in
         compose)
-            export STACK_BACKUP_S3_ENDPOINT=http://s3:8333
             export STACK_BACKUP_S3_BUCKET=stack-backups
             # Matching the S3 identity the test stack configures SeaweedFS with.
             export STACK_BACKUP_S3_KEY_ID=test-access-key
             export STACK_BACKUP_S3_KEY=test-secret-key
             export STACK_BACKUP_RESTIC_PASSWORD=test-restic-password
             TEST_BACKUP_MIX_IN=yes
-            TEST_BACKUP_SERVICE_COUNT=3
             TEST_BACKUP_STORE_WARMUP=yes
-            TEST_BACKUP_CAN_SEED=
+            if [ "$store" == "external" ]; then
+                # The store is a deployment of its own, publishing its port on
+                # every interface, so the backup container in another deployment
+                # reaches it at the host's address.  Not "localhost": that is the
+                # container itself, and not the service name either, since the two
+                # deployments are on separate docker networks.
+                export STACK_BACKUP_S3_ENDPOINT=http://$( host_address ):8333
+                TEST_BACKUP_EXTRA_SERVICES=1
+                TEST_BACKUP_STORE_STACK=yes
+                TEST_BACKUP_CAN_SEED=yes
+            else
+                export STACK_BACKUP_S3_ENDPOINT=http://s3:8333
+                TEST_BACKUP_EXTRA_SERVICES=2
+                TEST_BACKUP_STORE_STACK=
+                TEST_BACKUP_CAN_SEED=
+            fi
             ;;
         remote)
             if [ -z "$STACK_BACKUP_S3_BUCKET" ] || [ -z "$STACK_BACKUP_S3_KEY_ID" ] || [ -z "$STACK_BACKUP_S3_KEY" ]; then
@@ -229,8 +260,9 @@ select_backup_target () {
             # for a throwaway local run, useless to keep.
             export STACK_BACKUP_RESTIC_PASSWORD=${STACK_BACKUP_RESTIC_PASSWORD:-backup-test-$$}
             TEST_BACKUP_MIX_IN=""
-            TEST_BACKUP_SERVICE_COUNT=1
+            TEST_BACKUP_EXTRA_SERVICES=0
             TEST_BACKUP_STORE_WARMUP=""
+            TEST_BACKUP_STORE_STACK=""
             TEST_BACKUP_CAN_SEED=yes
             ;;
         *)
@@ -238,6 +270,46 @@ select_backup_target () {
             ;;
     esac
     echo "Backing up to ${STACK_BACKUP_S3_ENDPOINT}/${STACK_BACKUP_S3_BUCKET}"
+}
+
+# Deploy the object store as a deployment of its own, for a test that asked
+# select_backup_target for an "external" store.  A no-op where the store is
+# already external -- a real cluster's is.
+#
+# It is a separate deployment rather than a mix-in precisely so that it survives
+# the deployment under test being destroyed: a store that lives inside the
+# deployment holding the data goes down with it, taking the backup along and
+# leaving nothing to restore from.  Its ports are published on every interface so
+# that the backup container of *another* deployment, on another docker network,
+# can reach it at the host's address (see select_backup_target).
+#
+# Registered as the extra cleanup, so it is stopped however the test ends.  A test
+# with cleanup of its own therefore does not get to use TEST_EXTRA_CLEANUP.
+#
+# The store is the test-s3-stack from the stack-test-stacks repo, so the caller
+# has to have fetched that already -- every test needing a store fetches it for
+# its own stack anyway.
+start_object_store_deployment () {
+    if [ -z "$TEST_BACKUP_STORE_STACK" ]; then
+        return
+    fi
+    local store_stack="test-s3-stack"
+    local store_spec=$STACK_TEST_DIR/${store_stack}-spec.yml
+    TEST_OBJECT_STORE_DIR=$STACK_TEST_DIR/${store_stack}-deployment
+
+    $TEST_TARGET_STACK prepare --stack ${store_stack}
+    # The store is not itself a thing under backup: it holds the backups.
+    STACK_BACKUP=false $TEST_TARGET_STACK init --stack ${store_stack} \
+        --map-ports-to-host any-same --output "$store_spec"
+    STACK_BACKUP=false $TEST_TARGET_STACK deploy --spec-file "$store_spec" \
+        --deployment-dir "$TEST_OBJECT_STORE_DIR"
+    TEST_EXTRA_CLEANUP=stop_object_store_deployment
+    $TEST_TARGET_STACK manage --dir "$TEST_OBJECT_STORE_DIR" start
+    echo "object store deployed at ${STACK_BACKUP_S3_ENDPOINT}"
+}
+
+stop_object_store_deployment () {
+    $TEST_TARGET_STACK manage --dir "$TEST_OBJECT_STORE_DIR" stop --delete-volumes
 }
 
 # Wait until the object store backups go to can serve back what it accepts.
@@ -366,6 +438,23 @@ start_container () {
     CONTAINER_ID=$( docker run "$@" )
     TEST_CONTAINER_IDS="$TEST_CONTAINER_IDS $CONTAINER_ID"
     trap _test_exit_handler EXIT
+}
+
+# Destroy a deployment completely: stop it, delete its volumes, and remove the
+# deployment directory, so that nothing of it is left for a later step to lean on
+# by accident.  For a test whose point is that something survives the deployment
+# that produced it -- a backup taken from a deployment that is then destroyed --
+# a half-removed deployment is the way that test passes for the wrong reason.
+#
+# The exit-time teardown is dropped along with it, so a test destroying the
+# deployment the helpers are pointed at should point them at its replacement with
+# stop_deployment_on_exit.
+destroy_deployment () {
+    $TEST_TARGET_STACK manage --dir "$1" stop --delete-volumes
+    force_rm "$1"
+    if [ "$TEST_DEPLOYMENT_DIR" == "$1" ]; then
+        TEST_DEPLOYMENT_DIR=""
+    fi
 }
 
 # Report what a failing deployment was doing, before it is torn down.

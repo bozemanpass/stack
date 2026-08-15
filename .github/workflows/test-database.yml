@@ -52,3 +52,13 @@ jobs:
           # so the test script turns on xtrace and dumps its environment.
           STACK_SCRIPT_DEBUG: ${{ runner.debug }}
         run: ./tests/database/run-test.sh
+      # The same stack again, across a wider gap: back it up, destroy the
+      # deployment, and restore into a new one. A step of this job rather than a
+      # job of its own because it reuses this one's stack and its images, but a
+      # separate script so that the test above keeps depending on nothing but the
+      # stack it deploys. Compose only -- see the comment at the top of it.
+      - name: "Run database backup test"
+        if: matrix.target == 'compose'
+        env:
+          STACK_SCRIPT_DEBUG: ${{ runner.debug }}
+        run: ./tests/database/run-backup-test.sh
