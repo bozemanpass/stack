@@ -227,11 +227,16 @@ def list_snapshots(ctx):
 @backup.command()
 @click.option("--snapshot", default="latest", help="snapshot to restore (default: the most recent)")
 @click.option("--volume", "volumes", multiple=True, help="restore only this volume (repeatable)")
+@click.option(
+    "--from",
+    "source",
+    help="restore from another deployment's backups, naming it (default: this deployment's own)",
+)
 @click.pass_context
-def restore(ctx, snapshot, volumes):
+def restore(ctx, snapshot, volumes, source):
     """restore the deployment's data from a snapshot"""
     ctx.obj = _backup_deploy_context(ctx)
-    backup_restore_operation(ctx, snapshot, list(volumes))
+    backup_restore_operation(ctx, snapshot, list(volumes), source)
 
 
 @command.command()

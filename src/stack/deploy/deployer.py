@@ -64,8 +64,13 @@ class Deployer(ABC):
         pass
 
     @abstractmethod
-    def backup_restore(self, snapshot, volumes):
-        """Restore volumes (all of them, if none named) from a snapshot."""
+    def backup_restore(self, snapshot, volumes, source=None):
+        """Restore volumes (all of them, if none named) from a snapshot.
+
+        `source` names another deployment whose backups to restore from, instead
+        of this deployment's own.  It affects only where the data is read: the
+        deployment keeps its own identity and its own backups.
+        """
         pass
 
     @abstractmethod

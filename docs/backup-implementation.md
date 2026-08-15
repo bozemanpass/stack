@@ -162,16 +162,19 @@ Notes:
 - The backup service appears in `stack manage … ps` like any other container, which is what the
   forthcoming `backup` subcommands will `exec` into.
 
-## What this deliberately does *not* do yet
+## What was built, and where it differs from this sketch
 
-- The `bozemanpass/backup` image exists as an **initial scaffold** in the `backup-stack` repo (its
-  `Containerfile`, `build.sh`, and `scripts/` for entrypoint, cron, hook runner, and restore) but has not
-  been run end-to-end and is not yet wired into a build.
-- The deploy-time augment above is **not yet implemented in code** — this document is still the spec for it.
-- It does not emit anything on the Kubernetes target; that path generates a K8up `Schedule` + annotations
-  and is a sibling to this function.
-- It does not add the `stack manage … backup` subcommands.
+Everything above landed, and the pieces this document listed as separable followed: the
+`bozemanpass/backup` image is built and exercised end-to-end by `tests/backup/run-test.sh`, the Kubernetes
+path emits K8up resources (`deploy/k8s/k8up.py`), and `stack manage … backup now | list | restore` exist.
 
-These are intentionally separable: this pass produces a deployment whose `backup` service *declares* its
-backup intent (its `:ro` data mounts and env) in the generated compose, which is the foundation the
-remaining pieces build on.
+Three details differ from the sketch, and the code is what to believe:
+
+- **The data mounts are `:rw`, not `:ro`.** The same container performs restores, and it cannot write into
+  a volume it mounted read-only.
+- **`BACKUP_PRE_HOOKS` is never set.** The consistency-hook plumbing sketched here was not built on either
+  target; `get_backup_targets` returns an empty `commands` map. See "Not built yet" in
+  [backup.md](./backup.md).
+- **Settings are read through `deploy/backup.py`**, which resolves them once for both targets, rather than
+  each call site reaching for `get_config_setting`. The names also settled differently:
+  `backup-s3-key-id` / `backup-s3-key` / `backup-restic-password`.

@@ -613,40 +613,43 @@ class K8sDeployer(Deployer):
         self._connect_for_backup()
         return k8up.list_snapshots(self.custom_obj_api, self.k8s_namespace)
 
-    def backup_restore(self, snapshot, volumes):
+    def _restorable_volumes(self):
+        """The deployment's volumes a restore should fill, in spec order."""
+        exclude = set(self.cluster_info.spec.get_backup().get("exclude", []))
+        return [name for name in self.cluster_info.spec.get_volumes() if name not in exclude]
+
+    def backup_restore(self, snapshot, volumes, source=None):
         settings = self._connect_for_backup()
-        # K8up backs each volume up as its own snapshot and restores one claim at
-        # a time, so a restore is one Restore per volume.  What to restore comes
-        # from the repository rather than from the spec: a volume the deployment
-        # declares but that was never backed up (added since the last backup, or
-        # excluded) has nothing to restore and must not fail the whole operation.
-        available = k8up.list_snapshots(self.custom_obj_api, self.k8s_namespace)
-        if snapshot and snapshot != "latest":
-            chosen = [s for s in available if s["id"].startswith(snapshot)]
-            if not chosen:
-                error_exit(f"Error: no snapshot {snapshot} in this deployment's repository")
-            targets = [(volume, chosen[0]["id"]) for volume in chosen[0]["volumes"]]
-        else:
-            # "latest" is resolved per volume rather than passed through: K8up
-            # takes the newest snapshot in the repository whatever volume it
-            # holds, which for a deployment of several is usually another's.
-            # list_snapshots is oldest first, so the last write per volume wins.
-            latest = {}
-            for available_snapshot in available:
-                for volume in available_snapshot["volumes"]:
-                    latest[volume] = available_snapshot["id"]
-            targets = list(latest.items())
+        # K8up restores one claim at a time, so a restore is one Restore per
+        # volume, each picking the newest snapshot of that volume for itself.
+        #
+        # Which volumes comes from this deployment rather than from the
+        # repository: what is being asked for is "fill my volumes from that
+        # backup", and when the backup is another deployment's there is no way to
+        # enumerate it from here anyway.
+        named = bool(volumes)
+        volumes = volumes or self._restorable_volumes()
+        if not volumes:
+            error_exit("Error: this deployment has no volumes to restore")
 
-        if volumes:
-            targets = [(volume, snapshot_id) for volume, snapshot_id in targets if volume in volumes]
-            missing = set(volumes) - {volume for volume, _ in targets}
-            if missing:
-                error_exit(f"Error: nothing to restore for: {', '.join(sorted(missing))}")
-        if not targets:
-            error_exit("Error: this deployment has no snapshots to restore")
+        failed = []
+        for volume in volumes:
+            try:
+                k8up.run_restore(self.custom_obj_api, self.k8s_namespace, settings, volume, snapshot, source)
+            except k8up.K8upException as e:
+                # A volume the backup does not hold is expected when the set of
+                # volumes was inferred -- one added since the backup was taken, or
+                # a backup from a stack that never had it. Say so and carry on, so
+                # that one absent volume does not abandon the rest half restored.
+                # A volume the caller named is a different matter: they asked for
+                # that one specifically, so its failure is the answer.
+                if named:
+                    raise
+                log_warn(f"WARN: could not restore {volume}: {e}")
+                failed.append(volume)
 
-        for volume, snapshot_id in targets:
-            k8up.run_restore(self.custom_obj_api, self.k8s_namespace, settings, volume, snapshot_id)
+        if len(failed) == len(volumes):
+            error_exit(f"Error: nothing could be restored from {source or 'this deployment'}: {failed[-1]}")
 
     def logs(self, services, tail, follow, stream):
         self.connect_api()

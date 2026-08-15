@@ -29,7 +29,7 @@ alongside the application stack rather than built into the tool.
 | Repository | Relationship |
 | --- | --- |
 | [docker-ingress-stack](https://github.com/bozemanpass/docker-ingress-stack) | Implements the Docker-mode HTTPS ingress described in [ingress.md](ingress.md) — the reverse proxy that `stack`'s ingress annotations configure. |
-| [backup-stack](https://github.com/bozemanpass/backup-stack) | The container and stack components for the backup/restore design in [backup.md](backup.md). Initial scaffold; exercised by `tests/backup/run-test.sh`. |
+| [backup-stack](https://github.com/bozemanpass/backup-stack) | The backup engine for the **Docker target** — a restic container and the stack that mixes it into a deployment (see [backup.md](backup.md)). Kubernetes uses K8up instead and needs nothing from here. Exercised by `tests/backup/run-test.sh`. |
 
 ## Examples and demos
 
