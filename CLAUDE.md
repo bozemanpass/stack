@@ -73,6 +73,22 @@ target-specific bugs — currently `app-deploy` and `database` — are written t
 run on any of the three. Anything genuinely target-shaped belongs in
 `select_deploy_target` rather than in an `if` inside a test.
 
+`tests/database` holds two scripts. `run-test.sh` is the volume-persistence test
+described above. `run-backup-test.sh` makes the same assertion across a wider
+gap — back the loaded stack up, destroy the deployment, and rebuild the database
+in a new one — and is a second script rather than a step of the first so that the
+first goes on depending on nothing but the stack it deploys. They run in the same
+CI job, since the second reuses the first's stack and images.
+
+What that second test covers that the `backup` test does not is the **dump** path:
+the database stack excludes its data directory and takes a `pg_dump` at backup
+time instead, so the repository holds no database files and the recovery is a
+`pg_restore` rather than a file-level restore. The `backup` test covers the file
+path. It is compose-only, for a reason particular to it rather than to the backup
+engine: the assertion only means anything if the new deployment is filled before
+its test client has ever run, which needs a deployment brought up a service at a
+time. The reason is spelled out at the top of the script.
+
 `backup` runs on `compose` and `remote` but not `kind`, and the reason is the
 backup engine rather than the test: on a cluster, backups are run by K8up, which
 the machine provisioning installs and a kind cluster does not have. Its
