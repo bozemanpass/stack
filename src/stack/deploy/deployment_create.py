@@ -606,8 +606,13 @@ def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec,
                             # Same host path the named volume binds to (see _fixup_pod_file).
                             # Mounted rw so the same container can restore in place; scheduled
                             # backups only read. See docs/backup.md "Restore".
+                            #
+                            # /data/<volume> is where K8up mounts a claim in its own backup
+                            # job, so the path recorded inside a snapshot is the same on both
+                            # targets -- which is what lets either target restore a
+                            # repository the other wrote.
                             device = vol_path if Path(vol_path).is_absolute() else f".{vol_path}"
-                            mounts.append(f"{device}:/backup/{vol_name}:rw")
+                            mounts.append(f"{device}:/data/{vol_name}:rw")
                         backup_env = service_info.get("environment", {})
                         deployment_name = deployment_command_context.cluster_context.cluster
                         # The restic host the snapshots are filed under.
