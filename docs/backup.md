@@ -52,14 +52,14 @@ The two targets differ in *what runs restic and how it is scheduled*:
 | Config generation  | `stack` injects config at deploy time             | `stack` emits K8up resources                 |
 | Prerequisites      | the backup stack, mixed in with a `--spec-file`   | K8up, installed by the machine provisioning  |
 | Restore            | `restic restore` in the backup container          | a K8up `Restore` per volume                  |
-| Snapshot layout    | one snapshot of `/backup`, holding every volume   | one snapshot per volume, at `/data/<volume>` |
+| Snapshot layout    | one snapshot per volume, at `/data/<volume>`      | one snapshot per volume, at `/data/<volume>` |
 
-> **The two targets' repositories are not interchangeable through these commands.** Both are ordinary
-> restic repositories and both are readable with the `restic` CLI, but the paths inside them differ (the
-> last row above), and each target's restore looks for its own layout. Restoring a Docker-written backup
-> onto Kubernetes, or the reverse, is a manual `restic` operation today. Moving between clusters, or
-> between deployments on the same target, is fully supported — see
-> [Restoring from another deployment's backups](#restoring-from-another-deployments-backups).
+That last row is deliberate rather than coincidental: the Docker target mounts the volumes where K8up
+mounts a claim in its own backup job, so both targets record the same paths in a snapshot. **A repository
+written by either target can therefore be restored by the other** — a stack developed on compose can be
+moved to a cluster carrying its data, and back. It is the same `--from` operation as any other restore
+from an existing backup, described under
+[Restoring from another deployment's backups](#restoring-from-another-deployments-backups).
 
 ## Configuration
 
@@ -131,7 +131,8 @@ without waiting for 03:00:
 ```bash
 $ stack manage --dir ~/deployments/todo backup now
 $ stack manage --dir ~/deployments/todo backup list
-6478d2ea	2026-08-14T15:10:34Z	app-data,app-data2
+6478d2ea	2026-08-14T15:10:34Z	uploads
+a1b93c07	2026-08-14T15:10:36Z	pgdata
 ```
 
 > #### ⚠ The encryption key cannot be purely ephemeral
@@ -222,7 +223,7 @@ environment variables into matching services for ingress:
 
 2. **Spec to backup container** — during `stack deploy`, the tool reads the merged deployment's volumes
    (`Spec.get_volumes()`) and:
-   - mounts every non-excluded volume into the backup container (`- <volume>:/backup/<volume>:rw`,
+   - mounts every non-excluded volume into the backup container (`- <volume>:/data/<volume>:rw`,
      read-write so that the same container can restore in place; scheduled backups only read), and
    - injects the ambiently-resolved schedule, retention, object-store and repository settings as
      environment for the container.
@@ -257,9 +258,8 @@ follows the same assume-present contract the stack tool already uses for `ingres
 - K8up writes a **standard restic repository**, with the same encryption as the Docker target — so a
   repository written on one target is readable on the other, and with the bare `restic` CLI from outside
   the deployment entirely.
-- One thing differs between the targets and is worth knowing before reading a snapshot list: K8up backs
-  each volume up as its **own snapshot** (paths `/data/<volume>`), where the Docker target takes one
-  snapshot of the whole `/backup` tree.
+- K8up backs each volume up as its **own snapshot**, recorded at `/data/<volume>`. The Docker target does
+  the same, which is what makes the repositories interchangeable (see [Engine: restic](#engine-restic)).
 
 K8up itself is installed by the **machine provisioning** scripts (`k3s-node.sh` installs it by default,
 alongside cert-manager), not by `stack`. A backup-enabled deployment to a cluster without it fails
@@ -373,11 +373,12 @@ targets even though the engines differ:
 
 ```
 $ stack manage --dir ~/deployments/todo backup list
-6478d2ea	2026-08-14T15:10:34Z	app-data,app-data2
+6478d2ea	2026-08-14T15:10:34Z	uploads
+a1b93c07	2026-08-14T15:10:36Z	pgdata
 ```
 
-That last column is where an exclusion shows up: a volume marked `@stack backup-exclude` is visibly absent
-from it.
+Each volume is backed up as its own snapshot, on both targets, so the last column normally holds one name.
+It is where an exclusion shows up: a volume marked `@stack backup-exclude` never appears.
 
 > The earlier sketch of `stack deploy backup status` is intentionally **not** the chosen shape: `deploy`
 > creates a deployment from specs and exits, whereas backup status/restore/list are operations *on an
@@ -395,10 +396,8 @@ from it.
 - **Monitoring.** Surfacing backup success/failure (a healthcheck or status that `backup status` can read)
   so that a silently failing backup is not mistaken for a working one. `backup now` reports its own result,
   but a *scheduled* backup that fails is currently visible only in the engine's logs.
-- **Cross-target restore.** The two targets write different path layouts into their repositories, so a
-  repository is only restorable by the target that wrote it (see [Engine: restic](#engine-restic)). Making
-  the layouts agree would make Docker and Kubernetes backups interchangeable, which the original design
-  assumed they were.
+- **Moving a deployment between targets.** The repositories are interchangeable, so the data can move; what
+  is untested is everything else about running the same stack on the other target.
 
 ## Not built yet
 
@@ -417,9 +416,14 @@ from it.
   `backup list --from`. Restoring from elsewhere does not need it — the latest snapshot per volume is
   chosen by K8up — but naming a specific `--snapshot` in someone else's repository means finding the id
   another way.
-- **An end-to-end disaster-recovery test.** The backup test restores within one deployment on one cluster.
-  The real exercise — back up, destroy the cluster, provision a new one, restore into a fresh deployment,
-  and check the data — spans two CI jobs that have to agree on what was written, and is not built.
+- **An end-to-end disaster-recovery test.** The backup test restores within one deployment, and seeds a
+  second deployment from the first, both on one cluster. The real exercise — back up, destroy the cluster,
+  provision a new one, restore into a fresh deployment, and check the data — spans two CI jobs that have to
+  agree on what was written, and is not built.
+- **Cross-target restore is not covered by a test.** Both directions were verified by hand when the layouts
+  were aligned (a compose-written repository restored on a real cluster, and a K8up-written one restored on
+  compose), but nothing re-checks it: a test would need a compose deployment writing to a real object store
+  *and* a cluster in the same run. It is the same two-job shape as the recovery test above.
 - **Auto-including the backup stack.** On the Docker target it is mixed in by hand, with an extra
   `--spec-file`, exactly as the ingress stack is.
 
