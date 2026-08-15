@@ -48,7 +48,7 @@ The two targets differ in *what runs restic and how it is scheduled*:
 | ------------------ | ------------------------------------------------- | -------------------------------------------- |
 | Engine / format    | restic (the `bozemanpass/backup` container)       | restic (via **K8up**)                        |
 | Scheduling         | cron in the backup container                      | K8up `Schedule` resource                     |
-| Quiesce / hooks    | not built (see [Not built yet](#not-built-yet))   | not built                                    |
+| Quiesce / hooks    | pre-backup dumps run via the Docker socket        | `k8up.io/backupcommand` pod annotation       |
 | Config generation  | `stack` injects config at deploy time             | `stack` emits K8up resources                 |
 | Prerequisites      | the backup stack, mixed in with a `--spec-file`   | K8up, installed by the machine provisioning  |
 | Restore            | `restic restore` in the backup container          | a K8up `Restore` per volume                  |
@@ -189,10 +189,34 @@ every deployer of that stack gets consistent backups for free, having supplied n
 one-to-one onto K8up's `k8up.io/backupcommand` / `k8up.io/file-extension` pod annotations on the Kubernetes
 target, and onto a pre-backup hook in the restic container on the Docker target.
 
-> ⚠ **This part is not built.** Both annotations are accepted by the parser and go no further — see
-> [Not built yet](#not-built-yet). A database in a stack is backed up file-level today, with the torn-file
-> risk this section describes. Until it is built, the way to back a database up consistently is to have the
-> stack write its own dumps to a volume on a schedule of its own, and let that volume be backed up.
+Both annotations are **full-line comments written inside the service's block** — after any of its keys, or
+at the end as above. A comment written *outside* the block (say, at the services' own indent, heading the
+next service) is ambiguous to the YAML parser — it attaches to whichever service precedes it — so it is
+ignored with a warning rather than guessed at.
+
+How the dump is taken differs by engine, behind the one annotation:
+
+- On the **Docker target** the backup container runs the command inside the service's own container (via
+  the Docker socket, wrapped in `sh -c`) before restic runs, and captures its stdout into a `_dumps`
+  directory that is backed up as a snapshot of its own, holding `/data/_dumps/<service>.<extension>`. A
+  dump command that fails fails the whole backup, loudly — a backup silently missing its dump would look
+  exactly like a working one.
+- On **Kubernetes** the annotations become K8up's pod annotations verbatim, and K8up execs the command in
+  the service's pod at backup time, storing the stdout as a snapshot of its own named with the extension.
+  K8up does not run the command through a shell the way the Docker target does, so a command needing shell
+  features (pipes, `$VARS`, redirection) should be written as `sh -c '...'` — the form K8up's own examples
+  use — which then behaves the same on both targets. A plain single command like the `pg_dump` above also
+  behaves the same on both.
+
+Two things follow from "instead of (or alongside)":
+
+- The dump is captured **in addition to** the file-level backup unless the author also excludes the raw
+  volume, as the example does. For a database, excluding the live data directory is usually right: the dump
+  is the restorable artifact, and the raw files are the torn-file risk this section is about.
+- **Restoring a dump is manual.** `backup restore` puts *volumes* back; a logical dump is replayed into the
+  running service by hand (e.g. `psql todos < todos.sql`), because only the application knows how. The dump
+  snapshot shows up in `backup list` like any other and can be pulled out with the bare `restic` CLI — or,
+  on the Docker target, read straight out of the backup container under `/data/_dumps/`.
 
 ### Annotation summary
 
@@ -205,6 +229,11 @@ There are only two optional annotations, both author-time, both with safe "just 
 | `@stack backup-file-extension <ext>`| a service      | Name the captured `backup-command` output with this extension.         |
 
 A stack that uses none of these is still fully backed up — every read-write volume, file-level.
+
+What a stack's annotations add up to can be seen without deploying anything:
+`stack chart --stack <name> --format text` marks excluded volumes and lists dump commands, and for a
+running deployment `stack manage --dir <dir> status` reports the same per-volume/per-dump summary alongside
+whether backup is currently enabled.
 
 ## How Docker backup works
 
@@ -228,10 +257,10 @@ environment variables into matching services for ingress:
    - injects the ambiently-resolved schedule, retention, object-store and repository settings as
      environment for the container.
 
-3. **The backup container runs restic on a schedule** — on each cron tick it runs `restic backup` of the
-   mounted volume tree and applies the retention policy. (The pre-backup hooks that would run the logical
-   dumps are scaffolded in the image but never configured; see
-   [Application consistency](#application-consistency).)
+3. **The backup container runs restic on a schedule** — on each cron tick it first takes any `@stack
+   backup-command` dumps (see [Application consistency](#application-consistency); the commands reach the
+   container as the `BACKUP_PRE_HOOKS` environment variable, one `<service> <extension> <command...>` line
+   per dump), then runs `restic backup` of the mounted volume tree and applies the retention policy.
 
 Because every named volume on the Docker target is already realised as a bind mount under
 `<deployment-dir>/data/<volume-name>/`, the set of paths to back up is fully deterministic.
@@ -255,6 +284,10 @@ follows the same assume-present contract the stack tool already uses for `ingres
   no list to maintain.
 - A volume the stack author marked `@stack backup-exclude` gets `k8up.io/backup: "false"` on its PVC, which
   is K8up's own opt-out.
+- A service the stack author gave a `@stack backup-command` gets `k8up.io/backupcommand` /
+  `k8up.io/file-extension` on its pod, and K8up execs the dump in the pod at backup time (see
+  [Application consistency](#application-consistency)). Excluding a PVC does not suppress the dump or vice
+  versa: the two annotations stay independent on this target too.
 - K8up writes a **standard restic repository**, with the same encryption as the Docker target — so a
   repository written on one target is readable on the other, and with the bare `restic` CLI from outside
   the deployment entirely.
@@ -401,12 +434,6 @@ It is where an exclusion shows up: a volume marked `@stack backup-exclude` never
 
 ## Not built yet
 
-- **Application consistency — the significant one.** `@stack backup-command` /
-  `@stack backup-file-extension` are parsed no further than `backup-exclude` is:
-  `Stack.get_backup_targets` returns an empty `commands` map. Neither the Docker target's hook runner nor
-  the Kubernetes `k8up.io/backupcommand` annotation is wired up, so a database in a stack is backed up
-  file-level today — see [Application consistency](#application-consistency) for why that is not enough
-  for one.
 - **`backup restore` does not stop the deployment.** The stop → restore → start orchestration described
   under [Restore](#restore) is the operator's to perform for now.
 - **`backup status`, `backup prune` and `backup check`.** Retention is applied on its own schedule; there

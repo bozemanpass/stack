@@ -481,6 +481,18 @@ class ClusterInfo:
                     for key, value in self.spec.get_annotations().items():
                         annotations[key.replace("{name}", container.name)] = value
 
+                # A service the stack author gave a `@stack backup-command` gets K8up's
+                # dump annotations on its pod, so backups capture a consistent logical
+                # dump alongside (or instead of) the raw files.  See docs/backup.md.
+                backup_command_info = self.spec.get_backup().get("commands", {}).get(service_name)
+                if backup_command_info:
+                    if annotations is None:
+                        annotations = {}
+                    annotations[k8up.BACKUP_COMMAND_ANNOTATION] = backup_command_info["command"]
+                    extension = backup_command_info.get("file-extension")
+                    if extension:
+                        annotations[k8up.FILE_EXTENSION_ANNOTATION] = "." + str(extension).lstrip(".")
+
                 # TODO: Make these container-specific in the spec
                 if self.spec.get_labels():
                     for key, value in self.spec.get_labels().items():

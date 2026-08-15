@@ -172,9 +172,11 @@ Three details differ from the sketch, and the code is what to believe:
 
 - **The data mounts are `:rw`, not `:ro`.** The same container performs restores, and it cannot write into
   a volume it mounted read-only.
-- **`BACKUP_PRE_HOOKS` is never set.** The consistency-hook plumbing sketched here was not built on either
-  target; `get_backup_targets` returns an empty `commands` map. See "Not built yet" in
-  [backup.md](./backup.md).
+- **The consistency hooks landed later, and not quite as sketched.** `get_backup_targets` parses the
+  service-level annotations from comments anywhere inside the service's block (not only the block attached
+  to the service mapping), and `BACKUP_PRE_HOOKS` settled as one `<service> <extension> <command...>` line
+  per dump rather than the colon-delimited form the backup image originally scaffolded. See "Application
+  consistency" in [backup.md](./backup.md).
 - **Settings are read through `deploy/backup.py`**, which resolves them once for both targets, rather than
   each call site reaching for `get_config_setting`. The names also settled differently:
   `backup-s3-key-id` / `backup-s3-key` / `backup-restic-password`.

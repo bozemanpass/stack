@@ -628,6 +628,17 @@ def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec,
                         )
                         add_env_var("BACKUP_SCHEDULE", settings.schedule, backup_env)
                         add_env_var("BACKUP_RETENTION", settings.retention, backup_env)
+                        # Consistency dumps from `@stack backup-command`, in the format
+                        # run-hooks.sh in the backup image parses: one entry per line,
+                        # "<service> <extension> <command...>".  The command is the tail
+                        # of the line, so it may contain anything but a newline.
+                        backup_commands = backup_cfg.get("commands", {})
+                        if backup_commands:
+                            hooks = "\n".join(
+                                f"{svc} {info.get('file-extension', 'dump')} {info['command']}"
+                                for svc, info in backup_commands.items()
+                            )
+                            add_env_var("BACKUP_PRE_HOOKS", hooks, backup_env)
                         # restic's own environment variables. Only set from the
                         # ambient settings when they are configured, so that a
                         # deployment supplying them another way (through the

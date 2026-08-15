@@ -22,13 +22,14 @@ from stack.chart.chart import _depends_on, _image_summary, _render_stack_text
 class FakeStack:
     """Stands in for a Stack; the text renderer only reads these accessors."""
 
-    def __init__(self, name, services=None, http_targets=None, ports=None, volumes=None, required=None):
+    def __init__(self, name, services=None, http_targets=None, ports=None, volumes=None, required=None, backup=None):
         self.name = name
         self._services = services or {}
         self._http_targets = http_targets or []
         self._ports = ports or {}
         self._volumes = volumes or {}
         self._required = required or []
+        self._backup = backup or {"exclude": [], "commands": {}}
 
     def is_super_stack(self):
         return bool(self._required)
@@ -47,6 +48,9 @@ class FakeStack:
 
     def get_volumes(self):
         return self._volumes
+
+    def get_backup_targets(self):
+        return self._backup
 
 
 def _todo_stack():
@@ -142,6 +146,22 @@ def test_show_ports_omits_ports_already_shown_as_http_routes():
     # ...but the http services' ports would just repeat the route lines.
     assert not any("port 5000:5000" in line for line in lines)
     assert not any("port 3000:3000" in line for line in lines)
+
+
+def test_backup_setup_is_shown():
+    stack = _todo_stack()
+    stack._backup = {
+        "exclude": ["db-data"],
+        "commands": {"db": {"command": "pg_dump -U postgres todos", "file-extension": "sql"}},
+    }
+    lines = _render(stack)
+    assert any("volume db-data -> /var/lib/postgresql/data (backup excluded)" in line for line in lines)
+    assert any("backup dump pg_dump -U postgres todos (.sql)" in line for line in lines)
+
+
+def test_no_backup_lines_without_backup_annotations():
+    lines = _render(_todo_stack())
+    assert not any("backup" in line for line in lines)
 
 
 def test_sections_can_be_suppressed():
