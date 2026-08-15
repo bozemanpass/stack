@@ -113,21 +113,31 @@ def backup_secret(namespace: str, settings: BackupSettings) -> client.V1Secret:
     )
 
 
-def backend_spec(settings: BackupSettings, namespace: str):
-    """The `backend` block shared by Schedule, Backup and Restore.
+def repository_bucket(settings: BackupSettings, name: str) -> str:
+    """The bucket path of the repository belonging to the deployment `name`.
 
     K8up builds the restic repository as "s3:<endpoint>/<bucket>", so naming the
     deployment inside the bucket puts each deployment in a repository of its own.
-    That is not just tidiness: K8up restores the latest snapshot in the
-    repository with no filter for which host wrote it, so deployments sharing one
+    That is not just tidiness: K8up restores the latest snapshot matching a
+    restore with no filter for which host wrote it, so deployments sharing one
     repository could restore each other's data.  It also matches what the Docker
     target does with the same setting.
+
+    A deployment's own name is what it backs up to.  A restore can name another
+    deployment's instead (see run_restore), which is how a new deployment is
+    seeded from an existing backup without either of them borrowing the other's
+    identity.
     """
+    return f"{settings.s3_bucket.rstrip('/')}/{name}"
+
+
+def backend_spec(settings: BackupSettings, namespace: str):
+    """The `backend` block shared by Schedule, Backup and Restore."""
     return {
         "repoPasswordSecretRef": {"name": SECRET_NAME, "key": RESTIC_PASSWORD_KEY},
         "s3": {
             "endpoint": settings.s3_endpoint,
-            "bucket": f"{settings.s3_bucket.rstrip('/')}/{namespace}",
+            "bucket": repository_bucket(settings, namespace),
             "accessKeyIDSecretRef": {"name": SECRET_NAME, "key": S3_KEY_ID_KEY},
             "secretAccessKeySecretRef": {"name": SECRET_NAME, "key": S3_KEY_KEY},
         },
@@ -287,19 +297,30 @@ def run_restore(
     settings: BackupSettings,
     volume: str,
     snapshot: str = None,
+    source: str = None,
 ):
-    """Restore one volume in place from a snapshot, and wait for it to finish.
+    """Restore one volume in place, and wait for it to finish.
 
     K8up restores into a single claim at a time, so a deployment-wide restore is
-    one of these per volume.  No restoreFilter is needed to pick the volume out of
-    the snapshot, because K8up backs each volume up as a snapshot of its own: the
-    snapshot named here *is* the volume.  K8up trims the snapshot's /data/<claim>
-    prefix as it writes, so the files land at the root of the claim they came from.
+    one of these per volume.
+
+    Which snapshot is left to K8up: `paths` narrows its snapshot list to the one
+    volume being restored (K8up backs each volume up as a snapshot of its own,
+    under /data/<claim>), and it then takes the most recent of those.  Resolving
+    that here instead would mean reading the repository, which for a restore from
+    somewhere else this deployment cannot do.  K8up trims the /data/<claim> prefix
+    as it writes, so the files land at the root of the claim they came from.
+
+    `source` names another deployment to restore *from*.  It changes the backend
+    this one Restore reads and nothing else: the deployment keeps its own identity
+    and goes on backing up to its own repository, which is what makes it possible
+    to seed several new deployments from one existing backup.
     """
     name = _unique_name(f"stack-restore-{volume}")
     spec = {
-        "backend": backend_spec(settings, namespace),
+        "backend": backend_spec(settings, source or namespace),
         "restoreMethod": {"folder": {"claimName": volume}},
+        "paths": [f"/data/{volume}"],
     }
     if snapshot and snapshot != "latest":
         spec["snapshot"] = snapshot

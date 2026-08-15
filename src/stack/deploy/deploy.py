@@ -188,10 +188,10 @@ def backup_list_operation(ctx):
             output_main(f"{snapshot['id'][:8]}\t{snapshot['date']}\t{','.join(snapshot['volumes'])}")
 
 
-def backup_restore_operation(ctx, snapshot: str, volumes):
+def backup_restore_operation(ctx, snapshot: str, volumes, source: str = None):
     if not opts.o.dry_run:
         try:
-            ctx.obj.deployer.backup_restore(snapshot, volumes)
+            ctx.obj.deployer.backup_restore(snapshot, volumes, source)
         except DeployerException as e:
             error_exit(f"restore failed: {e}")
 

@@ -46,8 +46,8 @@ stack authors should read [stack-files.md](stack-files.md) first.
 
 | Document | Description |
 | --- | --- |
-| [backup.md](backup.md) | Proposed design for backing up and restoring the persistent data a running stack accumulates. Not yet implemented. |
-| [backup-implementation.md](backup-implementation.md) | Companion implementation sketch for [backup.md](backup.md), pinning the design to concrete functions and insertion points in the code. |
+| [backup.md](backup.md) | Backing up and restoring the persistent data a running stack accumulates: how to configure it, and how to restore into a new deployment after losing a cluster or to seed copies of a dataset. |
+| [backup-implementation.md](backup-implementation.md) | How the Docker target's deploy-time pass was designed. Historical; [backup.md](backup.md) is the current description. |
 
 ## Project
 

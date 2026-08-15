@@ -174,6 +174,12 @@ select_deploy_target () {
 #                              startup wait
 #   TEST_BACKUP_STORE_WARMUP   non-empty if the object store is one this test
 #                              starts, and so has to be waited for
+#   TEST_BACKUP_CAN_SEED       non-empty if a second deployment can read the first
+#                              one's backups, so that seeding one deployment from
+#                              another can be tested. Only true of a store that is
+#                              outside the deployments: the Docker target's
+#                              SeaweedFS lives inside the first deployment and
+#                              publishes nothing, so nothing else can reach it
 select_backup_target () {
     export STACK_BACKUP=true
     case "$TEST_TARGET_ENV" in
@@ -187,6 +193,7 @@ select_backup_target () {
             TEST_BACKUP_MIX_IN=yes
             TEST_BACKUP_SERVICE_COUNT=3
             TEST_BACKUP_STORE_WARMUP=yes
+            TEST_BACKUP_CAN_SEED=
             ;;
         remote)
             if [ -z "$STACK_BACKUP_S3_BUCKET" ] || [ -z "$STACK_BACKUP_S3_KEY_ID" ] || [ -z "$STACK_BACKUP_S3_KEY" ]; then
@@ -224,6 +231,7 @@ select_backup_target () {
             TEST_BACKUP_MIX_IN=""
             TEST_BACKUP_SERVICE_COUNT=1
             TEST_BACKUP_STORE_WARMUP=""
+            TEST_BACKUP_CAN_SEED=yes
             ;;
         *)
             fail "Error: the backup test does not support the $TEST_TARGET_ENV target (K8up, which runs backups on k8s, is not installed on a kind cluster)"

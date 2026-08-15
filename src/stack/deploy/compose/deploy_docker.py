@@ -19,6 +19,7 @@ from pathlib import Path
 from python_on_whales import DockerClient, DockerException
 
 from stack import constants
+from stack.deploy.backup import backup_settings
 from stack.deploy.deployer import Deployer, DeployerException, DeployerConfigGenerator
 from stack.deploy.deployment_context import DeploymentContext
 from stack.log import output_main, log_info
@@ -142,7 +143,7 @@ class DockerDeployer(Deployer):
             except DockerException as e:
                 raise DeployerException(e)
 
-    def _backup_exec(self, command):
+    def _backup_exec(self, command, envs=None):
         """Run one of the backup container's scripts and return its output.
 
         On this target the backup engine is the mixed-in backup service, which
@@ -155,7 +156,7 @@ class DockerDeployer(Deployer):
                 service=constants.backup_service_name,
                 command=command,
                 tty=False,
-                envs={},
+                envs=envs or {},
             )
         except DockerException as e:
             raise DeployerException(e)
@@ -183,9 +184,19 @@ class DockerDeployer(Deployer):
             )
         return snapshots
 
-    def backup_restore(self, snapshot, volumes):
-        if not opts.o.dry_run:
-            output_main(self._backup_exec(["/scripts/restore.sh", snapshot or "latest"] + list(volumes or [])))
+    def backup_restore(self, snapshot, volumes, source=None):
+        if opts.o.dry_run:
+            return
+        envs = {}
+        if source:
+            # The engine builds its repository from BACKUP_S3_*, but honours a
+            # RESTIC_REPOSITORY it is given -- so pointing this one run at another
+            # deployment's repository needs nothing of the container but the
+            # environment it is handed. The deployment's own configuration, and so
+            # where its next backup goes, is untouched.
+            settings = backup_settings()
+            envs["RESTIC_REPOSITORY"] = f"s3:{settings.s3_endpoint.rstrip('/')}/{settings.s3_bucket.rstrip('/')}/{source}"
+        output_main(self._backup_exec(["/scripts/restore.sh", snapshot or "latest"] + list(volumes or []), envs=envs))
 
     def run(
         self,

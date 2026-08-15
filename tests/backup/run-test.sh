@@ -144,5 +144,49 @@ if [[ "$snapshots" != *"app-data"* ]]; then
 fi
 echo "Exclude annotation test: passed (app-data2 excluded, app-data backed up)"
 
-# The registered teardown stops the deployment and deletes its volumes.
+# 7. Seed a *second*, independent deployment from the first one's backups. This is what
+#    recovers a deployment whose cluster is gone, and what makes several copies of one
+#    dataset -- so what it proves is that a backup is restorable by something other than
+#    the deployment that wrote it, which restoring in place cannot show.
+#
+#    Only where a second deployment can reach the object store: the Docker target's store
+#    lives inside the first deployment and publishes nothing (see select_backup_target).
+if [ -n "$TEST_BACKUP_CAN_SEED" ]; then
+    seeded_deployment_dir=$STACK_TEST_DIR/${deployment_dir_name}-seeded
+    # The source deployment's name is its repository's name in the bucket.
+    source_deployment=$( grep "^cluster-id:" "$test_deployment_dir/deployment.yml" | awk '{print $2}' )
+    echo "seeding a new deployment from ${source_deployment}"
+
+    $TEST_TARGET_STACK deploy --spec-file "$test_app_spec" --deployment-dir "$seeded_deployment_dir"
+
+    # From here the teardown has two deployments to stop, and the second one is the one
+    # being asserted about -- so the helpers are pointed at it and the first is stopped by
+    # the extra cleanup. Done before it is started, so that a failure starting it still
+    # tears it down.
+    first_deployment_dir=$test_deployment_dir
+    stop_first_deployment () {
+        $TEST_TARGET_STACK manage --dir "$first_deployment_dir" stop --delete-volumes
+    }
+    TEST_EXTRA_CLEANUP=stop_first_deployment
+    stop_deployment_on_exit "$seeded_deployment_dir"
+
+    push_images_if_needed "$seeded_deployment_dir"
+    $TEST_TARGET_STACK manage --dir "$seeded_deployment_dir" start
+    wait_for_running $TEST_BACKUP_SERVICE_COUNT $TEST_START_CHECK_LIMIT
+
+    empty=$( deployment_exec app "cat /data/payload.txt" 2>/dev/null || true )
+    if [[ "$empty" == *"$payload"* ]]; then
+        fail "Seed test: FAILED (the new deployment already had the payload before restoring)"
+    fi
+
+    $TEST_TARGET_STACK manage --dir "$seeded_deployment_dir" backup restore --from "$source_deployment"
+
+    seeded=$( deployment_exec app "cat /data/payload.txt" || true )
+    if [[ "$seeded" != *"$payload"* ]]; then
+        fail "Seed test: FAILED (expected '${payload}', got '${seeded}')"
+    fi
+    echo "Seed test: passed (a second deployment restored the first one's backup)"
+fi
+
+# The registered teardown stops the deployment(s) and deletes their volumes.
 echo "Test passed"
