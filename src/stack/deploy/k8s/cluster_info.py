@@ -489,9 +489,11 @@ class ClusterInfo:
                     if annotations is None:
                         annotations = {}
                     annotations[k8up.BACKUP_COMMAND_ANNOTATION] = backup_command_info["command"]
-                    extension = backup_command_info.get("file-extension")
-                    if extension:
-                        annotations[k8up.FILE_EXTENSION_ANNOTATION] = "." + str(extension).lstrip(".")
+                    # Defaulted rather than omitted when the stack names no extension, so
+                    # that the dump snapshot is named the same here as on the other
+                    # target, which defaults it too.
+                    extension = backup_command_info.get("file-extension") or constants.backup_default_file_extension
+                    annotations[k8up.FILE_EXTENSION_ANNOTATION] = "." + str(extension).lstrip(".")
 
                 # TODO: Make these container-specific in the spec
                 if self.spec.get_labels():

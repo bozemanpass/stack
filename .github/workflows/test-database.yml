@@ -53,10 +53,15 @@ jobs:
           STACK_SCRIPT_DEBUG: ${{ runner.debug }}
         run: ./tests/database/run-test.sh
       # The same stack again, across a wider gap: back it up, destroy the
-      # deployment, and restore into a new one. A step of this job rather than a
-      # job of its own because it reuses this one's stack and its images, but a
-      # separate script so that the test above keeps depending on nothing but the
-      # stack it deploys. Compose only -- see the comment at the top of it.
+      # deployment, and rebuild the database in a new one. A step of this job
+      # rather than a job of its own because it reuses this one's stack and its
+      # images, but a separate script so that the test above keeps depending on
+      # nothing but the stack it deploys.
+      #
+      # Compose only here, by cost rather than by capability: the test also runs
+      # against a real cluster, where K8up takes the dump instead, but that needs
+      # a VM and so runs weekly from test-deploy-k3s.yml. There is no kind leg at
+      # all -- kind has no K8up.
       - name: "Run database backup test"
         if: matrix.target == 'compose'
         env:

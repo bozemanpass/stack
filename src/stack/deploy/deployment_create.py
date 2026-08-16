@@ -635,7 +635,7 @@ def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec,
                         backup_commands = backup_cfg.get("commands", {})
                         if backup_commands:
                             hooks = "\n".join(
-                                f"{svc} {info.get('file-extension', 'dump')} {info['command']}"
+                                f"{svc} {info.get('file-extension') or constants.backup_default_file_extension} {info['command']}"
                                 for svc, info in backup_commands.items()
                             )
                             add_env_var("BACKUP_PRE_HOOKS", hooks, backup_env)

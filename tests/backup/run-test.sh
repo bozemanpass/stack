@@ -135,6 +135,9 @@ fi
 #    the same question on both targets even though the exclusion reaches the engine by
 #    different routes (a mount the backup container never gets on Docker, a PVC
 #    annotation K8up reads on Kubernetes).
+# This deployment's own name: the name of its repository in the bucket, and the first
+# half of the name every dump snapshot is stored under.
+source_deployment=$( grep "^cluster-id:" "$test_deployment_dir/deployment.yml" | awk '{print $2}' )
 snapshots=$( $TEST_TARGET_STACK manage --dir "$test_deployment_dir" backup list )
 echo "snapshots:"
 echo "$snapshots"
@@ -148,25 +151,35 @@ echo "Exclude annotation test: passed (app-data2 excluded, app-data backed up)"
 
 # 6b. Assert the `@stack backup-command` dump was captured. The stack annotates the app
 #     with a dump command (cat of the payload file, standing in for a database dump)
-#     whose stdout the backup stores as a snapshot of its own. Where that snapshot shows
-#     up differs by engine: the Docker target's backup container collects dumps under a
-#     _dumps directory it backs up like a volume (so its content can also be read back
-#     directly), while K8up stores the command output as a snapshot named for the pod,
-#     with the annotated file extension.
+#     whose stdout *is* the backup: both engines stream it straight into a snapshot of
+#     its own, named for the deployment and the service with the annotated extension.
+#     That the name is the same on both is deliberate -- it is what lets either engine's
+#     repository be read by the other -- so this asserts one thing, not one per target.
+if [[ "$snapshots" != *"${source_deployment}-app.txt"* ]]; then
+    fail "Backup command test: FAILED (no ${source_deployment}-app.txt snapshot in the list)"
+fi
+echo "Backup command test: passed (dump captured)"
+
+# 6c. And that the dump holds what the app had. Only where there is a restic to hand:
+#     the Docker target's backup container is one, and reading the snapshot back through
+#     it also shows that a streamed dump is recoverable at all, which is the whole of
+#     what a dump is for. A stdin snapshot is stored under its filename at the root.
 if [ -n "$TEST_BACKUP_MIX_IN" ]; then
-    if [[ "$snapshots" != *"_dumps"* ]]; then
-        fail "Backup command test: FAILED (no _dumps snapshot in the list)"
-    fi
-    dumped=$( deployment_exec backup "cat /data/_dumps/app.txt" || true )
+    # --path as well as the path argument: "latest" on its own is the newest snapshot in
+    # the repository, which is a volume's (the dumps are taken first), and asking that one
+    # for a file it does not hold is an error rather than the dump. --path narrows the
+    # choice of snapshot to the ones holding this dump.
+    # The repository is named explicitly, from the container's own BACKUP_S3_* settings
+    # (escaped, so they are expanded in there rather than out here). The scripts derive it
+    # in lib.sh instead, but that is bash and `exec` wraps its command in `sh -c`.
+    dump_path="/${source_deployment}-app.txt"
+    dumped=$( deployment_exec backup "restic -r s3:\${BACKUP_S3_ENDPOINT}/\${BACKUP_S3_BUCKET} \
+            dump --path ${dump_path} latest ${dump_path}" 2>&1 || true )
     if [[ "$dumped" != *"$payload"* ]]; then
         fail "Backup command test: FAILED (expected dump content '${payload}', got '${dumped}')"
     fi
-else
-    if [[ "$snapshots" != *".txt"* ]]; then
-        fail "Backup command test: FAILED (no .txt dump snapshot in the list)"
-    fi
+    echo "Dump content test: passed"
 fi
-echo "Backup command test: passed (dump captured)"
 
 # 7. Seed a *second*, independent deployment from the first one's backups. This is what
 #    recovers a deployment whose cluster is gone, and what makes several copies of one
@@ -177,8 +190,6 @@ echo "Backup command test: passed (dump captured)"
 #    lives inside the first deployment and publishes nothing (see select_backup_target).
 if [ -n "$TEST_BACKUP_CAN_SEED" ]; then
     seeded_deployment_dir=$STACK_TEST_DIR/${deployment_dir_name}-seeded
-    # The source deployment's name is its repository's name in the bucket.
-    source_deployment=$( grep "^cluster-id:" "$test_deployment_dir/deployment.yml" | awk '{print $2}' )
     echo "seeding a new deployment from ${source_deployment}"
 
     $TEST_TARGET_STACK deploy --spec-file "$test_app_spec" --deployment-dir "$seeded_deployment_dir"
