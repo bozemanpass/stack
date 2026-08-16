@@ -276,6 +276,7 @@ dump_cluster_diagnostics () {
   ssh -i "$MACHINE_SSH_KEY_FILE" -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile="$work_dir/known_hosts" \
     ${MACHINE_NEW_USER}@${machine_fqdn} \
     "sudo kubectl get pods -A -o wide; \
+     sudo kubectl get deploy -n k8up-system -o jsonpath='{range .items[*]}k8up image: {..image}{\"\n\"}{end}' 2>/dev/null; \
      sudo kubectl get gateway,httproute -A 2>/dev/null; \
      sudo kubectl get ingress -A 2>/dev/null; \
      sudo kubectl get certificate,order,challenge -A 2>/dev/null; \

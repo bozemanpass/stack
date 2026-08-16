@@ -60,10 +60,14 @@ jobs:
           # The ingress leg runs just the app deploy test, which is the one that
           # actually exercises the difference between the two arrangements.
           #
-          # The backup test only runs here: K8up, which runs backups on a
+          # The backup tests only run here: K8up, which runs backups on a
           # cluster, is installed by the machine provisioning and is not present
-          # on a kind cluster.
-          gateway_tests="./tests/app-deploy/run-test.sh ./tests/database/run-test.sh ./tests/backup/run-test.sh"
+          # on a kind cluster. There are two of them, covering the two shapes a
+          # backup can have -- files (tests/backup) and a streamed logical dump
+          # (tests/database/run-backup-test.sh) -- and this is the only place the
+          # dump one runs against the engine that actually takes it in
+          # production.
+          gateway_tests="./tests/app-deploy/run-test.sh ./tests/database/run-test.sh ./tests/backup/run-test.sh ./tests/database/run-backup-test.sh"
           ingress_tests="./tests/app-deploy/run-test.sh"
           if [ -n "${TESTS}" ]; then
             gateway_tests="${TESTS}"

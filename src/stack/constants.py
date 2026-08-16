@@ -37,6 +37,9 @@ backup_service_name = "backup"
 backup_exclude_annotation = "backup-exclude"
 backup_command_annotation = "backup-command"
 backup_file_extension_annotation = "backup-file-extension"
+# Extension given to a dump whose stack did not name one.  Applied on both targets, so
+# that the same stack produces a snapshot of the same name whichever engine took it.
+backup_default_file_extension = "dump"
 deployment_file_name = "deployment.yml"
 host_name_key = "host-name"
 http_proxy_key = "http-proxy"

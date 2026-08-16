@@ -81,13 +81,32 @@ first goes on depending on nothing but the stack it deploys. They run in the sam
 CI job, since the second reuses the first's stack and images.
 
 What that second test covers that the `backup` test does not is the **dump** path:
-the database stack excludes its data directory and takes a `pg_dump` at backup
-time instead, so the repository holds no database files and the recovery is a
-`pg_restore` rather than a file-level restore. The `backup` test covers the file
-path. It is compose-only, for a reason particular to it rather than to the backup
-engine: the assertion only means anything if the new deployment is filled before
-its test client has ever run, which needs a deployment brought up a service at a
-time. The reason is spelled out at the top of the script.
+the database stack excludes its data directory and streams a `pg_dump` at backup
+time instead, so the repository holds no database files at all and recovery means
+reading the dump snapshot back out with the bare `restic` CLI and replaying it
+with `psql`. That external route is deliberate — `backup restore` fills volumes
+and a dump is not a volume — and it is also the only recovery route that is the
+same on both targets, since a cluster has no backup container to read a dump out
+of. The `backup` test covers the file path. It runs on `compose` and `remote`,
+per-PR only on compose with the remote leg weekly. No kind leg: kind has no K8up.
+
+A word on why the dump is streamed rather than written to a file in a volume, since
+the latter looks more convenient and was tried first: a "backup command" means the
+command's **stdout is the backup**, on both engines. It is not a quiesce hook that
+prepares files for the volume backup, and K8up in particular snapshots the PVCs
+independently of the annotated command — measured on a real cluster taking the PVC
+snapshot eight seconds *before* running the command. A dump written into a volume
+is therefore captured a backup late there, or never, which looks exactly like a
+working backup until you need it.
+
+Its assertion is a **row written by the run itself**, not the test client's
+"data already exists" report, and that is load-bearing rather than incidental. The
+new deployment's client comes up and creates the stack's test data for itself, so
+"the data is there" is true before anything is restored; only a row that could
+have come from nowhere but the backup tells a working restore from a no-op. It is
+also what makes one script serve both targets — the alternative was to keep the
+client from ever running, and on Kubernetes there is no way to do that (`up()`
+ignores its service list, and the PVCs only exist once the deployment starts).
 
 `backup` runs on `compose` and `remote` but not `kind`, and the reason is the
 backup engine rather than the test: on a cluster, backups are run by K8up, which

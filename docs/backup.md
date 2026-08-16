@@ -48,11 +48,11 @@ The two targets differ in *what runs restic and how it is scheduled*:
 | ------------------ | ------------------------------------------------- | -------------------------------------------- |
 | Engine / format    | restic (the `bozemanpass/backup` container)       | restic (via **K8up**)                        |
 | Scheduling         | cron in the backup container                      | K8up `Schedule` resource                     |
-| Quiesce / hooks    | pre-backup dumps run via the Docker socket        | `k8up.io/backupcommand` pod annotation       |
+| Logical dumps      | command run via the Docker socket, stdout streamed | `k8up.io/backupcommand` pod annotation      |
 | Config generation  | `stack` injects config at deploy time             | `stack` emits K8up resources                 |
 | Prerequisites      | the backup stack, mixed in with a `--spec-file`   | K8up, installed by the machine provisioning  |
 | Restore            | `restic restore` in the backup container          | a K8up `Restore` per volume                  |
-| Snapshot layout    | one snapshot per volume, at `/data/<volume>`      | one snapshot per volume, at `/data/<volume>` |
+| Snapshot layout    | one per volume at `/data/<volume>`, one per dump  | one per volume at `/data/<volume>`, one per dump |
 
 That last row is deliberate rather than coincidental: the Docker target mounts the volumes where K8up
 mounts a claim in its own backup job, so both targets record the same paths in a snapshot. **A repository
@@ -171,8 +171,8 @@ ingress analogy is misleading because ingress is *stateless* whereas backup is *
 file-level copy of a **live database's** data directory, read file-by-file while the database writes, can
 produce a torn, unrestorable snapshot.
 
-For such services the stack author adds a single annotation specifying a logical dump command, whose stdout
-is captured into the backup instead of (or alongside) the raw files:
+For such services the stack author adds a single annotation specifying a logical dump command, **whose
+stdout is the backup**:
 
 ```yaml
 services:
@@ -180,65 +180,77 @@ services:
     image: bozemanpass/todo-db:stack
     volumes:
       - "pgdata:/var/lib/postgresql/data"   # @stack backup-exclude
-    # @stack backup-command pg_dump -U postgres -d todos
+    # @stack backup-command pg_dump -U postgres -d todos --clean --if-exists
     # @stack backup-file-extension sql
 ```
+
+> #### What a "backup command" is, and what it is not
+>
+> The phrase has two plausible readings, and only one of them is this feature:
+>
+> 1. **A quiesce hook** — a command that makes some set of files safe to copy (checkpoint, flush, snapshot),
+>    after which the *file-level* backup of those files is consistent. **This is not what this is**, on
+>    either target.
+> 2. **A stream** — a command that writes a consistent dataset to stdout, which *is* the backup artifact.
+>    This is what `@stack backup-command` means, what K8up's `backupcommand` means, and what the engines
+>    implement.
+>
+> The distinction is not pedantry: under (2) the dump never touches a volume, so nothing needs to be ordered
+> against the volume snapshots, and neither engine orders it. A command whose useful effect is a *file it
+> writes* — `pg_dump -f /somewhere/in/a/volume` — is therefore not supported, and fails in a way that looks
+> like it works: on the Docker target it happens to be captured (the engine runs hooks first), while K8up
+> snapshots the PVCs independently and picks the file up one backup later, or never, if the deployment is
+> lost first. Verified on a real cluster on 2026-08-15, where the PVC was snapshotted eight seconds before
+> the annotated command ran. Write the dump to stdout.
 
 Crucially this is **author-time** metadata: whoever packages the database component writes it once, and
 every deployer of that stack gets consistent backups for free, having supplied nothing. The annotation maps
 one-to-one onto K8up's `k8up.io/backupcommand` / `k8up.io/file-extension` pod annotations on the Kubernetes
-target, and onto a pre-backup hook in the restic container on the Docker target.
+target, and onto a dump command run by the restic container on the Docker target.
 
 Both annotations are **full-line comments written inside the service's block** — after any of its keys, or
 at the end as above. A comment written *outside* the block (say, at the services' own indent, heading the
 next service) is ambiguous to the YAML parser — it attaches to whichever service precedes it — so it is
 ignored with a warning rather than guessed at.
 
-How the dump is taken differs by engine, behind the one annotation:
+Both engines do the same thing with it, down to the name the result is stored under —
+`<deployment>-<service>.<extension>`, at the root of the repository — so `backup list` reads the same on
+both and either engine's repository can be read by the other:
 
 - On the **Docker target** the backup container runs the command inside the service's own container (via
-  the Docker socket, wrapped in `sh -c`) before restic runs, and captures its stdout into a `_dumps`
-  directory that is backed up as a snapshot of its own, holding `/data/_dumps/<service>.<extension>`. A
-  dump command that fails fails the whole backup, loudly — a backup silently missing its dump would look
-  exactly like a working one.
+  the Docker socket, wrapped in `sh -c`) and pipes its stdout straight into `restic backup --stdin`. A dump
+  command that fails fails the whole backup, loudly — a backup silently missing its dump would look exactly
+  like a working one.
 - On **Kubernetes** the annotations become K8up's pod annotations verbatim, and K8up execs the command in
-  the service's pod at backup time, storing the stdout as a snapshot of its own named with the extension.
-  K8up does not run the command through a shell the way the Docker target does, so a command needing shell
-  features (pipes, `$VARS`, redirection) should be written as `sh -c '...'` — the form K8up's own examples
-  use — which then behaves the same on both targets. A plain single command like the `pg_dump` above also
-  behaves the same on both.
+  the service's pod at backup time, streaming the stdout into a snapshot the same way. K8up does not run
+  the command through a shell the way the Docker target does, so a command needing shell features (pipes,
+  `$VARS`, redirection) should be written as `sh -c '...'` — the form K8up's own examples use — which then
+  behaves the same on both targets. A plain single command like the `pg_dump` above also behaves the same
+  on both.
 
-Two things follow from "instead of (or alongside)":
+Nothing is streamed to disk on the way, on either target, so a dump larger than the deployment's spare
+space is still possible — which is much of the point of a logical backup of a large database.
+
+Two things follow:
 
 - The dump is captured **in addition to** the file-level backup unless the author also excludes the raw
   volume, as the example does. For a database, excluding the live data directory is usually right: the dump
-  is the restorable artifact, and the raw files are the torn-file risk this section is about.
-- **Restoring a dump is manual.** `backup restore` puts *volumes* back; a logical dump is replayed into the
-  running service by hand (e.g. `psql todos < todos.sql`), because only the application knows how. The dump
-  snapshot shows up in `backup list` like any other and can be pulled out with the bare `restic` CLI — or,
-  on the Docker target, read straight out of the backup container under `/data/_dumps/`.
+  is the restorable artifact, the raw files are the torn-file risk this section is about, and keeping both
+  roughly doubles the size of every backup.
+- **Restoring a dump is manual**, and external. `backup restore` puts *volumes* back; a dump is not a
+  volume, and only the application knows how to replay one. The dump snapshot shows up in `backup list`
+  like any other and is read with the bare `restic` CLI, from anywhere with the bucket, the repository
+  password and the deployment's name:
 
-Both of those routes to the dump go through the backup engine, which is awkward at exactly the moment it
-matters: the service that has to replay the dump cannot reach the place the engine keeps it. An author who
-wants the dump to come back within reach of the service writes it to a **volume of the service's own**
-instead of to stdout:
+  ```bash
+  $ restic -r s3:https://nyc3.digitaloceanspaces.com/my-backups/stack-6e0cfa21fe07386d \
+        dump latest /stack-6e0cfa21fe07386d-db.sql | psql -U postgres -d todos
+  ```
 
-```yaml
-services:
-  db:
-    image: bozemanpass/todo-db:stack
-    volumes:
-      - "pgdata:/var/lib/postgresql/data"   # @stack backup-exclude
-      - "dumps:/dumps"
-    # @stack backup-command pg_dump -U postgres -d todos -Fc -f /dumps/todos.dump
-```
-
-Nothing new is at work here: `dumps` is an ordinary volume, so it is backed up and restored like any other,
-and the command still runs inside the service's container at backup time, so what lands in it is still a
-consistent dump. What changes is where the dump is after a restore — `/dumps/todos.dump` in the service's
-own filesystem, where `pg_restore` can be pointed straight at it. This is what
-`tests/database/run-backup-test.sh` exercises end to end. The one cost is that the command now prints
-nothing, so the backup also carries a zero-length `_dumps` entry for it.
+  A dump written with `--clean --if-exists` replays over a database that is already running and already
+  has its tables, which is what a redeployed stack looks like. `tests/database/run-backup-test.sh`
+  exercises exactly this route, on both targets. Making it less manual is
+  [not built yet](#not-built-yet).
 
 ### Annotation summary
 
@@ -465,14 +477,17 @@ It is where an exclusion shows up: a volume marked `@stack backup-exclude` never
   `backup list --from`. Restoring from elsewhere does not need it — the latest snapshot per volume is
   chosen by K8up — but naming a specific `--snapshot` in someone else's repository means finding the id
   another way.
+- **Recovering a dump is external.** `backup restore` fills volumes; a dump snapshot is read with the
+  `restic` CLI and replayed by hand (see [Application consistency](#application-consistency)). A
+  `backup restore` that could put a dump *somewhere the service can reach it* — or pipe it into a command
+  in the service, the way K8up's own restore does — is the obvious next step, and would make a dump-only
+  stack recoverable with the stack tool alone.
 - **A disaster-recovery test that destroys the *cluster*.** The deployment-level version of it is built and
   runs per-PR (`tests/database/run-backup-test.sh`): a database stack is loaded and backed up, its
-  deployment is destroyed — containers, volumes and directory — and a new deployment of the same stack is
-  rebuilt from the backup, which is then read back through the database. It is the dump path rather than the
-  file path: the stack excludes its data directory, so the repository holds a `pg_dump` and no database
-  files, and `pg_restore` is what puts the database back. What that does not cover is the machine underneath
-  going with it: back up, destroy the cluster, provision a new one, restore into a fresh deployment. That
-  spans two CI jobs that have to agree on what was written, and is not built.
+  deployment is destroyed — containers, volumes and directory — and the database is rebuilt in a new
+  deployment from the dump, read out of the repository with the bare `restic` CLI. What that does not cover
+  is the machine underneath going with it: back up, destroy the cluster, provision a new one, restore into
+  a fresh deployment. That spans two CI jobs that have to agree on what was written, and is not built.
 - **Cross-target restore is not covered by a test.** Both directions were verified by hand when the layouts
   were aligned (a compose-written repository restored on a real cluster, and a K8up-written one restored on
   compose), but nothing re-checks it: a test would need a compose deployment writing to a real object store
