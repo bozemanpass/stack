@@ -19,14 +19,17 @@ on:
         description: "combine.sh URL (to test a machine-provisioning branch)"
         required: false
       tests:
-        description: "Test scripts to run (space separated); default is the per-leg set in the plan job"
+        description: "Which test to run; \"all\" is the per-leg set in the plan job"
         required: false
+        type: choice
+        default: all
+        options: [all, app-deploy, database, backup, database-backup]
       mode:
         description: "Which leg to run; each one provisions its own VM"
         required: false
         type: choice
-        default: both
-        options: [both, gateway, ingress]
+        default: gateway
+        options: [gateway, ingress, both]
   schedule:
     # Run weekly on Monday at 07:00 UTC
     - cron: "0 7 * * 1"
@@ -69,13 +72,29 @@ jobs:
           # production.
           gateway_tests="./tests/app-deploy/run-test.sh ./tests/database/run-test.sh ./tests/backup/run-test.sh ./tests/database/run-backup-test.sh"
           ingress_tests="./tests/app-deploy/run-test.sh"
-          if [ -n "${TESTS}" ]; then
-            gateway_tests="${TESTS}"
-            ingress_tests="${TESTS}"
+          # The `tests` dropdown names one test to run instead of the per-leg set
+          # above. Only the four scripts that go through select_deploy_target and
+          # accept the remote target can be named here; the rest are single-target
+          # by construction (k8s-deployment-control owns its own kind cluster) and
+          # would fail immediately.
+          case "${TESTS}" in
+            ''|all)          ;;
+            app-deploy)      one=./tests/app-deploy/run-test.sh ;;
+            database)        one=./tests/database/run-test.sh ;;
+            backup)          one=./tests/backup/run-test.sh ;;
+            database-backup) one=./tests/database/run-backup-test.sh ;;
+            *) echo "Unknown test: ${TESTS}" >&2; exit 1 ;;
+          esac
+          if [ -n "${one:-}" ]; then
+            gateway_tests="${one}"
+            ingress_tests="${one}"
           fi
           gateway="{\"mode\":\"gateway\",\"tests\":\"${gateway_tests}\"}"
           ingress="{\"mode\":\"ingress\",\"tests\":\"${ingress_tests}\"}"
-          # A scheduled run sets no inputs, so the empty case runs both.
+          # A dispatch defaults to the gateway leg alone, since that is the
+          # primary arrangement and the second leg is a second VM.  A scheduled
+          # run sets no inputs at all -- defaults apply to the form, not to the
+          # event -- and the empty case is what makes the weekly run cover both.
           case "${MODE}" in
             gateway) include="${gateway}" ;;
             ingress) include="${ingress}" ;;
