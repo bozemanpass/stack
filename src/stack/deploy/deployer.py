@@ -93,6 +93,17 @@ class DeployerException(Exception):
         super().__init__(*args)
 
 
+class ClusterNotRunningException(DeployerException):
+    """There is no cluster to talk to, so nothing of the deployment is running.
+
+    Only a kind deployment reaches this state: stopping one deletes the whole
+    cluster, so afterwards there is no kube context left to connect to.  That is
+    the normal resting state of a stopped kind deployment rather than a fault,
+    which is why it is distinguishable -- the commands that report what is
+    running answer "nothing" instead of failing.
+    """
+
+
 class DeployerConfigGenerator(ABC):
     @abstractmethod
     def generate(self, deployment_dir: Path):

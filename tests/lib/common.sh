@@ -539,7 +539,13 @@ wait_for_stopped () {
     local ps_output
     while [ $check -lt $check_limit ]; do
         check=$((check + 1))
-        ps_output=$( $TEST_TARGET_STACK manage --dir "$TEST_DEPLOYMENT_DIR" ps ) || true
+        # A `ps` that fails is a failure, not an answer.  It used to be tolerated
+        # here, and since a crash prints nothing on stdout it read as "stopped":
+        # on kind, where stopping deletes the cluster, `ps` threw for the missing
+        # kube context on every run and the test went green over the top of it.
+        if ! ps_output=$( $TEST_TARGET_STACK manage --dir "$TEST_DEPLOYMENT_DIR" ps ); then
+            fail "waiting for containers to stop: FAILED - ps exited non-zero"
+        fi
         if [[ "$ps_output" != *"id:"* ]]; then
             return
         fi
