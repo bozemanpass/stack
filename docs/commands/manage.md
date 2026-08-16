@@ -126,6 +126,63 @@ Reload the stack to pick up config changes
 stack manage --dir DEPLOYMENT_DIR reload
 ```
 
+### backup
+
+Back up and restore the deployment's data
+
+```bash
+stack manage --dir DEPLOYMENT_DIR backup SUBCOMMAND [OPTIONS]
+```
+
+Backups run automatically on a schedule once backup is configured for the
+environment; these subcommands operate on an existing deployment's backups.
+There is nothing backup-specific in the stack or the spec — what to back up is
+derived from the deployment, and where to send it comes from configuration
+(see [stack config](config.md#configuration-keys) and [backup.md](../backup.md)).
+
+#### backup now
+
+Back up the deployment's data immediately, outside the schedule, and wait for it.
+
+```bash
+stack manage --dir DEPLOYMENT_DIR backup now
+```
+
+#### backup list
+
+List the snapshots available to restore, one line per snapshot — id, time, and
+the volumes it holds. Each volume is backed up as its own snapshot.
+
+```bash
+stack manage --dir DEPLOYMENT_DIR backup list
+```
+
+#### backup restore
+
+Restore the deployment's data from a snapshot, in place, into the deployment's
+existing volumes.
+
+```bash
+stack manage --dir DEPLOYMENT_DIR backup restore [OPTIONS]
+```
+
+##### Options
+
+| Option | Type | Description | Default |
+|--------|------|-------------|---------|
+| `--snapshot` | TEXT | Snapshot to restore | `latest` |
+| `--volume` | TEXT | Restore only this volume (repeatable) | All volumes |
+| `--from` | TEXT | Restore from another deployment's backups, naming it | This deployment's own |
+
+Restoring underneath a running service overwrites files it has open, so stopping
+the deployment first is the operator's job. A deployment restored with `--from`
+keeps its own identity and goes on backing up to its own repository, which is
+what makes it the disaster-recovery and seed-a-copy path.
+
+Restoring a dump taken by an `@stack backup-command` is manual and external:
+`backup restore` fills volumes, and a dump is not a volume. See
+[backup.md](../backup.md#application-consistency).
+
 ### services
 
 List stack service names
@@ -190,7 +247,27 @@ stack manage --dir ~/deployments/my-stack push-images
 stack manage --dir ~/deployments/my-stack reload
 ```
 
+### Backup and Restore
+
+```bash
+# Take a backup now, without waiting for the schedule
+stack manage --dir ~/deployments/my-stack backup now
+
+# See what can be restored
+stack manage --dir ~/deployments/my-stack backup list
+
+# Restore every volume from the most recent snapshot
+stack manage --dir ~/deployments/my-stack backup restore
+
+# Restore a single volume from a specific snapshot
+stack manage --dir ~/deployments/my-stack backup restore --snapshot 6478d2ea --volume pgdata
+
+# Fill a new deployment from a dead one's backups
+stack manage --dir ~/deployments/my-stack backup restore --from stack-6e0cfa21fe07386d
+```
+
 ## See Also
 
 - [stack deploy](deploy.md) - Deploy a stack
 - [stack init](init.md) - Create a stack specification file
+- [backup.md](../backup.md) - Configuring backup, and what it captures
