@@ -151,7 +151,6 @@ jobs:
       # The test generates a per-run password when this is unset, and those
       # repositories die with the run that wrote them.
       STACK_BACKUP_RESTIC_PASSWORD: ${{ secrets.K3S_TEST_BACKUP_RESTIC_PASSWORD }}
-      STACK_SCRIPT_DEBUG: ${{ runner.debug }}
     steps:
       - name: "Clone project repository"
         uses: actions/checkout@v5
@@ -169,6 +168,11 @@ jobs:
           # For every later step: the cluster script fetches the kubeconfig and
           # the diagnostics over SSH.
           echo "MACHINE_SSH_KEY_FILE=$HOME/.ssh/k3s-test-key" >> "$GITHUB_ENV"
+      - name: "Turn on script debug logging if the run asked for it"
+        # Ticking "Enable debug logging" on a re-run turns on xtrace and the
+        # environment dump in the test scripts.  A step rather than part of the
+        # job's env block, which cannot see the runner context.
+        run: echo "STACK_SCRIPT_DEBUG=${{ runner.debug }}" >> "$GITHUB_ENV"
       - name: "Generate build version file"
         run: ./scripts/create_build_tag_file.sh
       - name: "Build local shiv package"
