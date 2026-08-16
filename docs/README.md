@@ -41,6 +41,7 @@ stack authors should read [stack-files.md](stack-files.md) first.
 | [ingress.md](ingress.md) | Automatic HTTP route configuration for an ingress controller / reverse proxy via annotations in `composefile.yml`. |
 | [gateway-api.md](gateway-api.md) | HTTPS on Kubernetes via the Gateway API (with the legacy Ingress API as fallback), and the cluster contract required to use it. |
 | [k8s-deployment-enhancements.md](k8s-deployment-enhancements.md) | Controlling Kubernetes pod placement with node affinity rules in the deployment spec. |
+| [kube-config.md](kube-config.md) | Naming the cluster credential by reference — an environment variable, a file, or a secret store command — so that a deployment directory committed to git contains no kubeconfig. |
 
 ## Design Proposals
 
