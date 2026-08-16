@@ -11,6 +11,14 @@ name: Real K8S Deploy Test
 # runs per-PR against compose and kind; this is the run that catches what only a
 # real cluster has: PVCs from a storage class, images pulled from a registry,
 # real ingress/gateway routing, real certificates.
+#
+# Sharing the VM does not mean sharing a step: the cluster's lifecycle is
+# tests/k3s-deploy/cluster.sh (provision / diagnostics / destroy) and each test
+# is a step of its own in between, so the job page names what ran and shows which
+# test failed without anyone reading the log. The cost of that is that the
+# teardown is a step rather than an exit trap, so it is `if: always()`, and every
+# step that could hang has a timeout -- a job that times out would skip the
+# teardown and leak the VM.
 
 on:
   workflow_dispatch:
@@ -70,40 +78,44 @@ jobs:
           # (tests/database/run-backup-test.sh) -- and this is the only place the
           # dump one runs against the engine that actually takes it in
           # production.
-          gateway_tests="./tests/app-deploy/run-test.sh ./tests/database/run-test.sh ./tests/backup/run-test.sh ./tests/database/run-backup-test.sh"
-          ingress_tests="./tests/app-deploy/run-test.sh"
+          #
+          # These are names rather than script paths: each one selects the test
+          # step of the same name in the job below, which is what runs it.
+          gateway_tests='["app-deploy","database","backup","database-backup"]'
+          ingress_tests='["app-deploy"]'
           # The `tests` dropdown names one test to run instead of the per-leg set
-          # above. Only the four scripts that go through select_deploy_target and
-          # accept the remote target can be named here; the rest are single-target
-          # by construction (k8s-deployment-control owns its own kind cluster) and
-          # would fail immediately.
+          # above. Only the four that go through select_deploy_target and accept
+          # the remote target are offered; the rest are single-target by
+          # construction (k8s-deployment-control owns its own kind cluster).
           case "${TESTS}" in
-            ''|all)          ;;
-            app-deploy)      one=./tests/app-deploy/run-test.sh ;;
-            database)        one=./tests/database/run-test.sh ;;
-            backup)          one=./tests/backup/run-test.sh ;;
-            database-backup) one=./tests/database/run-backup-test.sh ;;
+            ''|all) ;;
+            app-deploy|database|backup|database-backup)
+              gateway_tests="[\"${TESTS}\"]"
+              ingress_tests="${gateway_tests}"
+              ;;
             *) echo "Unknown test: ${TESTS}" >&2; exit 1 ;;
           esac
-          if [ -n "${one:-}" ]; then
-            gateway_tests="${one}"
-            ingress_tests="${one}"
-          fi
-          gateway="{\"mode\":\"gateway\",\"tests\":\"${gateway_tests}\"}"
-          ingress="{\"mode\":\"ingress\",\"tests\":\"${ingress_tests}\"}"
           # A dispatch defaults to the gateway leg alone, since that is the
-          # primary arrangement and the second leg is a second VM.  A scheduled
+          # primary arrangement and the second leg is a second VM. A scheduled
           # run sets no inputs at all -- defaults apply to the form, not to the
           # event -- and the empty case is what makes the weekly run cover both.
-          case "${MODE}" in
-            gateway) include="${gateway}" ;;
-            ingress) include="${ingress}" ;;
-            *)       include="${gateway},${ingress}" ;;
-          esac
-          matrix="{\"include\":[${include}]}"
-          # Malformed JSON here would fail in the matrix expansion below, where
-          # the error says nothing useful about why.
-          echo "${matrix}" | jq . > /dev/null
+          #
+          # Each leg's test list is carried as a JSON string for the steps to read
+          # back with fromJSON, so that a step's condition is an exact match
+          # against the list rather than a substring of it. jq builds it: hand
+          # assembly of JSON that is then embedded in JSON fails in the matrix
+          # expansion, where the error says nothing about why.
+          matrix=$( jq -cn --arg mode "${MODE}" --argjson gw "${gateway_tests}" --argjson ing "${ingress_tests}" '
+            {
+              gateway: { mode: "gateway", tests: ($gw | tojson) },
+              ingress: { mode: "ingress", tests: ($ing | tojson) },
+            } as $legs
+            | { include: (
+                  if   $mode == "gateway" then [$legs.gateway]
+                  elif $mode == "ingress" then [$legs.ingress]
+                  else [$legs.gateway, $legs.ingress]
+                  end
+                ) }' )
           echo "Running: ${matrix}"
           echo "matrix=${matrix}" >> "$GITHUB_OUTPUT"
 
@@ -115,6 +127,30 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    # At the job level because the cluster and every test step needs some of it,
+    # and repeating it per step is how the two drift apart.
+    env:
+      STACK_K3S_MODE: ${{ matrix.mode }}
+      MACHINE_DO_TOKEN: ${{ secrets.K3S_TEST_DO_TOKEN }}
+      MACHINE_SSH_KEY_NAME: ${{ vars.K3S_TEST_SSH_KEY_NAME }}
+      MACHINE_DNS_ZONE: ${{ vars.K3S_TEST_DNS_ZONE }}
+      MACHINE_PROJECT: ${{ vars.K3S_TEST_PROJECT }}
+      MACHINE_PROVISIONING_URL: ${{ inputs.provisioning-url }}
+      STACK_IMAGE_REGISTRY: ${{ vars.K3S_TEST_IMAGE_REGISTRY }}
+      STACK_IMAGE_REGISTRY_USER: ${{ secrets.K3S_TEST_REGISTRY_TOKEN }}
+      STACK_IMAGE_REGISTRY_TOKEN: ${{ secrets.K3S_TEST_REGISTRY_TOKEN }}
+      LETSENCRYPT_EMAIL: ${{ vars.K3S_TEST_LETSENCRYPT_EMAIL }}
+      # Where the backup test's backups go. The bucket may be given as its
+      # URL; the test splits out the endpoint.
+      STACK_BACKUP_S3_BUCKET: ${{ vars.K3S_TEST_BACKUP_S3_BUCKET }}
+      STACK_BACKUP_S3_KEY_ID: ${{ secrets.K3S_TEST_BACKUP_S3_KEY_ID }}
+      STACK_BACKUP_S3_KEY: ${{ secrets.K3S_TEST_BACKUP_S3_KEY }}
+      # A fixed repository password, so that the repositories runs leave in
+      # the bucket can still be read afterwards -- to restore one by hand, or
+      # as the fixture for a test that restores what an earlier run backed up.
+      # The test generates a per-run password when this is unset, and those
+      # repositories die with the run that wrote them.
+      STACK_BACKUP_RESTIC_PASSWORD: ${{ secrets.K3S_TEST_BACKUP_RESTIC_PASSWORD }}
     steps:
       - name: "Clone project repository"
         uses: actions/checkout@v5
@@ -129,35 +165,58 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.K3S_TEST_SSH_KEY }}" > ~/.ssh/k3s-test-key
           chmod 600 ~/.ssh/k3s-test-key
+          # For every later step: the cluster script fetches the kubeconfig and
+          # the diagnostics over SSH.
+          echo "MACHINE_SSH_KEY_FILE=$HOME/.ssh/k3s-test-key" >> "$GITHUB_ENV"
+      - name: "Turn on script debug logging if the run asked for it"
+        # Ticking "Enable debug logging" on a re-run turns on xtrace and the
+        # environment dump in the test scripts.  A step rather than part of the
+        # job's env block, which cannot see the runner context.
+        run: echo "STACK_SCRIPT_DEBUG=${{ runner.debug }}" >> "$GITHUB_ENV"
       - name: "Generate build version file"
         run: ./scripts/create_build_tag_file.sh
       - name: "Build local shiv package"
         run: ./scripts/build_shiv_package.sh
-      - name: "Run the k3s tests"
-        env:
-          STACK_K3S_MODE: ${{ matrix.mode }}
-          MACHINE_DO_TOKEN: ${{ secrets.K3S_TEST_DO_TOKEN }}
-          MACHINE_SSH_KEY_NAME: ${{ vars.K3S_TEST_SSH_KEY_NAME }}
-          MACHINE_DNS_ZONE: ${{ vars.K3S_TEST_DNS_ZONE }}
-          MACHINE_PROJECT: ${{ vars.K3S_TEST_PROJECT }}
-          MACHINE_PROVISIONING_URL: ${{ inputs.provisioning-url }}
-          STACK_IMAGE_REGISTRY: ${{ vars.K3S_TEST_IMAGE_REGISTRY }}
-          STACK_IMAGE_REGISTRY_USER: ${{ secrets.K3S_TEST_REGISTRY_TOKEN }}
-          STACK_IMAGE_REGISTRY_TOKEN: ${{ secrets.K3S_TEST_REGISTRY_TOKEN }}
-          LETSENCRYPT_EMAIL: ${{ vars.K3S_TEST_LETSENCRYPT_EMAIL }}
-          # Where the backup test's backups go. The bucket may be given as its
-          # URL; the test splits out the endpoint.
-          STACK_BACKUP_S3_BUCKET: ${{ vars.K3S_TEST_BACKUP_S3_BUCKET }}
-          STACK_BACKUP_S3_KEY_ID: ${{ secrets.K3S_TEST_BACKUP_S3_KEY_ID }}
-          STACK_BACKUP_S3_KEY: ${{ secrets.K3S_TEST_BACKUP_S3_KEY }}
-          # A fixed repository password, so that the repositories runs leave in
-          # the bucket can still be read afterwards -- to restore one by hand, or
-          # as the fixture for a test that restores what an earlier run backed up.
-          # The test generates a per-run password when this is unset, and those
-          # repositories die with the run that wrote them.
-          STACK_BACKUP_RESTIC_PASSWORD: ${{ secrets.K3S_TEST_BACKUP_RESTIC_PASSWORD }}
-          STACK_SCRIPT_DEBUG: ${{ runner.debug }}
-          # Already reflects the `tests` input, if one was given: the plan job
-          # applies it to every leg it emits.
-          TESTS: ${{ matrix.tests }}
-        run: MACHINE_SSH_KEY_FILE=$HOME/.ssh/k3s-test-key ./tests/k3s-deploy/with-k3s-cluster.sh $TESTS
+
+      - name: "Provision a k3s cluster on a cloud VM"
+        id: provision
+        # Cloud-init installs k3s, cert-manager, traefik and K8up; the script
+        # gives that 30 minutes before giving up on it.
+        timeout-minutes: 40
+        run: ./tests/k3s-deploy/cluster.sh provision
+
+      # Each test below runs against that one cluster, in a namespace of its own.
+      # They are guarded alike: skip if this leg did not ask for the test, skip if
+      # there is no cluster, but run even if an earlier test failed -- the VM is
+      # already paid for, and the run may as well report every failure it can
+      # find. `fail-fast: false` says the same thing one level up, between legs.
+      - name: "App deploy: HTTPS with a real certificate, and data across a restart"
+        if: ${{ !cancelled() && steps.provision.outcome == 'success' && contains(fromJSON(matrix.tests), 'app-deploy') }}
+        timeout-minutes: 30
+        run: ./tests/app-deploy/run-test.sh
+      - name: "Database: data in a PVC survives a stop and start"
+        if: ${{ !cancelled() && steps.provision.outcome == 'success' && contains(fromJSON(matrix.tests), 'database') }}
+        timeout-minutes: 30
+        run: ./tests/database/run-test.sh
+      - name: "Backup: files backed up by K8up and restored into a new deployment"
+        if: ${{ !cancelled() && steps.provision.outcome == 'success' && contains(fromJSON(matrix.tests), 'backup') }}
+        timeout-minutes: 30
+        run: ./tests/backup/run-test.sh
+      - name: "Database backup: a streamed pg_dump replayed into a new deployment"
+        if: ${{ !cancelled() && steps.provision.outcome == 'success' && contains(fromJSON(matrix.tests), 'database-backup') }}
+        timeout-minutes: 30
+        run: ./tests/database/run-backup-test.sh
+
+      - name: "Collect cluster diagnostics"
+        # Only worth the SSH round trip when something above failed, and it has to
+        # happen before the teardown below: the VM is the only place this state
+        # exists.
+        if: ${{ failure() }}
+        timeout-minutes: 10
+        run: ./tests/k3s-deploy/cluster.sh diagnostics
+      - name: "Destroy the cluster"
+        # However the job ends, including a cancellation: what is left behind
+        # otherwise is a VM nobody is watching, billed by the hour.
+        if: ${{ always() }}
+        timeout-minutes: 15
+        run: ./tests/k3s-deploy/cluster.sh destroy

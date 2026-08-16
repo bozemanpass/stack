@@ -135,6 +135,21 @@ on a cloud VM and runs the test scripts named on its command line against it,
 sharing the one cluster; the "Real K8S Deploy Test" workflow runs it weekly and
 on manual dispatch.
 
+That wrapper is for a person at a terminal. The lifecycle underneath it is
+`tests/k3s-deploy/cluster.sh provision|diagnostics|destroy`, keeping the cluster
+in a state directory between commands, and CI drives those directly so that each
+test is a GitHub Actions step of its own: sharing the VM should not mean sharing
+one pass/fail across four tests, which left "which test failed?" answerable only
+by reading the log. Adding a remote test therefore means adding both a name to
+the plan job's per-leg list and a step that runs it. The step's `if` matches that
+name, and the `tests` dispatch dropdown offers the same names.
+
+Teardown is the price of that arrangement: an exit trap covered every way the
+old single script could end, and a workflow step does not, so the destroy step is
+`if: always()` and every step that could hang carries a `timeout-minutes` — a
+job that hits the *job* timeout skips its remaining steps and leaves the VM
+running.
+
 Run them from the repo root. By default each one tests the most recently built
 shiv package in `./package` (`./scripts/build_shiv_package.sh`); pass `from-path`
 to test the `stack` on your PATH instead, or set `TEST_TARGET_STACK` (e.g. to
