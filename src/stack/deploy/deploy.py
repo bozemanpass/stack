@@ -28,7 +28,7 @@ from stack.constants import compose_file_prefix
 from stack.log import log_debug, output_main
 from stack.util import include_exclude_check, stack_is_in_deployment, resolve_compose_file, error_exit
 from stack.deploy.backup import backup_settings
-from stack.deploy.deployer import Deployer, DeployerException
+from stack.deploy.deployer import ClusterNotRunningException, Deployer, DeployerException
 from stack.opts import opts
 from stack.deploy.deployer_factory import getDeployer
 from stack.deploy.deploy_types import ClusterContext, DeployCommandContext
@@ -182,6 +182,8 @@ def exec_operation(ctx, extra_args):
         log_debug(f"Running compose exec {service_name} {command_to_exec}")
         try:
             ctx.obj.deployer.execute(service_name, command_to_exec, envs=container_exec_env, tty=True)
+        except ClusterNotRunningException:
+            error_exit("the deployment is not running")
         except DeployerException:
             error_exit("container command returned error exit status")
 
@@ -225,7 +227,10 @@ def backup_restore_operation(ctx, snapshot: str, volumes, source: str = None):
 def logs_operation(ctx, tail: int, follow: bool, extra_args: str):
     extra_args_list = list(extra_args) or None
     services_list = extra_args_list if extra_args_list is not None else []
-    logs_stream = ctx.obj.deployer.logs(services=services_list, tail=tail, follow=follow, stream=True)
+    try:
+        logs_stream = ctx.obj.deployer.logs(services=services_list, tail=tail, follow=follow, stream=True)
+    except ClusterNotRunningException:
+        error_exit("the deployment is not running")
     for stream_type, stream_content in logs_stream:
         output_main(stream_content.decode("utf-8"), end="")
 

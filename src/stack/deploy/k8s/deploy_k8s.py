@@ -20,11 +20,12 @@ from pathlib import Path
 from threading import Thread
 
 from kubernetes import client, config
+from kubernetes.config.config_exception import ConfigException
 from kubernetes.stream import stream
 from kubernetes import watch
 
 from stack import constants
-from stack.deploy.deployer import Deployer, DeployerConfigGenerator
+from stack.deploy.deployer import ClusterNotRunningException, Deployer, DeployerConfigGenerator
 from stack.deploy.k8s.helpers import (
     create_cluster,
     destroy_cluster,
@@ -123,7 +124,17 @@ class K8sDeployer(Deployer):
 
     def connect_api(self):
         if self.is_kind():
-            config.load_kube_config(context=f"kind-{self.kind_cluster_name}")
+            # Stopping a kind deployment deletes its cluster, and kind removes the
+            # context with it, so there is nothing to load once one is stopped.
+            # Raised as a condition of its own rather than let the kubernetes
+            # client's ConfigException out: to the caller this is "not running",
+            # and asking a stopped deployment what it is running is a fair
+            # question, not an error.
+            context = f"kind-{self.kind_cluster_name}"
+            try:
+                config.load_kube_config(context=context)
+            except ConfigException as e:
+                raise ClusterNotRunningException(f"no kind cluster {self.kind_cluster_name} (no kube context {context})") from e
         else:
             # Get the config file and pass to load_kube_config()
             config.load_kube_config(config_file=self.deployment_dir.joinpath(constants.kube_config_filename).as_posix())
@@ -448,7 +459,11 @@ class K8sDeployer(Deployer):
             error_exit(f"Exception thrown bringing stack up: {e}")
 
     def status(self):
-        self.connect_api()
+        try:
+            self.connect_api()
+        except ClusterNotRunningException as e:
+            log_debug(f"{e}: nothing is running")
+            return
         # Call whatever API we need to get the running container list
         pod_response = self.core_api.list_namespaced_pod(
             namespace=self.k8s_namespace,
@@ -531,7 +546,11 @@ class K8sDeployer(Deployer):
                 output_main(f"\t{p.metadata.namespace}/{p.metadata.name}: {_pod_status(p)} ({p.metadata.creation_timestamp})")
 
     def ps(self):
-        self.connect_api()
+        try:
+            self.connect_api()
+        except ClusterNotRunningException as e:
+            log_debug(f"{e}: nothing is running")
+            return []
         pod_response = self.core_api.list_namespaced_pod(
             namespace=self.k8s_namespace,
             label_selector=f"app={self.cluster_info.app_name}",
