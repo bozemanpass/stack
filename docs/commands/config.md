@@ -66,7 +66,7 @@ Common configuration keys include:
 | Key | Description | Default |
 |-----|-------------|---------|
 | `image-registry` | Default container image registry | - |
-| `kube-config` | Path to Kubernetes config file | - |
+| `kube-config` | Kubernetes config file, as a path or a reference — see [kube-config.md](../kube-config.md) | - |
 | `git-ssh` | Use SSH for git operations | False |
 | `deploy-to` | Default deployment target (compose/k8s) | `compose` |
 | `http-proxy-fqdn` | Default HTTP proxy hostname for k8s | - |

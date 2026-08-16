@@ -41,6 +41,7 @@ from stack.deploy.k8s.helpers import (
 from stack.deploy.k8s.helpers import generate_kind_config
 from stack.deploy.k8s import gateway
 from stack.deploy.k8s import k8up
+from stack.deploy.kube_config import kube_config_file
 from stack.deploy.backup import backup_settings
 from stack.deploy.k8s.cluster_info import ClusterInfo
 from stack.opts import opts
@@ -136,8 +137,11 @@ class K8sDeployer(Deployer):
             except ConfigException as e:
                 raise ClusterNotRunningException(f"no kind cluster {self.kind_cluster_name} (no kube context {context})") from e
         else:
-            # Get the config file and pass to load_kube_config()
-            config.load_kube_config(config_file=self.deployment_dir.joinpath(constants.kube_config_filename).as_posix())
+            # Where the credential comes from is the spec's business, not ours: it
+            # may be a file in the deployment directory, or it may be resolved
+            # from the environment or a secret store for the length of this call.
+            with kube_config_file(self.deployment_context.spec, self.deployment_dir) as kube_config_path:
+                config.load_kube_config(config_file=kube_config_path.as_posix())
         self.core_api = client.CoreV1Api()
         self.networking_api = client.NetworkingV1Api()
         self.apps_api = client.AppsV1Api()

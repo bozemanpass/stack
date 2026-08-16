@@ -37,6 +37,7 @@ from stack.util import (
     resolve_config_dir,
 )
 from stack.deploy.deploy import create_deploy_context
+from stack.deploy.kube_config import is_deferred_reference, validate_reference
 from stack.deploy.spec import Spec, MergedSpec, load_spec
 from stack.deploy.stack import Stack, get_plugin_code_paths, get_pod_script_paths, pod_has_scripts
 from stack.deploy.deployer_factory import getDeployerConfigGenerator
@@ -278,6 +279,7 @@ def init_operation(  # noqa: C901
     spec_file_content = {"stack": stack, constants.deploy_to_key: deployer_type}
     if deployer_type in ["k8s", "k8s-kind"]:
         if kube_config:
+            validate_reference(kube_config)
             spec_file_content.update({constants.kube_config_key: kube_config})
         elif deployer_type == "k8s":
             error_exit("--kube-config must be supplied with --deploy-to k8s")
@@ -514,12 +516,21 @@ def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec,
     # Copy any config variables from the spec file into an env file suitable for compose
     _write_config_file(parsed_spec, deployment_dir_path.joinpath(constants.config_file_name))
 
-    # Copy any k8s config file into the deployment dir
+    # Copy any k8s config file into the deployment dir.  A spec that names its
+    # credential by reference rather than by path gets nothing copied in: the
+    # reference travels in the spec file and is resolved when the deployer
+    # connects, which is what keeps the credential out of a deployment that is
+    # going to be committed to git.
     if deployment_type == "k8s":
-        _write_kube_config_file(
-            Path(parsed_spec.get_kube_config()),
-            deployment_dir_path.joinpath(constants.kube_config_filename),
-        )
+        kube_config = parsed_spec.get_kube_config()
+        if not kube_config:
+            error_exit(f"{constants.kube_config_key} is required for a k8s deployment")
+        validate_reference(kube_config)
+        if not is_deferred_reference(kube_config):
+            _write_kube_config_file(
+                Path(kube_config),
+                deployment_dir_path.joinpath(constants.kube_config_filename),
+            )
 
     yaml = get_yaml()
     pods = parsed_spec.get_pod_list()

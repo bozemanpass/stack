@@ -22,7 +22,7 @@ stack init [OPTIONS]
 | `--config-file` | TEXT | Provide config variables in a file for the deployment | - |
 | `--cluster` | TEXT | Specify a non-default cluster name | - |
 | `--deploy-to` | CHOICE | Cluster system to deploy to (`compose`, `k8s`, or `k8s-kind`) | From config or `compose` |
-| `--kube-config` | TEXT | Provide a config file for a k8s deployment | From config |
+| `--kube-config` | TEXT | Kubernetes config file for a k8s deployment: a path, or a reference such as `env:KUBECONFIG_DATA` — see [kube-config.md](../kube-config.md) | From config |
 | `--image-registry` | TEXT | Container image registry URL for this k8s cluster | From config |
 | `--http-proxy-target` | TEXT | k8s http proxy settings in format: `[path:]target_svc:target_port` (multiple, path defaults to `/`) | - |
 | `--http-proxy-fqdn` | TEXT | k8s http proxy hostname to use | From config |
