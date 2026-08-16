@@ -71,6 +71,21 @@ Common configuration keys include:
 | `deploy-to` | Default deployment target (compose/k8s) | `compose` |
 | `http-proxy-fqdn` | Default HTTP proxy hostname for k8s | - |
 | `debug` | Enable debug mode | False |
+| `backup` | Master switch — back up every deployment made under this profile | False |
+| `backup-s3-endpoint` | Object store endpoint backups are written to | - |
+| `backup-s3-bucket` | Bucket the repositories are written in | - |
+| `backup-s3-key-id`, `backup-s3-key` | Object store credentials | - |
+| `backup-restic-password` | Backup encryption key — see the warning in [backup.md](../backup.md#configuration) | - |
+| `backup-schedule` | Cron schedule for backups | `0 3 * * *` |
+| `backup-prune-schedule` | Cron schedule for applying the retention policy | `0 4 * * 0` |
+| `backup-retention` | `forget`/`prune` policy | `--keep-daily 7 --keep-weekly 4 --keep-monthly 6` |
+
+Backup is configured once here and then applies to every deployment under the
+profile, with nothing backup-specific in the stack or the spec. Every setting is
+required once the master switch is on, the encryption key included: a repository
+whose password is lost can never be read back. Operating on the backups of a
+running deployment is
+[`stack manage … backup`](manage.md#backup).
 
 ## Profiles
 
@@ -107,3 +122,4 @@ stack --profile dev config set deploy-to k8s
 
 - [stack init](init.md) - Create a stack specification file
 - [stack deploy](deploy.md) - Deploy a stack
+- [backup.md](../backup.md) - What the `backup-*` settings configure

@@ -56,7 +56,7 @@ stack COMMAND SUBCOMMAND --help
 
 ### 🚀 Deployment & Management
 - **[deploy](commands/deploy.md)** - Deploy a stack
-- **[manage](commands/manage.md)** - Manage a deployed stack (start, stop, etc.)
+- **[manage](commands/manage.md)** - Manage a deployed stack (start, stop, backup, etc.)
 
 ### 📊 Information & Analysis
 - **[list](commands/list.md)** - List available stacks
