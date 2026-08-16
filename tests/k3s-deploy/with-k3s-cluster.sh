@@ -241,6 +241,16 @@ if ! grep -q "$machine_fqdn" "$kube_config"; then
 fi
 echo "Fetched kubeconfig"
 
+# What the cluster provisioned itself with, recorded on every run rather than only on a
+# failing one. The provisioning installs these charts unpinned, so "which version did that
+# run actually test?" is otherwise unanswerable after the VM is destroyed -- which is
+# exactly the question a backup result raises when it disagrees with the engine's own
+# documentation.
+ssh -i "$MACHINE_SSH_KEY_FILE" -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile="$work_dir/known_hosts" \
+  ${MACHINE_NEW_USER}@${machine_fqdn} \
+  "sudo kubectl get deploy -A -o jsonpath='{range .items[*]}{.metadata.namespace}/{.metadata.name} {..image}{\"\n\"}{end}'" \
+  2>/dev/null | grep -E "k8up|cert-manager|traefik" || true
+
 # So that push-images can push to the registry.  The token is an argument here,
 # so under STACK_SCRIPT_DEBUG it would be echoed verbatim by xtrace; suppress
 # tracing across the login and restore whatever it was afterward.  (Heredoc
@@ -276,7 +286,6 @@ dump_cluster_diagnostics () {
   ssh -i "$MACHINE_SSH_KEY_FILE" -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile="$work_dir/known_hosts" \
     ${MACHINE_NEW_USER}@${machine_fqdn} \
     "sudo kubectl get pods -A -o wide; \
-     sudo kubectl get deploy -n k8up-system -o jsonpath='{range .items[*]}k8up image: {..image}{\"\n\"}{end}' 2>/dev/null; \
      sudo kubectl get gateway,httproute -A 2>/dev/null; \
      sudo kubectl get ingress -A 2>/dev/null; \
      sudo kubectl get certificate,order,challenge -A 2>/dev/null; \
