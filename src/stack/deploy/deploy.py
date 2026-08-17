@@ -25,7 +25,7 @@ from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
 from stack.constants import compose_file_prefix
-from stack.log import log_debug, output_main
+from stack.log import log_debug, log_warn, output_main
 from stack.util import include_exclude_check, stack_is_in_deployment, resolve_compose_file, error_exit
 from stack.deploy.backup import backup_settings
 from stack.deploy.deployer import ClusterNotRunningException, Deployer, DeployerException
@@ -214,6 +214,30 @@ def backup_list_operation(ctx):
         # name a snapshot with.
         for snapshot in snapshots:
             output_main(f"{snapshot['id'][:8]}\t{snapshot['date']}\t{','.join(snapshot['volumes'])}")
+
+
+def secrets_show_operation(ctx, names):
+    if opts.o.dry_run:
+        return
+    try:
+        values = ctx.obj.deployer.read_secrets()
+    except DeployerException as e:
+        error_exit(f"reading secrets failed: {e}")
+    unknown = [name for name in names if name not in values]
+    if unknown:
+        error_exit(f"no such secret: {', '.join(unknown)}")
+    if names:
+        values = {name: values[name] for name in names}
+    if not values:
+        output_main("No secrets")
+        return
+    for name, value in values.items():
+        # A generated secret that has not been minted yet has no value; say so
+        # on stderr rather than emit a NAME= line that looks deliberately empty.
+        if value is None:
+            log_warn(f"WARN: {name} has no value yet (it is minted when the deployment is first started)")
+        else:
+            output_main(f"{name}={value}")
 
 
 def backup_restore_operation(ctx, snapshot: str, volumes, source: str = None):

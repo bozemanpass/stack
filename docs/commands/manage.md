@@ -183,6 +183,38 @@ Restoring a dump taken by an `@stack backup-command` is manual and external:
 `backup restore` fills volumes, and a dump is not a volume. See
 [backup.md](../backup.md#application-consistency).
 
+### secrets
+
+Inspect the deployment's secrets (see [secrets.md](../secrets.md))
+
+```bash
+stack manage --dir DEPLOYMENT_DIR secrets SUBCOMMAND
+```
+
+#### secrets list
+
+List secret names and where each value comes from (`generate`, or a reference
+such as `env:VAR_NAME`), one per line. Reveals no values, and needs no cluster.
+
+```bash
+stack manage --dir DEPLOYMENT_DIR secrets list
+```
+
+#### secrets show
+
+Show secret values — all of them, or only the ones named — as `NAME=value`
+lines, **in the clear on stdout**: this is the debugging path to a generated
+value nobody ever typed, so treat the output accordingly.
+
+```bash
+stack manage --dir DEPLOYMENT_DIR secrets show [NAME]...
+```
+
+Values are read from wherever the target stores them: the deployment
+directory's `secrets.env` plus freshly resolved references on `compose` and
+`k8s-kind` (no cluster needed, so it works on a stopped kind deployment), and
+the `stack-secrets` Secret in the deployment's namespace on `k8s`.
+
 ### services
 
 List stack service names

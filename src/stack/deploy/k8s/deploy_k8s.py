@@ -13,6 +13,7 @@
 
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http:#www.gnu.org/licenses/>.
+import base64
 import sys
 
 from datetime import datetime, timezone
@@ -42,6 +43,7 @@ from stack.deploy.k8s.helpers import generate_kind_config
 from stack.deploy.k8s import gateway
 from stack.deploy.k8s import k8up
 from stack.deploy.kube_config import kube_config_file
+from stack.deploy import secrets as stack_secrets
 from stack.deploy.backup import backup_settings
 from stack.deploy.k8s.cluster_info import ClusterInfo
 from stack.opts import opts
@@ -222,6 +224,49 @@ class K8sDeployer(Deployer):
             return
         k8up.ensure_backup_configured(self.core_api, self.custom_obj_api, self.k8s_namespace, settings)
 
+    def _create_secrets(self):
+        """Create or refresh the namespaced Secret the containers' env refers to.
+
+        Generated values are create-or-keep, never rotate: a generated password
+        is typically baked into a data volume, so it has to live exactly as long
+        as the data does.  On a remote cluster both live in the cluster, so the
+        existing Secret is the store.  On kind the data lives under the
+        deployment directory and the cluster is destroyed on stop, so generated
+        values persist beside the data in secrets.env and the Secret is rebuilt
+        from them.  Referenced values are resolved fresh on every up.
+        """
+        spec = self.cluster_info.spec
+        if not spec.get_secrets() or opts.o.dry_run:
+            return
+        if self.is_kind():
+            values = dict(stack_secrets.ensure_generated_secrets(spec, self.deployment_dir))
+        else:
+            existing = {}
+            try:
+                existing_secret = self.core_api.read_namespaced_secret(
+                    name=stack_secrets.K8S_SECRET_NAME, namespace=self.k8s_namespace
+                )
+                existing = {k: base64.b64decode(v).decode() for k, v in (existing_secret.data or {}).items()}
+            except client.exceptions.ApiException as e:
+                if e.status != 404:
+                    raise
+            values = {name: existing.get(name) or stack_secrets.new_secret_value() for name in stack_secrets.generated_names(spec)}
+        values.update(stack_secrets.resolve_referenced_secrets(spec))
+        secret = client.V1Secret(
+            metadata=client.V1ObjectMeta(name=stack_secrets.K8S_SECRET_NAME, namespace=self.k8s_namespace),
+            string_data=values,
+        )
+        try:
+            self.core_api.create_namespaced_secret(namespace=self.k8s_namespace, body=secret)
+            log_debug(f"Secret {stack_secrets.K8S_SECRET_NAME} created")
+        except client.exceptions.ApiException as e:
+            if e.status != 409:
+                raise
+            self.core_api.replace_namespaced_secret(
+                name=stack_secrets.K8S_SECRET_NAME, namespace=self.k8s_namespace, body=secret
+            )
+            log_debug(f"Secret {stack_secrets.K8S_SECRET_NAME} replaced")
+
     def _create_deployments(self):
         # Process compose files into a Deployment
         deployments = self.cluster_info.get_deployments(image_pull_policy=None if self.is_kind() else "Always")
@@ -337,6 +382,7 @@ class K8sDeployer(Deployer):
 
             self._create_volume_data()
             self._create_backup_configuration()
+            self._create_secrets()
             self._create_deployments()
 
             http_proxy_info = self.cluster_info.spec.get_http_proxy()
@@ -739,6 +785,9 @@ class K8sDeployer(Deployer):
 
     def update(self):
         self.connect_api()
+        # Referenced secrets may have rotated, and a deployment created before
+        # its stack declared secrets has no Secret yet.
+        self._create_secrets()
         ref_deployments = self.cluster_info.get_deployments()
 
         for ref_deployment in ref_deployments:
@@ -759,6 +808,26 @@ class K8sDeployer(Deployer):
                 namespace=self.k8s_namespace,
                 body=deployment,
             )
+
+    def read_secrets(self):
+        spec = self.cluster_info.spec
+        secret_entries = spec.get_secrets()
+        if not secret_entries:
+            return {}
+        # The store is where the data lives (see _create_secrets): on kind that
+        # is the deployment directory, which also spares connecting to a cluster
+        # that a stopped kind deployment no longer has.
+        if self.is_kind():
+            return stack_secrets.local_secret_values(spec, self.deployment_dir)
+        self.connect_api()
+        try:
+            secret = self.core_api.read_namespaced_secret(name=stack_secrets.K8S_SECRET_NAME, namespace=self.k8s_namespace)
+        except client.exceptions.ApiException as e:
+            if e.status != 404:
+                raise
+            error_exit("no secrets in the cluster yet: they are created when the deployment is first started")
+        stored = {k: base64.b64decode(v).decode() for k, v in (secret.data or {}).items()}
+        return {name: stored.get(name) for name in secret_entries}
 
     def run(
         self,
@@ -789,6 +858,9 @@ class K8sDeployerConfigGenerator(DeployerConfigGenerator):
     def generate(self, deployment_dir: Path):
         # No need to do this for the remote k8s case
         if self.type == "k8s-kind":
+            # Generated secrets have to outlive the cluster, which stopping a kind
+            # deployment destroys; they persist beside the data, in secrets.env.
+            stack_secrets.ensure_generated_secrets(self.deployment_context.spec, deployment_dir)
             # Check the file isn't already there
             # Get the config file contents
             content = generate_kind_config(deployment_dir, self.deployment_context)

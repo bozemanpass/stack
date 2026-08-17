@@ -23,6 +23,7 @@ from typing import Any, List, Set
 
 from stack import constants
 from stack.deploy.k8s import k8up
+from stack.deploy.secrets import K8S_SECRET_NAME
 from stack.log import log_debug, log_warn
 from stack.util import env_var_map_from_file
 from stack.deploy.k8s.helpers import (
@@ -412,6 +413,24 @@ class ClusterInfo:
                     merged_envs = merge_envs(merged_envs, envs_from_compose_file(service_info["environment"], merged_envs))
 
                 envs = envs_from_environment_variables_map(merged_envs)
+
+                # Keys the spec declares secret are delivered from the deployment's
+                # k8s Secret (created at up time, see K8sDeployer._create_secrets)
+                # rather than as literal values, so they never appear in the
+                # Deployment object.  Any literal of the same name is dropped: the
+                # declaration wins over a leftover default in a compose file.
+                secret_names = list(self.spec.get_secrets())
+                if secret_names:
+                    envs = [env for env in envs if env.name not in secret_names]
+                    for secret_name in secret_names:
+                        envs.append(
+                            client.V1EnvVar(
+                                name=secret_name,
+                                value_from=client.V1EnvVarSource(
+                                    secret_key_ref=client.V1SecretKeySelector(name=K8S_SECRET_NAME, key=secret_name)
+                                ),
+                            )
+                        )
                 log_debug(f"Merged envs: {envs}")
 
                 liveness_probe = None
