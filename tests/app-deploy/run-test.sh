@@ -2,6 +2,9 @@
 #
 # Deploy the example todo app and check that it works: the API stores a todo,
 # the todo survives a stop/start of the deployment, and the frontend is served.
+# Also tests "stack manage update" for both config changes and application code
+# changes (through rebuilding a new container image with a new tag and checking
+# that ends up running in the deployment after updating).
 #
 # Runs against any of the deployment targets (see select_deploy_target in
 # tests/lib/common.sh); STACK_TEST_TARGET picks which:
