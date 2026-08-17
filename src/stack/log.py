@@ -12,6 +12,25 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http:#www.gnu.org/licenses/>.
 
+"""Output streams, with the ordinary Unix contract.
+
+Results -- what a command exists to print, and what a pipeline consumes -- go
+to stdout, via output_main().  Everything else is diagnostic and goes to
+stderr: the log_* functions, and output relayed from subprocesses
+(output_subcmd()).  So `stack manage --dir d secrets show | ...` pipes values
+and nothing else, and 2>/dev/null silences commentary and nothing else.
+
+`--log-file` redirects the diagnostic stream to a file, and that file
+additionally records the results, so it reads as a complete session record
+rather than one with holes where the output was; errors are still echoed to
+stderr so a failure is not silent.  Results still go to stdout -- a pipeline
+downstream of a logged run keeps working.
+
+Decoration is a property of the destination, decided per write: color and
+progress bars only when the stream being written is an interactive terminal,
+never into a pipe or a file.
+"""
+
 import datetime
 import sys
 
@@ -52,6 +71,11 @@ class _TimedLogger:
 _logger = _TimedLogger()
 
 
+def _stream_is_tty(stream):
+    isatty = getattr(stream, "isatty", None)
+    return bool(isatty and isatty())
+
+
 def is_debug_enabled():
     return is_level_enabled(LOG_LEVELS["debug"])
 
@@ -75,13 +99,15 @@ def get_log_file():
 
 
 def log_is_console():
-    return not opts.o.log_file or opts.o.log_file.isatty()
+    """True when the diagnostic stream is an interactive terminal.
+
+    The condition for decoration beyond color -- progress bars and the like --
+    which belongs on a screen a person is watching and in no pipe or file.
+    """
+    return _stream_is_tty(get_log_file())
 
 
 def get_log_color(level: int):
-    if not log_is_console():
-        return ""
-
     if level == LOG_LEVELS["debug"]:
         return "blue"
     elif level == LOG_LEVELS["info"]:
@@ -95,18 +121,15 @@ def get_log_color(level: int):
 
 
 def raw_log(message, level, color=None, bold=False):
-    if is_level_enabled(level):
-        output = get_log_file()
-        if not log_is_console():
-            _logger.log(f"{message}", file=output)
-        else:
-            if color is None:
-                color = get_log_color(level)
-            if color:
-                message = colored(message, color, attrs=["reverse", "bold"] if bold else None)
-            elif bold:
-                message = colored(message, attrs=["reverse", "bold"] if bold else None)
-            _logger.log(f"{message}", file=output)
+    if not is_level_enabled(level):
+        return
+    output = get_log_file()
+    if _stream_is_tty(output):
+        if color is None:
+            color = get_log_color(level)
+        if color or bold:
+            message = colored(message, color or None, attrs=["reverse", "bold"] if bold else None)
+    _logger.log(message, file=output)
 
 
 def log_debug(message, bold=False):
@@ -127,19 +150,30 @@ def log_warn(message, bold=False):
 def log_error(message, bold=False):
     level = LOG_LEVELS["error"]
     raw_log(message, level, bold=bold)
-    if not log_is_console():
-        print(colored(message, get_log_color(level), attrs=["reverse", "bold"] if bold else None), file=sys.stderr)
+    # With the diagnostics diverted to a log file, an error must still reach the
+    # terminal: a command that fails silently and leaves the reason in a file
+    # nobody is watching is worse than a noisy one.
+    if opts.o.log_file:
+        if _stream_is_tty(sys.stderr):
+            message = colored(message, get_log_color(level), attrs=["reverse", "bold"] if bold else None)
+        print(message, file=sys.stderr)
 
 
 def output_main(message, console=sys.stdout, end=None, bold=False):
-    if not log_is_console():
-        _logger.log(message, file=get_log_file(), end=end)
-    print(colored(message, attrs=["reverse", "bold"] if bold else None), end=end, file=console)
+    """A command's results: stdout, and only stdout, exactly once."""
+    if opts.o.log_file:
+        # The named log file records the results too -- see the module note.
+        _logger.log(message, file=opts.o.log_file, end=end)
+    if bold and _stream_is_tty(console):
+        message = colored(message, attrs=["reverse", "bold"])
+    print(message, end=end, file=console)
 
 
 def output_subcmd(message, console=sys.stderr, end=None, bold=False):
-    if log_is_console():
-        _logger.log(colored(message, "magenta", attrs=["reverse", "bold"] if bold else None), end=end, file=console)
-
-    if not log_is_console():
-        _logger.log(message, file=get_log_file(), end=end)
+    """Output relayed from a subprocess: diagnostic, so stderr or the log file."""
+    if opts.o.log_file:
+        _logger.log(message, file=opts.o.log_file, end=end)
+        return
+    if _stream_is_tty(console):
+        message = colored(message, "magenta", attrs=["reverse", "bold"] if bold else None)
+    _logger.log(message, end=end, file=console)
