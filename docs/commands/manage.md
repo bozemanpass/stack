@@ -118,13 +118,27 @@ An image that is already published to its canonical registry is deployed under
 that reference and is skipped here. See
 [image-names.md](../image-names.md) for the resolution order.
 
-### reload
+### update
 
-Reload the stack to pick up config changes
+Update the running deployment to match its configuration and images
 
 ```bash
-stack manage --dir DEPLOYMENT_DIR reload
+stack manage --dir DEPLOYMENT_DIR update
 ```
+
+Applies content changes only — rebuilt images, `config.env` values, and
+rotated secrets — restarting or recreating just the services that changed,
+and reports what it did per service.  Structural changes (services, ports,
+volumes, resources, replicas) are refused with a message naming them;
+re-create the deployment to apply those.
+
+On the compose target this re-points the deployment's private image tags at
+the current local builds and lets compose recreate the changed containers.
+On kind, the current local images are loaded into the cluster and the pods
+restarted.  On a remote cluster, images staged through the deployment's
+registry are checked first: if the local build is newer than what was staged,
+update says so and leaves that service alone — run `push-images`, then
+update again.
 
 ### backup
 
@@ -275,8 +289,8 @@ stack manage --dir ~/deployments/my-stack port
 # Push images to registry
 stack manage --dir ~/deployments/my-stack push-images
 
-# Reload configuration
-stack manage --dir ~/deployments/my-stack reload
+# Apply config and image changes to the running deployment
+stack manage --dir ~/deployments/my-stack update
 ```
 
 ### Backup and Restore

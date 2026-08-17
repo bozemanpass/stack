@@ -118,9 +118,19 @@ class DockerDeployer(Deployer):
                 raise DeployerException(e)
 
     def update(self):
+        """Converge the running deployment on its deployment directory.
+
+        Re-pointing the deployment's private image tags picks up rebuilds, and
+        `compose up` recreates exactly the containers whose image or resolved
+        configuration (including config.env, folded in as an env_file) changed,
+        naming them in its output.  A plain restart would apply neither: it
+        reuses the existing containers, environment and all.
+        """
         if not opts.o.dry_run:
+            self._stage_local_images()
+            self._export_referenced_secrets()
             try:
-                return self.docker.compose.restart()
+                return self.docker.compose.up(detach=True)
             except DockerException as e:
                 raise DeployerException(e)
 

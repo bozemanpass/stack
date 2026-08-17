@@ -187,8 +187,8 @@ def status(ctx):
 
 @command.command()
 @click.pass_context
-def reload(ctx):
-    """reload the stack to pick up config changes"""
+def update(ctx):
+    """update the running deployment to match its configuration and images"""
     ctx.obj = make_deploy_context(ctx)
     update_operation(ctx)
 

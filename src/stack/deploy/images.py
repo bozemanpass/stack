@@ -124,6 +124,52 @@ def remote_tag_for_image_unique(image: str, remote_repo_url: str, deployment_id:
         return image
 
 
+def is_staged_reference(image: str, deployment_id: str):
+    """True when the reference is this deployment's private mutable staging tag.
+
+    Such a reference is the one case where new image content arrives under an
+    unchanged name, so picking it up means forcing a re-pull rather than a spec
+    change -- see K8sDeployer.update.
+    """
+    return image.endswith(f":deploy-{deployment_id[-8:]}")
+
+
+def stale_staged_images(images, image_registry: str, deployment_id: str):
+    """Staged images whose current local build has not been pushed.
+
+    For each image the deployment pulls from the staging registry, compare the
+    local source build (`org/bar:stack`) against the local record of what
+    push-images last staged: push tags the staged reference locally, so the two
+    disagreeing means a rebuild has not been uploaded.  An image with no local
+    source build is skipped -- on a machine that never built it there is nothing
+    to judge staleness against.
+
+    Returns a list of (source_image, staged_reference) pairs.
+    """
+    stale = []
+    if not image_registry:
+        return stale
+    docker = DockerClient()
+
+    def local_id(tag):
+        try:
+            return docker.image.inspect(tag).id
+        except Exception:
+            return None
+
+    for image in sorted(images):
+        _, image_version = _split_image_reference(image)
+        if image_version not in LOCALLY_BUILT_TAGS or _published_reference_for_image(image):
+            continue
+        source_id = local_id(image)
+        if source_id is None:
+            continue
+        staged_reference = remote_tag_for_image_unique(image, image_registry, deployment_id)
+        if local_id(staged_reference) != source_id:
+            stale.append((image, staged_reference))
+    return stale
+
+
 def _published_reference_for_image(image: str):
     """Find the registry-qualified reference under which a locally built image is published.
 
