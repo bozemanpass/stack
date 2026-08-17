@@ -57,6 +57,14 @@ In addition to the pre-requisites listed in the [README](/README.md), the follow
          webapp   build, run, and deploy webapps
    ```
 
+## Tests
+
+Unit tests (`uv run pytest`) live in `tests/unit/`; the integration tests are
+bash scripts under `tests/`, one directory per suite. To find which test
+exercises a particular command or feature — several scripts cover multiple
+features to keep runner cost down — see [test-coverage.md](test-coverage.md),
+a cross-reference from functional areas to test files and steps.
+
 ## Build a zipapp (single file distributable script)
 
 Use shiv (via `uvx`) to build a single file Python executable zip archive of stack:
