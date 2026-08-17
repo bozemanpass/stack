@@ -652,14 +652,24 @@ def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec,
                         pxy_svc, pxy_port = r[constants.proxy_to_key].split(":", 1)
                         if pxy_svc == service_name:
                             path = "/" + r[constants.path_key].strip("/")
-                            path_rule = path
-                            dest = "/"
-                            if path_rule != "/":
-                                path_rule = f"~ ^{path_rule}(?:/(.*))?$"
-                                dest = "/$1"
-
-                            vhost[host][path_rule] = {
-                                "dest": dest,
+                            # A plain prefix, with the stripping of that prefix expressed
+                            # as the destination: nginx-proxy emits
+                            # "location <path> { proxy_pass http://<upstream><dest>; }",
+                            # and a proxy_pass whose URI part is "/" is nginx's own way of
+                            # replacing the matched prefix rather than appending to it.  So
+                            # a request for /api/todos/1 reaches the service as /1, and the
+                            # root path proxies through unchanged.
+                            #
+                            # Not an nginx regex location (~ ^/api/todos(?:/(.*))?$ with a
+                            # dest of /$1), which is what this used to emit: nginx-proxy
+                            # takes these keys as prefixes and skips any that does not begin
+                            # with "/", so a regex route was dropped from the generated
+                            # configuration without a word about it.  What that looks like
+                            # is a service that is up and healthy and answers nothing --
+                            # the request lands on whichever route did survive, usually
+                            # the frontend at "/".
+                            vhost[host][path] = {
+                                "dest": "/",
                                 "port": pxy_port,
                             }
 

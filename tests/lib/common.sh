@@ -84,11 +84,20 @@ select_test_target () {
 
 # Select the deployment target the test runs against, from STACK_TEST_TARGET:
 #
-#   compose   Docker Compose on the local machine (the default)
-#   kind      a local kind cluster
-#   remote    a real k8s cluster elsewhere, described by STACK_KUBE_CONFIG,
-#             STACK_IMAGE_REGISTRY and STACK_K8S_HOSTNAME (the k3s cluster
-#             harness in tests/k3s-deploy sets all four)
+#   compose         Docker Compose on the local machine (the default)
+#   kind            a local kind cluster
+#   remote          a real k8s cluster elsewhere, described by STACK_KUBE_CONFIG,
+#                   STACK_IMAGE_REGISTRY and STACK_K8S_HOSTNAME (the k3s cluster
+#                   harness in tests/k3s-deploy sets all four)
+#   remote-compose  Docker Compose on a real cloud machine, reached over HTTPS at
+#                   STACK_COMPOSE_HOSTNAME (the machine harness in
+#                   tests/docker-deploy provisions it and sets that)
+#
+# The two remote targets are not remote in the same way, and it matters to a test
+# only in that the last one needs nothing of the sort: a remote *cluster* is
+# driven over its API from wherever the test runs, while Docker has no such
+# thing, so a test on remote-compose runs on the machine itself and its "remote"
+# is only that the hostname, the DNS and the certificate are real.
 #
 # A test that works on more than one target calls this instead of hardcoding a
 # --deploy-to, and uses what it sets:
@@ -103,17 +112,33 @@ select_test_target () {
 #                           because a test with no HTTP endpoint should pass
 #                           neither (init warns about an --http-proxy-fqdn with
 #                           nothing to proxy).
-#   TEST_SCHEME             https on a real cluster, which has a real
+#   TEST_SCHEME             https where there is a real hostname and so a real
 #   TEST_HOSTNAME           certificate; http on the local targets
 #   TEST_START_CHECK_LIMIT  checks to allow for startup, for wait_for_running:
 #                           on a cluster the images come from a registry over
 #                           the network, which is minutes on a cold node
+#   TEST_HTTP_ROUTING       how a service is addressed: "ports" where each one is
+#                           published on a host port of its own, "proxy" where
+#                           they share a hostname and are told apart by path.
+#                           Not the same question as which engine deploys them --
+#                           compose does it both ways -- so a test asks this
+#                           rather than the target's name
+#   TEST_INGRESS_MIX_IN     non-empty if the deployment has to carry the reverse
+#                           proxy that serves that hostname itself, which is the
+#                           Docker arrangement (init_ingress_mix_in)
+#   TEST_INGRESS_EXTRA_SERVICES
+#                           how many services that adds, for the startup wait
 #
 # The point of routing every target difference through here is that the
 # per-target divergence of a test stays in one place and stays visible, rather
 # than each test growing its own copy.
 select_deploy_target () {
     TEST_TARGET_ENV=${STACK_TEST_TARGET:-compose}
+    # The common case, overridden below by the one target that has an ingress to
+    # deploy: on k8s the cluster already has one, and a local compose deployment
+    # needs none because nothing addresses it by hostname.
+    TEST_INGRESS_MIX_IN=""
+    TEST_INGRESS_EXTRA_SERVICES=0
     case "$TEST_TARGET_ENV" in
         compose)
             TEST_INIT_ARGS=""
@@ -123,6 +148,7 @@ select_deploy_target () {
             TEST_SCHEME="http"
             TEST_HOSTNAME="localhost"
             TEST_START_CHECK_LIMIT=10
+            TEST_HTTP_ROUTING="ports"
             ;;
         kind)
             require_commands kind
@@ -131,6 +157,7 @@ select_deploy_target () {
             TEST_SCHEME="http"
             TEST_HOSTNAME="localhost"
             TEST_START_CHECK_LIMIT=60
+            TEST_HTTP_ROUTING="proxy"
             ;;
         remote)
             if [ -z "$STACK_KUBE_CONFIG" ] || [ -z "$STACK_IMAGE_REGISTRY" ] || [ -z "$STACK_K8S_HOSTNAME" ]; then
@@ -141,12 +168,83 @@ select_deploy_target () {
             TEST_SCHEME="https"
             TEST_HOSTNAME="$STACK_K8S_HOSTNAME"
             TEST_START_CHECK_LIMIT=60
+            TEST_HTTP_ROUTING="proxy"
+            ;;
+        remote-compose)
+            if [ -z "$STACK_COMPOSE_HOSTNAME" ]; then
+                fail "Error: the remote-compose target requires STACK_COMPOSE_HOSTNAME"
+            fi
+            # No --deploy-to and no registry: this is the ordinary compose
+            # deployer, deploying to the daemon on the machine the test is
+            # running on, which is also the machine the hostname resolves to.
+            TEST_INIT_ARGS=""
+            TEST_PROXY_INIT_ARGS="--http-proxy-fqdn $STACK_COMPOSE_HOSTNAME"
+            TEST_SCHEME="https"
+            TEST_HOSTNAME="$STACK_COMPOSE_HOSTNAME"
+            # A small cloud machine, and the ingress containers below do work of
+            # their own before they report ready.
+            TEST_START_CHECK_LIMIT=60
+            TEST_HTTP_ROUTING="proxy"
+            TEST_INGRESS_MIX_IN=yes
+            # nginx-proxy and its acme-companion.
+            TEST_INGRESS_EXTRA_SERVICES=2
             ;;
         *)
-            fail "Error: STACK_TEST_TARGET must be compose, kind or remote, not $TEST_TARGET_ENV"
+            fail "Error: STACK_TEST_TARGET must be compose, kind, remote or remote-compose, not $TEST_TARGET_ENV"
             ;;
     esac
     echo "Testing against the $TEST_TARGET_ENV target"
+}
+
+# Prepare the reverse proxy that serves the deployment's hostname over HTTPS,
+# for a target whose engine does not provide one, and set TEST_INGRESS_SPEC_ARGS
+# to the --spec-file arguments that mix it into the deployment:
+#
+#     init_ingress_mix_in
+#     $TEST_TARGET_STACK deploy "${TEST_INGRESS_SPEC_ARGS[@]}" --spec-file ...
+#
+# A no-op on every other target, where TEST_INGRESS_SPEC_ARGS comes back empty,
+# so a test needing HTTPS calls this unconditionally.
+#
+# The proxy is the docker-ingress stack (nginx-proxy plus nginxproxy's
+# acme-companion), which is what reads the VIRTUAL_HOST_MULTIPORTS and
+# LETSENCRYPT_HOST variables the compose deployer writes onto the proxied
+# services -- see docs/ingress.md.  It is mixed into the deployment rather than
+# deployed alongside it because it proxies to those services over the
+# deployment's own docker network, which a deployment of its own would not be on.
+#
+# The CA is Let's Encrypt production, not the staging CA the stack's own
+# composefile defaults to: a staging certificate is signed by an untrusted root,
+# so every client rejects it, and a test whose whole subject is that HTTPS works
+# would then have to disable the verification it exists to check.  Each run gets
+# a hostname of its own, which is what keeps that off the duplicate-certificate
+# rate limit.  STACK_TEST_ACME_CA_URI overrides it, for shaking out a change to
+# this harness without issuing real certificates -- expect the HTTPS assertions
+# to fail when it is set to staging.
+init_ingress_mix_in () {
+    TEST_INGRESS_SPEC_ARGS=()
+    if [ -z "$TEST_INGRESS_MIX_IN" ]; then
+        return
+    fi
+    if [ -z "$LETSENCRYPT_EMAIL" ]; then
+        fail "Error: the ingress mix-in requires LETSENCRYPT_EMAIL"
+    fi
+    local ingress_stack="docker-ingress"
+    local ingress_spec=$STACK_TEST_DIR/${ingress_stack}-spec.yml
+
+    # Fetched but not prepared: the stack builds nothing and names no containers
+    # of its own -- both its images are upstream ones its composefile pulls at
+    # start -- and `prepare` on it only warns that there is nothing to prepare.
+    $TEST_TARGET_STACK fetch repo bozemanpass/docker-ingress-stack
+    # any-same puts the proxy on ports 80 and 443 of every interface, which is
+    # both where a browser looks and where the ACME HTTP-01 challenge is answered.
+    $TEST_TARGET_STACK init --stack ${ingress_stack} \
+        --output "$ingress_spec" \
+        --map-ports-to-host any-same \
+        --config ACME_CA_URI=${STACK_TEST_ACME_CA_URI:-https://acme-v02.api.letsencrypt.org/directory} \
+        --config LETSENCRYPT_EMAIL="$LETSENCRYPT_EMAIL" \
+        --config LETSENCRYPT_HOST="$TEST_HOSTNAME"
+    TEST_INGRESS_SPEC_ARGS=(--spec-file "$ingress_spec")
 }
 
 # The host's own address, as a container reaches it: the source address the
@@ -576,6 +674,36 @@ wait_for_log_content () {
         sleep 5
     done
     fail "waiting for log content '${expected}': FAILED"
+}
+
+# Wait until $1 can be fetched with the certificate verifying.  $2 overrides the
+# number of 5-second attempts (default 36, so three minutes).
+#
+# Any response at all is the answer, including an HTTP error: curl reports a
+# certificate it will not accept as a failure of its own and returns no response,
+# so a response means the certificate verified.  What is being waited for is the
+# certificate rather than the app.
+#
+# Worth its own wait because the certificate is issued after the deployment is
+# already up -- the ACME client sees the new hostname when the containers start
+# and then has a round trip with the CA to complete -- so the first HTTPS request
+# of a run can fail for a reason that has nothing to do with what the test is
+# checking.  Left to the assertions that follow, that failure arrives as an
+# unexplained absence of the content they were looking for.
+wait_for_tls () {
+    local url=$1
+    local tries=${2:-36}
+    local try=0
+    local err=""
+    while [ $try -lt $tries ]; do
+        try=$((try + 1))
+        if err=$( curl -sS --max-time 15 -o /dev/null "$url" 2>&1 ); then
+            return
+        fi
+        echo "waiting for a verifiable certificate at ${url} (${err})..."
+        sleep 5
+    done
+    fail "https: FAILED - no verifiable certificate at ${url}: ${err}"
 }
 
 # POST a todo to the example todo app serving at $1, retrying until it is

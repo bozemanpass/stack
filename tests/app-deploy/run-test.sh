@@ -3,12 +3,13 @@
 # Deploy the example todo app and check that it works: the API stores a todo,
 # the todo survives a stop/start of the deployment, and the frontend is served.
 #
-# Runs against any of the three deployment targets (see select_deploy_target in
+# Runs against any of the deployment targets (see select_deploy_target in
 # tests/lib/common.sh); STACK_TEST_TARGET picks which:
 #
-#   STACK_TEST_TARGET=compose ./tests/app-deploy/run-test.sh   # the default
-#   STACK_TEST_TARGET=kind    ./tests/app-deploy/run-test.sh
-#   STACK_TEST_TARGET=remote  ./tests/app-deploy/run-test.sh   # see tests/k3s-deploy
+#   STACK_TEST_TARGET=compose        ./tests/app-deploy/run-test.sh   # the default
+#   STACK_TEST_TARGET=kind           ./tests/app-deploy/run-test.sh
+#   STACK_TEST_TARGET=remote         ./tests/app-deploy/run-test.sh   # see tests/k3s-deploy
+#   STACK_TEST_TARGET=remote-compose ./tests/app-deploy/run-test.sh   # see tests/docker-deploy
 #
 # This was two scripts, tests/deploy and tests/k8s-deploy, that had drifted into
 # testing slightly different things (only the compose one checked that data
@@ -46,11 +47,12 @@ $TEST_TARGET_STACK prepare --stack $STACK_NAME
 test_deployment_dir=$STACK_TEST_DIR/test-deployment-dir
 test_deployment_spec=$STACK_TEST_DIR/test-deployment-spec.yml
 
-# On compose the services are published on the host, so the API and the frontend
-# are reached on their own ports.  On k8s both sit behind the HTTP proxy on one
-# hostname, and the frontend has to be told where the API ended up.
+# Where each service is published: on a port of its own, or behind an HTTP proxy
+# on one hostname -- in which case the frontend has to be told where the API
+# ended up.  Which of the two is not a property of the engine: a compose
+# deployment on a real hostname is proxied like a cluster one.
 init_config_args=""
-if [ "$TEST_TARGET_ENV" == "compose" ]; then
+if [ "$TEST_HTTP_ROUTING" == "ports" ]; then
     api_url=${TEST_SCHEME}://${TEST_HOSTNAME}:5000
     app_url=${TEST_SCHEME}://${TEST_HOSTNAME}:3000
 else
@@ -75,8 +77,13 @@ if [ ! -f "$test_deployment_spec" ]; then
 fi
 echo "deploy init test: passed"
 
+# On a target with no ingress of its own, the deployment carries the reverse
+# proxy that terminates TLS for its hostname.  Nothing on the other targets.
+init_ingress_mix_in
+
 stop_deployment_on_exit $test_deployment_dir
-$TEST_TARGET_STACK deploy --spec-file $test_deployment_spec --deployment-dir $test_deployment_dir
+$TEST_TARGET_STACK deploy "${TEST_INGRESS_SPEC_ARGS[@]}" \
+    --spec-file $test_deployment_spec --deployment-dir $test_deployment_dir
 # Check the deployment dir exists
 if [ ! -d "$test_deployment_dir" ]; then
     fail "deploy create test: FAILED - deployment directory not present"
@@ -86,7 +93,14 @@ echo "deploy create test: passed"
 push_images_if_needed $test_deployment_dir
 
 $TEST_TARGET_STACK manage --dir $test_deployment_dir start
-wait_for_running 3 $TEST_START_CHECK_LIMIT
+# The app's three services, plus whatever the ingress arrangement added.
+wait_for_running $(( 3 + TEST_INGRESS_EXTRA_SERVICES )) $TEST_START_CHECK_LIMIT
+
+# Every request below is made with the certificate verified, so wait for there to
+# be one rather than letting the first assertion discover its absence.
+if [ "$TEST_SCHEME" == "https" ]; then
+    wait_for_tls "$app_url"
+fi
 
 # Add a todo
 todo_title="79b06705-b402-431a-83a3-a634392d2754"
@@ -105,7 +119,7 @@ fi
 $TEST_TARGET_STACK manage --dir $test_deployment_dir stop
 wait_for_stopped
 $TEST_TARGET_STACK manage --dir $test_deployment_dir start
-wait_for_running 3 $TEST_START_CHECK_LIMIT
+wait_for_running $(( 3 + TEST_INGRESS_EXTRA_SERVICES )) $TEST_START_CHECK_LIMIT
 
 # The API is served again before the proxy has necessarily caught up with the
 # new endpoints, so retry rather than fetching once.

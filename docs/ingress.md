@@ -111,7 +111,9 @@ The process has three stages:
 2. **Spec to environment variables**: During `stack deploy`, the tool reads the `http-proxy` spec and injects
    environment variables into each matching service's Docker Compose definition:
    - `VIRTUAL_HOST_MULTIPORTS` — a JSON object describing the hostname, path routing rules, and destination ports.
-     For non-root paths, a regex rule is generated that strips the prefix so the backend sees requests at `/`.
+     Each route is a path prefix with a destination of `/`, which is nginx's own way of replacing the matched
+     prefix rather than appending to it: a request for `/api/todos/1` reaches the service as `/1`. The keys must
+     be plain prefixes — nginx-proxy skips any that does not begin with `/`, an nginx regex location included.
    - `LETSENCRYPT_HOST` — set to the hostname (unless it is `localhost`), triggering automatic SSL certificate
      provisioning via the companion letsencrypt container in the ingress stack.
 
