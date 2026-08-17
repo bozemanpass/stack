@@ -44,6 +44,7 @@ from stack.deploy.k8s import gateway
 from stack.deploy.k8s import k8up
 from stack.deploy.kube_config import kube_config_file
 from stack.deploy import secrets as stack_secrets
+from stack.deploy.images import is_staged_reference, stale_staged_images
 from stack.deploy.backup import backup_settings
 from stack.deploy.k8s.cluster_info import ClusterInfo
 from stack.opts import opts
@@ -80,6 +81,59 @@ def _pod_status(pod):
     if not total or ready < total:
         return f"Starting {ready}/{total} ready"
     return f"Running {ready}/{total} ready"
+
+
+def _canonical_quantity(quantity):
+    # Resource quantities are compared by value because the API server
+    # canonicalizes what it stores ("1000m" comes back as "1", "1024Mi" as
+    # "1Gi"), so comparing the strings we generate against a live object
+    # reports phantom changes.
+    if quantity is None:
+        return None
+    text = str(quantity)
+    suffixes = {
+        "n": 1e-9, "u": 1e-6, "m": 1e-3,
+        "k": 1e3, "M": 1e6, "G": 1e9, "T": 1e12, "P": 1e15, "E": 1e18,
+        "Ki": 2**10, "Mi": 2**20, "Gi": 2**30, "Ti": 2**40, "Pi": 2**50, "Ei": 2**60,
+    }
+    for suffix in sorted(suffixes, key=len, reverse=True):
+        if text.endswith(suffix):
+            return float(text[: -len(suffix)]) * suffixes[suffix]
+    return float(text)
+
+
+def _env_by_name(container):
+    # A value_from entry (a secret reference) has no literal value; both kinds
+    # are compared, since a var moving between literal and secret-ref is a
+    # change the pods have to be rolled to see.
+    env = {}
+    for var in container.env or []:
+        env[var.name] = (var.value, var.value_from.to_dict() if var.value_from else None)
+    return env
+
+
+def _structural_shape(deployment):
+    """The parts of a Deployment that update refuses to change, in comparable form.
+
+    Only the fields stack generates are compared, normalized, because a literal
+    comparison of a desired object against a live one drowns in server-side
+    defaulting (protocol: TCP, canonicalized quantities, injected fields).
+    """
+    template_spec = deployment.spec.template.spec
+    containers = {}
+    for c in template_spec.containers:
+        resources = c.resources
+        containers[c.name] = {
+            "ports": sorted((p.container_port, p.protocol or "TCP") for p in (c.ports or [])),
+            "volume-mounts": sorted((m.name, m.mount_path, m.sub_path) for m in (c.volume_mounts or [])),
+            "requests": {k: _canonical_quantity(v) for k, v in ((resources.requests if resources else None) or {}).items()},
+            "limits": {k: _canonical_quantity(v) for k, v in ((resources.limits if resources else None) or {}).items()},
+        }
+    return {
+        "replicas": deployment.spec.replicas,
+        "containers": containers,
+        "volumes": sorted(v.name for v in (template_spec.volumes or [])),
+    }
 
 
 class K8sDeployer(Deployer):
@@ -234,24 +288,33 @@ class K8sDeployer(Deployer):
         deployment directory and the cluster is destroyed on stop, so generated
         values persist beside the data in secrets.env and the Secret is rebuilt
         from them.  Referenced values are resolved fresh on every up.
+
+        Returns True when the Secret was created or its data changed, so update
+        knows the pods have to be restarted to see the new values.
         """
         spec = self.cluster_info.spec
         if not spec.get_secrets() or opts.o.dry_run:
-            return
+            return False
+        existing = None
+        try:
+            existing_secret = self.core_api.read_namespaced_secret(
+                name=stack_secrets.K8S_SECRET_NAME, namespace=self.k8s_namespace
+            )
+            existing = {k: base64.b64decode(v).decode() for k, v in (existing_secret.data or {}).items()}
+        except client.exceptions.ApiException as e:
+            if e.status != 404:
+                raise
         if self.is_kind():
             values = dict(stack_secrets.ensure_generated_secrets(spec, self.deployment_dir))
         else:
-            existing = {}
-            try:
-                existing_secret = self.core_api.read_namespaced_secret(
-                    name=stack_secrets.K8S_SECRET_NAME, namespace=self.k8s_namespace
-                )
-                existing = {k: base64.b64decode(v).decode() for k, v in (existing_secret.data or {}).items()}
-            except client.exceptions.ApiException as e:
-                if e.status != 404:
-                    raise
-            values = {name: existing.get(name) or stack_secrets.new_secret_value() for name in stack_secrets.generated_names(spec)}
+            values = {
+                name: (existing or {}).get(name) or stack_secrets.new_secret_value()
+                for name in stack_secrets.generated_names(spec)
+            }
         values.update(stack_secrets.resolve_referenced_secrets(spec))
+        if values == existing:
+            log_debug(f"Secret {stack_secrets.K8S_SECRET_NAME} unchanged")
+            return False
         secret = client.V1Secret(
             metadata=client.V1ObjectMeta(name=stack_secrets.K8S_SECRET_NAME, namespace=self.k8s_namespace),
             string_data=values,
@@ -266,6 +329,7 @@ class K8sDeployer(Deployer):
                 name=stack_secrets.K8S_SECRET_NAME, namespace=self.k8s_namespace, body=secret
             )
             log_debug(f"Secret {stack_secrets.K8S_SECRET_NAME} replaced")
+        return True
 
     def _create_deployments(self):
         # Process compose files into a Deployment
@@ -784,29 +848,110 @@ class K8sDeployer(Deployer):
             return log_stream_from_string("\n".join(all_logs))
 
     def update(self):
+        """Converge the running deployment on its deployment directory.
+
+        The updatable surface is deliberately content only: image references,
+        environment, and secret values.  Anything structural -- services,
+        ports, volumes, resources, replicas -- is refused with a redeploy
+        message rather than half-applied, so the whole diff of desired against
+        live is computed before anything is written.
+        """
         self.connect_api()
+        spec = self.cluster_info.spec
+        deployment_id = self.cluster_info.app_name
+        desired_deployments = self.cluster_info.get_deployments(image_pull_policy=None if self.is_kind() else "Always")
+
+        live_deployments = {
+            d.metadata.name: d for d in self.apps_api.list_namespaced_deployment(namespace=self.k8s_namespace).items
+        }
+        if not live_deployments:
+            raise ClusterNotRunningException(f"no deployments found in namespace {self.k8s_namespace}")
+
+        desired_names = {d.metadata.name for d in desired_deployments}
+        structural = [f"{name}: service added" for name in sorted(desired_names - set(live_deployments))]
+        structural += [f"{name}: service removed" for name in sorted(set(live_deployments) - desired_names)]
+        for desired in desired_deployments:
+            live = live_deployments.get(desired.metadata.name)
+            if live is None:
+                continue
+            desired_shape, live_shape = _structural_shape(desired), _structural_shape(live)
+            if desired_shape != live_shape:
+                changed = sorted(k for k in desired_shape if desired_shape[k] != live_shape[k])
+                structural.append(f"{desired.metadata.name}: {', '.join(changed)} changed")
+        if structural:
+            detail = "\n".join(f"  {line}" for line in structural)
+            error_exit(
+                "update only applies image, environment and secret changes, but the deployment's"
+                f" shape has changed:\n{detail}\nRe-create the deployment to apply these."
+            )
+
+        stale_refs = set()
+        kind_images_reloaded = False
+        if self.is_kind() and spec.get_image_registry() is None:
+            # The cluster runs the images loaded into it, so converging on the
+            # current builds means loading them again.  Whether any content
+            # actually changed is not visible from here, so the pods are
+            # restarted regardless.
+            log_info("Loading current local images into the kind cluster...")
+            load_images_into_kind(self.kind_cluster_name, self.cluster_info.image_set)
+            kind_images_reloaded = True
+        else:
+            for source, staged in stale_staged_images(self.cluster_info.image_set, spec.get_image_registry(), deployment_id):
+                stale_refs.add(staged)
+                log_warn(
+                    f"The local build of {source} is newer than the staged image: run"
+                    f" 'stack manage --dir {self.deployment_dir} push-images' and update again to deploy it."
+                )
+
         # Referenced secrets may have rotated, and a deployment created before
         # its stack declared secrets has no Secret yet.
-        self._create_secrets()
-        ref_deployments = self.cluster_info.get_deployments()
+        secrets_changed = self._create_secrets()
+        if secrets_changed:
+            output_main("secrets: changed; restarting all services")
 
-        for ref_deployment in ref_deployments:
-            deployment = self.apps_api.read_namespaced_deployment(name=ref_deployment.metadata.name, namespace=self.k8s_namespace)
+        for desired in desired_deployments:
+            name = desired.metadata.name
+            live = live_deployments[name]
+            changes = []
+            force_restart = kind_images_reloaded or secrets_changed
+            desired_containers = {c.name: c for c in desired.spec.template.spec.containers}
+            for container in live.spec.template.spec.containers:
+                desired_container = desired_containers[container.name]
+                if container.image != desired_container.image:
+                    changes.append(f"image {container.image} -> {desired_container.image}")
+                    container.image = desired_container.image
+                elif is_staged_reference(desired_container.image, deployment_id) and desired_container.image not in stale_refs:
+                    # New content under this deployment's mutable staging tag
+                    # arrives with the reference unchanged, so picking it up
+                    # means a restart and a re-pull rather than a spec change.
+                    changes.append(f"re-pulling staged image {desired_container.image}")
+                    force_restart = True
+                live_env, desired_env = _env_by_name(container), _env_by_name(desired_container)
+                env_changed = sorted(k for k in set(live_env) | set(desired_env) if live_env.get(k) != desired_env.get(k))
+                if env_changed:
+                    changes.append(f"env changed ({', '.join(env_changed)})")
+                    container.env = desired_container.env
 
-            new_env = ref_deployment.spec.template.spec.containers[0].env
-            for container in deployment.spec.template.spec.containers:
-                old_env = container.env
-                if old_env != new_env:
-                    container.env = new_env
-
-            deployment.spec.template.metadata.annotations = {
-                "kubectl.kubernetes.io/restartedAt": datetime.utcnow().replace(tzinfo=timezone.utc).isoformat()
-            }
+            if not changes and not force_restart:
+                output_main(f"{name}: unchanged")
+                continue
+            for change in changes:
+                output_main(f"{name}: {change}")
+            if force_restart:
+                if not changes and not secrets_changed:
+                    output_main(f"{name}: restarting")
+                # Merged, not assigned: the pod template also carries the K8up
+                # backup-command annotations, which a restart must not strip.
+                annotations = live.spec.template.metadata.annotations or {}
+                annotations["kubectl.kubernetes.io/restartedAt"] = (
+                    datetime.utcnow().replace(tzinfo=timezone.utc).isoformat()
+                )
+                live.spec.template.metadata.annotations = annotations
 
             self.apps_api.patch_namespaced_deployment(
-                name=ref_deployment.metadata.name,
+                name=name,
                 namespace=self.k8s_namespace,
-                body=deployment,
+                body=live,
             )
 
     def read_secrets(self):

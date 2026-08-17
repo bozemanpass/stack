@@ -102,40 +102,41 @@ Then, per edit:
 
 ```bash
 stack prepare --stack $STACK --build-policy build --include-containers bozemanpass/todo-frontend
-stack manage --dir ~/deployments/todo stop
-stack manage --dir ~/deployments/todo start
+stack manage --dir ~/deployments/todo update
 ```
 
-### What `start` does with the image
+`update` recreates only the containers whose image or configuration changed and leaves the
+rest running, so it is also the way to apply a `config.env` edit. (A full `stop`/`start`
+works too, and is what you want when a container is wedged.)
+
+### What `update` and `start` do with the image
 
 `deploy` rewrites each `image: <name>:stack` in the generated compose files to
 `<name>:<cluster-id>` (e.g. `bozemanpass/todo-frontend:stack-99544d5a11a0556e`) so that
 concurrent deployments on one host do not share a mutable tag. That deployment-private tag is
-(re)pointed at the current `:stack` image on every `start`, so a rebuild is picked up by a
-stop/start with no tag housekeeping on your part — you will see
+(re)pointed at the current `:stack` image on every `update` or `start`, so a rebuild is
+picked up with no tag housekeeping on your part — you will see
 
 ```
 Tagging bozemanpass/todo-frontend:stack to bozemanpass/todo-frontend:stack-99544d5a11a0556e...
 ```
 
-in the `start` output whenever the image has actually changed, and nothing when it has not.
-
-Note that `manage reload` is a `compose restart`, which reuses the existing containers and so
-does *not* pick up a new image; use `stop` then `start`.
+in the output whenever the image has actually changed, and nothing when it has not.
 
 ## 4. The `k8s-kind` loop
 
 `--deploy-to k8s-kind` needs no registry: local images are copied into the kind cluster on
-every `up`, so the loop is just
+every `up` and on every `update`, so the loop is just
 
 ```bash
 stack prepare --stack $STACK --build-policy build
-stack manage --dir ~/deployments/todo-kind stop
-stack manage --dir ~/deployments/todo-kind start
+stack manage --dir ~/deployments/todo-kind update
 ```
 
-with no tag surgery. Use it to check the Kubernetes *shape* of a deployment — pods, volumes,
-ingress — without a real cluster.
+with no tag surgery: `update` reloads the current local images into the cluster and restarts
+the pods. Use it to check the Kubernetes *shape* of a deployment — pods, volumes, ingress —
+without a real cluster; a change to the shape itself (ports, volumes, services) is the one
+thing `update` refuses, and there the loop is still `stop` then `start`.
 
 Note that `stop` deletes the kind cluster and `start` builds a new one, so nothing kept
 inside the cluster survives that loop. Your data does, because `init` maps each volume to a
@@ -186,13 +187,14 @@ Per edit:
 ```bash
 stack prepare --stack $STACK --build-policy build
 stack manage --dir ~/deployments/todo-k8s push-images
-stack manage --dir ~/deployments/todo-k8s stop
-stack manage --dir ~/deployments/todo-k8s start
+stack manage --dir ~/deployments/todo-k8s update
 ```
 
-Non-kind Kubernetes deployments are generated with `imagePullPolicy: Always`, so restarting
-re-pulls the (unchanged) `deploy-<id>` tag and gets the new content. No local tag needs
-removing, unlike the compose case.
+Non-kind Kubernetes deployments are generated with `imagePullPolicy: Always`, so the rolling
+restart `update` performs re-pulls the (unchanged) `deploy-<id>` tag and gets the new
+content. No local tag needs removing, unlike the compose case. If you rebuild and forget the
+`push-images`, `update` notices the staged image is out of date, tells you, and leaves that
+service alone rather than bouncing it onto the old bits.
 
 You need push access to the registry (`docker login`) and the cluster needs pull access —
 `stack` assumes credentials are configured on the cluster out of band, under the pull secret

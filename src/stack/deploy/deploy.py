@@ -128,7 +128,10 @@ def _output_backup_status(spec):
 
 
 def update_operation(ctx):
-    ctx.obj.deployer.update()
+    try:
+        ctx.obj.deployer.update()
+    except ClusterNotRunningException:
+        error_exit("the deployment is not running")
 
 
 def ps_operation(ctx):

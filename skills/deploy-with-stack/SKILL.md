@@ -194,7 +194,7 @@ Useful during debugging:
 ```bash
 stack manage --dir ./myproject-deployment exec backend bash   # shell in a container
 stack manage --dir ./myproject-deployment logs -f backend     # follow one service
-stack manage --dir ./myproject-deployment reload              # pick up config changes
+stack manage --dir ./myproject-deployment update              # apply config/image changes
 ```
 
 To stop: `stack manage --dir ./myproject-deployment stop` (data volumes are preserved;
@@ -203,8 +203,10 @@ add `--delete-volumes` only if the user explicitly wants the data gone).
 ## Iterating
 
 After changing service source: rebuild (`stack build containers --stack ./stack`), then
-`stop` and `start` the deployment. After changing `stack.yml` or the composefile: also
-rerun `init` and `deploy` to a fresh deployment directory (or the same one after `stop`).
+`update` the deployment — it recreates only the services whose image or configuration
+changed. After changing `stack.yml` or the composefile: rerun `init` and `deploy` to a
+fresh deployment directory (or the same one after `stop`), since `update` applies content
+changes only and refuses changes to the deployment's shape.
 
 ## Choosing where to deploy
 

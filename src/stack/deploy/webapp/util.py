@@ -134,31 +134,6 @@ def build_container_image(app_record, tag, extra_build_args=None):
         run_shell_command(f"rm -rf '{tmpdir}'")
 
 
-def push_container_image(deployment_dir, logger):
-    log_info("Pushing images ...")
-    run_shell_command(f"'{sys.argv[0]}' manage --dir '{deployment_dir}' push-images")
-    log_info("Finished pushing images.")
-
-
-def deploy_to_k8s(deploy_record, deployment_dir, recreate, logger):
-    log_info("Deploying to k8s ...")
-
-    if recreate:
-        commands_to_run = ["stop", "start"]
-    else:
-        if not deploy_record:
-            commands_to_run = ["start"]
-        else:
-            commands_to_run = ["update"]
-
-    for command in commands_to_run:
-        log_info(f"Running {command} command on deployment dir: {deployment_dir}")
-        run_shell_command(f"'{sys.argv[0]}' manage --dir '{deployment_dir}' {command}")
-        log_info(f"Finished {command} command on deployment dir: {deployment_dir}")
-
-    log_info("Finished deploying to k8s.")
-
-
 def skip_by_tag(r, include_tags, exclude_tags):
     for tag in exclude_tags:
         if r.attributes.tags and tag in r.attributes.tags:

@@ -131,4 +131,47 @@ echo "deploy storage: passed"
 wait_for_content "$app_url" '/assets/index-'
 echo "deploy http: passed"
 
+# In-place update: add a config value and converge the running deployment onto
+# it with `manage update`.  The assertions are that the value reaches a
+# container's environment without a stop/start, and that the todo written above
+# is still there afterwards -- update touches containers, never their data.
+update_marker="c2f0b9d7-update-marker"
+printf '\nSTACK_TEST_UPDATE_MARKER=%s\n' "$update_marker" >> $test_deployment_dir/config.env
+$TEST_TARGET_STACK manage --dir $test_deployment_dir update
+wait_for_running $(( 3 + TEST_INGRESS_EXTRA_SERVICES )) $TEST_START_CHECK_LIMIT
+
+# The restart is rolling on k8s, so poll for the new environment rather than
+# reading it once and racing the rollout.
+check=0
+until deployment_exec backend 'echo $STACK_TEST_UPDATE_MARKER' 2>/dev/null | grep -q "$update_marker"; do
+    check=$((check + 1))
+    if [ $check -ge 20 ]; then
+        fail "deploy update config: FAILED - $update_marker not in backend environment"
+    fi
+    echo "waiting for updated config in backend environment..."
+    sleep 5
+done
+echo "deploy update config: passed"
+
+wait_for_content "$api_url" "$todo_title"
+echo "deploy update storage: passed"
+
+# Content update: edit the app's source and converge the deployment onto the
+# rebuild.  The checkout under STACK_REPO_BASE_DIR is this test's own (see
+# setup_test_dir), and the edit is deliberately left uncommitted: a dirty tree
+# gives the rebuild a content-derived stackdev- identity, which is the intended
+# versioning for an image that corresponds to no shared commit.  How the new
+# content then reaches the deployment is the target-shaped part under test:
+# a private-tag re-point on compose, an image reload on kind, a staged re-push
+# and forced re-pull on remote.
+content_marker="stack-test-content-4f6e21d9"
+app_repo_dir=$STACK_REPO_BASE_DIR/github.com/bozemanpass/example-todo-list
+sed -i "s|<title>Todo List</title>|<title>Todo List ${content_marker}</title>|" $app_repo_dir/frontend/index.html
+$TEST_TARGET_STACK prepare --stack $STACK_NAME --build-policy build --include-containers bozemanpass/todo-frontend
+push_images_if_needed $test_deployment_dir
+$TEST_TARGET_STACK manage --dir $test_deployment_dir update
+wait_for_running $(( 3 + TEST_INGRESS_EXTRA_SERVICES )) $TEST_START_CHECK_LIMIT
+wait_for_content "$app_url" "$content_marker"
+echo "deploy update content: passed"
+
 echo "Test passed"
