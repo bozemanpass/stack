@@ -140,6 +140,50 @@ registry are checked first: if the local build is newer than what was staged,
 update says so and leaves that service alone — run `push-images`, then
 update again.
 
+On a Kubernetes target the report is one line per service, naming what moved
+— an image reference, environment keys (values are never printed; they can be
+secret), or a forced re-pull of the deployment's mutable staging tag.  Here
+the frontend's source was edited and rebuilt, and a config value changed:
+
+```
+$ stack prepare --stack todo --build-policy build --include-containers bozemanpass/todo-frontend
+$ stack manage --dir ~/deployments/todo-k8s push-images
+$ sed -i 's/^LOG_LEVEL=info/LOG_LEVEL=debug/' ~/deployments/todo-k8s/config.env
+$ stack manage --dir ~/deployments/todo-k8s update
+deploy-frontend: re-pulling staged image registry.example.com/bozemanpass/todo-frontend:deploy-90183b78
+deploy-backend: env changed (LOG_LEVEL)
+deploy-db: unchanged
+```
+
+Rotating the value behind a referenced secret (say one declared as
+`STRIPE_API_KEY: file:~/secrets/stripe-api-key` — see
+[secrets.md](../secrets.md)) restarts everything, since any service may read
+it:
+
+```
+$ openssl rand -hex 32 > ~/secrets/stripe-api-key
+$ stack manage --dir ~/deployments/todo-k8s update
+secrets: changed; restarting all services
+deploy-frontend: restarting
+deploy-backend: restarting
+deploy-db: restarting
+```
+
+A structural change — here, editing a service's port in the deployment's copy
+of the pod file — is reported the same way, but as a refusal:
+
+```
+$ sed -i 's/"5000:5000"/"8080:8080"/' ~/deployments/todo-k8s/compose/composefile.yml
+$ stack manage --dir ~/deployments/todo-k8s update
+ERROR: update only applies image, environment and secret changes, but the deployment's shape has changed:
+  deploy-backend: ports changed
+Re-create the deployment to apply these.
+```
+
+On the compose target the equivalent report comes from compose itself, which
+names each container it recreates; a rebuild picked up by the tag re-point
+shows first as a `Tagging bozemanpass/todo-frontend:stack to ...` line.
+
 ### backup
 
 Back up and restore the deployment's data
