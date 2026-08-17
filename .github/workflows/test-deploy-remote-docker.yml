@@ -1,0 +1,114 @@
+name: Remote Docker Deploy Test
+
+# Provisions a real cloud VM with docker on it (via the "machine" utility and the
+# machine-provisioning scripts) and runs the app deploy test on it against Docker
+# Compose: real DNS, real ports 80 and 443, and HTTPS with a real Let's Encrypt
+# certificate served by the docker-ingress stack. Costs real money and real
+# minutes, so it is not run per-PR.
+#
+# This is the Docker half of what "Real K8S Deploy Test" does for Kubernetes, and
+# it runs one test rather than a suite for a reason: the only thing about the
+# Docker target that a local run cannot cover is TLS, which needs a public address
+# and a name in public DNS that a certificate authority can resolve. Backups,
+# volumes and everything else the other remote job checks on a cluster are the
+# same code on a laptop, and are checked there per-PR.
+#
+# The test runs on the VM, not on the runner. There is no remote deploy for
+# Docker -- the compose deployer writes its files and bind-mounts its volume
+# directories on the machine the daemon is on -- so the machine script uploads the
+# test tree and the built package and runs the test over SSH. The images are built
+# on the VM from the app's public repository; no registry is involved.
+#
+# The lifecycle is tests/docker-deploy/machine.sh (provision / sync / run /
+# diagnostics / destroy) and each test is a step of its own in between, so the job
+# page shows which one failed without anyone reading the log. The cost of that is
+# that the teardown is a step rather than an exit trap, so it is `if: always()`,
+# and every step that could hang has a timeout -- a job that times out would skip
+# the teardown and leak the VM.
+
+on:
+  workflow_dispatch:
+    inputs:
+      provisioning-url:
+        description: "combine.sh URL (to test a machine-provisioning branch)"
+        required: false
+  schedule:
+    # Run weekly on Monday at 08:00 UTC, an hour after the k3s job: the two
+    # provision their own VMs and issue their own certificates, and there is
+    # nothing to gain from doing both at once.
+    - cron: "0 8 * * 1"
+
+jobs:
+  test:
+    name: "Deploy to Docker on a real machine"
+    runs-on: ubuntu-24.04
+    # The same environment as the k3s job, because it is the same test
+    # infrastructure: one provider account, one DNS zone, one SSH key. The
+    # K3S_TEST_ prefix names where those live rather than what they provision, and
+    # a second copy of them under another name would be a second thing to rotate.
+    # None of that job's registry or object-store settings are needed here.
+    environment: k3s-test
+    env:
+      MACHINE_DO_TOKEN: ${{ secrets.K3S_TEST_DO_TOKEN }}
+      MACHINE_SSH_KEY_NAME: ${{ vars.K3S_TEST_SSH_KEY_NAME }}
+      MACHINE_DNS_ZONE: ${{ vars.K3S_TEST_DNS_ZONE }}
+      MACHINE_PROJECT: ${{ vars.K3S_TEST_PROJECT }}
+      MACHINE_PROVISIONING_URL: ${{ inputs.provisioning-url }}
+      LETSENCRYPT_EMAIL: ${{ vars.K3S_TEST_LETSENCRYPT_EMAIL }}
+    steps:
+      - name: "Clone project repository"
+        uses: actions/checkout@v5
+      - name: "Install uv"
+        uses: astral-sh/setup-uv@v8.2.0
+        with:
+          python-version: '3.12'
+      - name: "Install the machine utility"
+        run: uv tool install git+https://github.com/stirlingbridge/machine.git
+      - name: "Write the SSH key"
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.K3S_TEST_SSH_KEY }}" > ~/.ssh/k3s-test-key
+          chmod 600 ~/.ssh/k3s-test-key
+          # For every later step: the machine script uploads the test tree, runs
+          # the tests and collects the diagnostics over SSH.
+          echo "MACHINE_SSH_KEY_FILE=$HOME/.ssh/k3s-test-key" >> "$GITHUB_ENV"
+      - name: "Turn on script debug logging if the run asked for it"
+        # Ticking "Enable debug logging" on a re-run turns on xtrace and the
+        # environment dump in the test scripts, here and on the machine.  A step
+        # rather than part of the job's env block, which cannot see the runner
+        # context.
+        run: echo "STACK_SCRIPT_DEBUG=${{ runner.debug }}" >> "$GITHUB_ENV"
+      - name: "Generate build version file"
+        run: ./scripts/create_build_tag_file.sh
+      - name: "Build local shiv package"
+        # Built here and uploaded to the machine: the package is what is under
+        # test, and it is built on the same python version the machine runs
+        # (3.12, on ubuntu 24.04 at both ends).
+        run: ./scripts/build_shiv_package.sh
+
+      - name: "Provision a docker machine on a cloud VM"
+        id: provision
+        # Cloud-init installs docker and a handful of packages; the script gives
+        # that 15 minutes before giving up on it.
+        timeout-minutes: 25
+        run: ./tests/docker-deploy/machine.sh provision
+
+      - name: "App deploy: HTTPS with a real certificate, and data across a restart"
+        if: ${{ !cancelled() && steps.provision.outcome == 'success' }}
+        # The app's images are built on the machine, which is a small one.
+        timeout-minutes: 40
+        run: ./tests/docker-deploy/machine.sh run ./tests/app-deploy/run-test.sh
+
+      - name: "Collect machine diagnostics"
+        # Only worth the SSH round trip when something above failed, and it has to
+        # happen before the teardown below: the VM is the only place this state
+        # exists.
+        if: ${{ failure() }}
+        timeout-minutes: 10
+        run: ./tests/docker-deploy/machine.sh diagnostics
+      - name: "Destroy the machine"
+        # However the job ends, including a cancellation: what is left behind
+        # otherwise is a VM nobody is watching, billed by the hour.
+        if: ${{ always() }}
+        timeout-minutes: 15
+        run: ./tests/docker-deploy/machine.sh destroy

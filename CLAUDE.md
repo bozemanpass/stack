@@ -63,15 +63,26 @@ STACK_TEST_TARGET=kind ./tests/database/run-test.sh
 
 # K8s pod placement controls (kind only — builds its own multi-node cluster)
 ./tests/k8s-deployment-control/run-test.sh
+
+# App deployment over HTTPS on a real cloud machine running docker.
+# Provisions and destroys a VM, so it costs money; see tests/docker-deploy.
+./tests/docker-deploy/with-docker-machine.sh ./tests/app-deploy/run-test.sh
 ```
 
-There are three deployment targets, and a test that works against more than one
+There are four deployment targets, and a test that works against more than one
 calls `select_deploy_target` (in `tests/lib/common.sh`) and is pointed at one
-with `STACK_TEST_TARGET`: `compose` (the default), `kind`, or `remote`. Tests
+with `STACK_TEST_TARGET`: `compose` (the default), `kind`, `remote` (a real k8s
+cluster) or `remote-compose` (Docker Compose on a real cloud machine). Tests
 that are only about general behaviour stay on compose; the ones likely to find
 target-specific bugs — currently `app-deploy` and `database` — are written to
-run on any of the three. Anything genuinely target-shaped belongs in
+run on more than one. Anything genuinely target-shaped belongs in
 `select_deploy_target` rather than in an `if` inside a test.
+
+Target-shaped is not the same as engine-shaped, and the two used to be conflated
+here. `app-deploy` asked whether the target was `compose` to decide whether each
+service was reached on a host port of its own or behind one hostname — which was
+right for as long as compose meant a laptop, and wrong the moment a compose
+deployment got a real hostname. It asks `TEST_HTTP_ROUTING` now.
 
 `tests/database` holds two scripts. `run-test.sh` is the volume-persistence test
 described above. `run-backup-test.sh` makes the same assertion across a wider
@@ -123,7 +134,8 @@ other than `kind` rather than silently testing nothing.
 Which combinations CI actually runs is a separate question from which ones a
 test supports, and is decided by cost: `app-deploy` and `database` both run on
 compose and kind per-PR, and on remote weekly. `backup` runs on compose per-PR
-and on remote weekly.
+and on remote weekly. `app-deploy` also runs on `remote-compose` weekly, and it
+is the only test that does.
 
 Compose is worth keeping in that set for a reason beyond docker coverage: it is
 the only target that does not restart a failed container, so a service that only
@@ -149,6 +161,34 @@ old single script could end, and a workflow step does not, so the destroy step i
 `if: always()` and every step that could hang carries a `timeout-minutes` — a
 job that hits the *job* timeout skips its remaining steps and leaves the VM
 running.
+
+`remote-compose` is the same arrangement for Docker: `tests/docker-deploy/`
+holds `machine.sh provision|sync|run|diagnostics|destroy` and a
+`with-docker-machine.sh` wrapper, and the "Remote Docker Deploy Test" workflow
+runs the app deploy test on a real VM weekly and on manual dispatch. Two
+differences from the cluster harness are worth knowing before touching it:
+
+- **The test runs on the VM**, which is why `machine.sh` has a `run` command and
+  `cluster.sh` does not. A remote cluster is driven over its API from wherever
+  the test runs; Docker has no such thing, and the compose deployer writes the
+  deployment's files and bind-mounts its volume directories wherever the daemon
+  is. So provisioning uploads `tests/` and `package/` and `run` invokes the test
+  over SSH. The images are built there too — the app's repository is public —
+  and no registry is involved.
+- **Only `app-deploy` runs there**, because TLS is the only thing about the
+  Docker target that a laptop cannot cover: it needs a public address, a name in
+  public DNS a CA can resolve, and ports 80 and 443. Backups and volumes are the
+  same code locally and are covered per-PR on compose. Resist adding tests to
+  this job on the grounds that the VM is already paid for; that argument holds
+  for the cluster, whose *behaviour* differs, and not here.
+
+TLS on Docker is served by the `docker-ingress` stack (nginx-proxy plus
+acme-companion) mixed into the deployment, which `init_ingress_mix_in` prepares
+— see `docs/ingress.md`. It uses the Let's Encrypt production CA rather than the
+staging one that stack's composefile defaults to: a staging certificate is signed
+by an untrusted root, and a test whose subject is that HTTPS works cannot then
+turn verification off. A hostname per run is what keeps that off the
+duplicate-certificate rate limit.
 
 Run them from the repo root. By default each one tests the most recently built
 shiv package in `./package` (`./scripts/build_shiv_package.sh`); pass `from-path`
@@ -233,3 +273,4 @@ Stacks can also provide custom subcommands loaded dynamically.
 - Build backend: `uv_build`
 - CI runs on GitHub Actions (see `.github/workflows/`)
 - Workflows: `lint.yml`, `test-unit.yml`, `test.yml`, `test-deploy.yml`, `test-deploy-k8s.yml`, `test-database.yml`, `test-deployment-control.yml`, `test-webapp.yml`, `publish.yml`
+- Weekly, not per-PR, because each provisions a cloud VM: `test-deploy-k3s.yml`, `test-deploy-remote-docker.yml`
