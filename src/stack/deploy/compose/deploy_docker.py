@@ -19,6 +19,7 @@ from pathlib import Path
 from python_on_whales import DockerClient, DockerException
 
 from stack import constants
+from stack.deploy import secrets as stack_secrets
 from stack.deploy.backup import backup_settings
 from stack.deploy.deployer import Deployer, DeployerException, DeployerConfigGenerator
 from stack.deploy.deployment_context import DeploymentContext
@@ -85,9 +86,25 @@ class DockerDeployer(Deployer):
                 log_info(f"Tagging {stack_image} to {image}...")
                 self.docker.tag(stack_image, image)
 
+    def _export_referenced_secrets(self):
+        """Resolve referenced secrets and export them for compose interpolation.
+
+        The generated compose files consume each one as ${STACK_SECRET_<name>:-},
+        so the value exists only in this process's environment for the length of
+        the command, never in the deployment directory.  Generated secrets are
+        not handled here: they persist in secrets.env, which the services read as
+        an env_file.
+        """
+        spec = getattr(self.deployment_context, "spec", None) if self.deployment_context else None
+        if not spec:
+            return
+        for name, value in stack_secrets.resolve_referenced_secrets(spec).items():
+            os.environ[stack_secrets.shell_var(name)] = value
+
     def up(self, detach, skip_cluster_management, services):
         if not opts.o.dry_run:
             self._stage_local_images()
+            self._export_referenced_secrets()
             try:
                 return self.docker.compose.up(detach=detach, services=services)
             except DockerException as e:
@@ -198,6 +215,9 @@ class DockerDeployer(Deployer):
             envs["RESTIC_REPOSITORY"] = f"s3:{settings.s3_endpoint.rstrip('/')}/{settings.s3_bucket.rstrip('/')}/{source}"
         output_main(self._backup_exec(["/scripts/restore.sh", snapshot or "latest"] + list(volumes or []), envs=envs))
 
+    def read_secrets(self):
+        return stack_secrets.local_secret_values(self.deployment_context.spec, self.deployment_context.deployment_dir)
+
     def run(
         self,
         image: str,
@@ -241,3 +261,7 @@ class DockerDeployerConfigGenerator(DeployerConfigGenerator):
         with open(self.deployment_context.get_env_file(), "ta") as env_file:
             print(f'STACK_HOST_UID="{os.getuid()}"', file=env_file)
             print(f'STACK_HOST_GID="{os.getgid()}"', file=env_file)
+        # Mint any generated secrets into secrets.env now, so the file the
+        # generated compose files name as an env_file exists before any compose
+        # command parses them.
+        stack_secrets.ensure_generated_secrets(self.deployment_context.spec, deployment_dir)

@@ -40,16 +40,11 @@ manage` puts the credential on the runner's disk, in the deployment, for the
 life of the job; naming it from the spec instead means the job passes the
 secret in the environment and the deployment stays credential-free.
 
-`exec:` is the general escape hatch, and is what any secret store is reached
-through until it is worth a scheme of its own -- `pass show`, `op read`,
-`vault kv get`, `sops -d`, a cloud provider's CLI.  It runs through a shell, so
-pipelines work; the command comes from the operator's own spec file, which is
-the same trust level as the command line that created it.
+The scheme syntax and its resolution live in stack.deploy.references, shared
+with the spec's `secrets` section; this module keeps only what is specific to
+the kubeconfig -- the bare-path meaning, and its materialization as a file for
+the kubernetes client.
 """
-
-import os
-import re
-import subprocess
 
 from contextlib import contextmanager
 from pathlib import Path
@@ -57,93 +52,31 @@ from shutil import rmtree
 from tempfile import mkdtemp
 
 from stack import constants
-from stack.log import log_debug
-from stack.util import error_exit
-
-
-# Only a leading lowercase scheme counts, so that ordinary paths -- which have no
-# colon before their first slash -- are never mistaken for references.
-_SCHEME_RE = re.compile(r"^([a-z][a-z0-9-]*):")
-
-_SCHEMES = ("file", "env", "env-file", "exec")
+from stack.deploy import references
 
 
 def reference_scheme(value):
     """The scheme of a kube-config value, or None if it is a bare path."""
-    if value is None:
-        return None
-    match = _SCHEME_RE.match(str(value))
-    return match.group(1) if match else None
+    return references.reference_scheme(value)
 
 
 def is_deferred_reference(value):
     """True if this value is resolved at connect time rather than copied in."""
-    return reference_scheme(value) is not None
+    return references.is_reference(value)
 
 
 def validate_reference(value):
     """Reject a kube-config value we would not be able to resolve.
 
-    Called where the reference is recorded rather than where it is used, so that
-    a mistyped scheme is caught by `init` and `deploy` rather than at connect
-    time on a CI runner.  The reference is deliberately not resolved here: the
-    credential it names is quite legitimately absent on the machine that creates
-    the deployment, which is the whole point of deferring it.
+    A bare path is valid -- it is the original meaning of the field -- so only a
+    value carrying a scheme is checked.
     """
-    scheme = reference_scheme(value)
-    if scheme is None:
-        return
-    if scheme not in _SCHEMES:
-        error_exit(
-            f"{constants.kube_config_key} '{value}' has an unknown scheme '{scheme}:'"
-            f" (expected one of: {', '.join(s + ':' for s in _SCHEMES)}, or a path)"
-        )
-    if not str(value)[len(scheme) + 1 :].strip():
-        error_exit(f"{constants.kube_config_key} '{value}' names nothing after '{scheme}:'")
-
-
-def _read_file(path: Path, reference):
-    if not path.exists():
-        error_exit(f"{constants.kube_config_key} is '{reference}' but {path} does not exist")
-    return path.read_text()
-
-
-def _run_command(command, reference):
-    log_debug(f"Resolving {constants.kube_config_key} with: {command}")
-    result = subprocess.run(command, shell=True, capture_output=True, text=True)
-    if result.returncode != 0:
-        # The command's own stderr is the only useful diagnostic here, and it is
-        # captured, so it has to be carried into the error to be seen at all.
-        error_exit(
-            f"{constants.kube_config_key} command exited {result.returncode}: {command}\n{result.stderr.strip()}"
-        )
-    if not result.stdout.strip():
-        error_exit(f"{constants.kube_config_key} command '{command}' produced no output")
-    return result.stdout
+    references.validate_reference(value, constants.kube_config_key)
 
 
 def resolve_reference(reference):
     """Return the kubeconfig content a deferred reference names."""
-    scheme, _, rest = str(reference).partition(":")
-    if scheme == "env":
-        content = os.environ.get(rest)
-        if content is None:
-            error_exit(f"{constants.kube_config_key} is '{reference}' but ${rest} is not set in the environment")
-        if not content.strip():
-            error_exit(f"{constants.kube_config_key} is '{reference}' but ${rest} is empty")
-        return content
-    if scheme == "env-file":
-        path = os.environ.get(rest)
-        if not path:
-            error_exit(f"{constants.kube_config_key} is '{reference}' but ${rest} is not set in the environment")
-        return _read_file(Path(path).expanduser(), reference)
-    if scheme == "file":
-        return _read_file(Path(rest).expanduser(), reference)
-    if scheme == "exec":
-        return _run_command(rest, reference)
-    # validate_reference runs at init and deploy, so reaching this means a spec
-    # file was edited by hand after the fact.
-    error_exit(f"{constants.kube_config_key} '{reference}' has an unknown scheme '{scheme}:'")
+    return references.resolve_reference(reference, constants.kube_config_key)
 
 
 @contextmanager

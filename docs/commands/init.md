@@ -20,6 +20,7 @@ stack init [OPTIONS]
 | `--git-ssh/--no-git-ssh` | FLAG | Use SSH for git rather than HTTPS | From config |
 | `--config` | TEXT | Provide config variables for the deployment (can be used multiple times) | - |
 | `--config-file` | TEXT | Provide config variables in a file for the deployment | - |
+| `--secret` | TEXT | Provide a secret as `NAME=REFERENCE`, e.g. `API_KEY=env:API_KEY_DATA` — see [secrets.md](../secrets.md) (multiple) | `generate` for each declared secret |
 | `--cluster` | TEXT | Specify a non-default cluster name | - |
 | `--deploy-to` | CHOICE | Cluster system to deploy to (`compose`, `k8s`, or `k8s-kind`) | From config or `compose` |
 | `--kube-config` | TEXT | Kubernetes config file for a k8s deployment: a path, or a reference such as `env:KUBECONFIG_DATA` — see [kube-config.md](../kube-config.md) | From config |

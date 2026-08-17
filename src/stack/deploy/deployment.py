@@ -37,6 +37,7 @@ from stack.deploy.deploy import (
     backup_now_operation,
     backup_list_operation,
     backup_restore_operation,
+    secrets_show_operation,
 )
 from stack.deploy.deploy_types import DeployCommandContext
 from stack.deploy.deployment_context import DeploymentContext
@@ -238,6 +239,36 @@ def restore(ctx, snapshot, volumes, source):
     """restore the deployment's data from a snapshot"""
     ctx.obj = _backup_deploy_context(ctx)
     backup_restore_operation(ctx, snapshot, list(volumes), source)
+
+
+@command.group()
+@click.pass_context
+def secrets(ctx):
+    """inspect the deployment's secrets (see docs/secrets.md)"""
+
+
+@secrets.command(name="list")
+@click.pass_context
+def list_secrets(ctx):
+    """list secret names and where each value comes from"""
+    # Provenance is recorded in the spec, so no deployer and no cluster is
+    # needed -- and no value is revealed.
+    deployment_context: DeploymentContext = ctx.obj
+    secret_entries = deployment_context.spec.get_secrets()
+    if not secret_entries:
+        output_main("No secrets")
+        return
+    for name, value in secret_entries.items():
+        output_main(f"{name}\t{value}")
+
+
+@secrets.command()
+@click.argument("names", nargs=-1)  # help: command: show <secret1> <secret2>
+@click.pass_context
+def show(ctx, names):
+    """show secret values (all of them, if none named) in the clear"""
+    ctx.obj = make_deploy_context(ctx.parent)
+    secrets_show_operation(ctx, list(names))
 
 
 @command.command()

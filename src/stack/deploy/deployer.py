@@ -74,6 +74,16 @@ class Deployer(ABC):
         pass
 
     @abstractmethod
+    def read_secrets(self):
+        """The deployment's secret values, as {name: value}, for inspection.
+
+        Read from wherever this target stores them (see docs/secrets.md); a
+        generated secret that has not been minted yet maps to None.  Read-only:
+        must never mint or rotate anything.
+        """
+        pass
+
+    @abstractmethod
     def run(
         self,
         image: str,

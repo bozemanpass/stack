@@ -38,6 +38,7 @@ from stack.util import (
 )
 from stack.deploy.deploy import create_deploy_context
 from stack.deploy.kube_config import is_deferred_reference, validate_reference
+from stack.deploy import secrets as stack_secrets
 from stack.deploy.spec import Spec, MergedSpec, load_spec
 from stack.deploy.stack import Stack, get_plugin_code_paths, get_pod_script_paths, pod_has_scripts
 from stack.deploy.deployer_factory import getDeployerConfigGenerator
@@ -275,6 +276,7 @@ def init_operation(  # noqa: C901
     map_ports_to_host,
     backup_targets=None,
     clusterissuer_explicitly_set=False,
+    secret_variables=None,
 ):
     spec_file_content = {"stack": stack, constants.deploy_to_key: deployer_type}
     if deployer_type in ["k8s", "k8s-kind"]:
@@ -352,6 +354,34 @@ def init_operation(  # noqa: C901
             error_exit(f"Error: --map-ports-to-host {map_ports_to_host} is not allowed with a {deployer_type} deployment ")
 
     parsed_stack = Stack(stack).init_from_file(os.path.join(get_stack_path(stack), constants.stack_file_name))
+
+    # The stack declares which env vars are secret; the spec records where each
+    # value comes from -- `generate`, or a reference -- and never the value itself.
+    declared_secrets = stack_secrets.declared_secrets(parsed_stack)
+    secret_variables = dict(secret_variables or {})
+    secret_entries = {}
+    for secret_name, declaration in declared_secrets.items():
+        if secret_name in secret_variables:
+            secret_entries[secret_name] = secret_variables.pop(secret_name)
+        elif declaration.get("external"):
+            # A generated value would be useless here -- the secret's counterpart
+            # lives outside the deployment -- so a reference has to be recorded
+            # now: there is no later point at which one could be.
+            error_exit(
+                f"secret {secret_name} is declared external by the stack; supply a reference "
+                f"with --secret {secret_name}=env:VAR_NAME (or file:, env-file:, exec:)"
+            )
+        else:
+            secret_entries[secret_name] = stack_secrets.GENERATE
+    # --secret names the stack does not declare are allowed, like extra --config vars.
+    secret_entries.update(secret_variables)
+    for secret_name, secret_value in secret_entries.items():
+        stack_secrets.validate_secret_entry(secret_name, secret_value)
+        if secret_name in spec_file_content.get("config", {}):
+            error_exit(f"{secret_name} is declared as a secret and may not also be set with --config")
+    if secret_entries:
+        spec_file_content[constants.secrets_key] = secret_entries
+
     ports = _get_mapped_ports(parsed_stack, map_ports_to_host)
     if constants.network_key in spec_file_content:
         spec_file_content[constants.network_key][constants.ports_key] = ports
@@ -394,6 +424,21 @@ def init_operation(  # noqa: C901
     if output:
         spec.dump(output)
     return spec
+
+
+def _remove_secret_environment_literals(service_info, secret_names):
+    # A literal a stack's compose file still carries for a now-declared secret
+    # (e.g. a default password) would both leak into the generated compose file
+    # and, being an `environment:` entry, override the injected value.  The
+    # declaration wins: the literal is dropped from the deployment's copy.
+    env = service_info.get("environment")
+    if not env:
+        return
+    if isinstance(env, dict):
+        for name in secret_names:
+            env.pop(name, None)
+    else:
+        service_info["environment"] = [e for e in env if str(e).split("=", 1)[0] not in secret_names]
 
 
 def _write_config_file(spec: Spec, config_env_file: Path):
@@ -483,6 +528,8 @@ def create(ctx, cluster, spec_file, deployment_dir):
 def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec, deployment_dir):  # noqa: C901
     log_debug(f"parsed spec: {parsed_spec}")
     _check_volume_definitions(parsed_spec)
+    # Validated here as well as at init, since a spec file is edited by hand.
+    stack_secrets.validate_spec_secrets(parsed_spec)
 
     deployment_type = parsed_spec[constants.deploy_to_key]
 
@@ -542,6 +589,12 @@ def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec,
         log_debug(f"extra config dirs: {extra_config_dirs}")
         _fixup_pod_file(parsed_pod_file, parsed_spec, destination_compose_dir)
 
+        # On every target: the deployment's copy of the pod file must not carry a
+        # cleartext value for anything the stack declares secret.
+        if parsed_spec.get_secrets():
+            for service_info in parsed_pod_file.get(constants.services_key, {}).values():
+                _remove_secret_environment_literals(service_info, list(parsed_spec.get_secrets()))
+
         # The backup stack fills a gap that only the Docker target has: on
         # Kubernetes the backup engine is K8up, configured by the deployer from
         # the same ambient settings, and a backup container deployed there would
@@ -563,17 +616,32 @@ def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec,
                 if image_name.endswith(":stack"):
                     service_info["image"] = image_name[:-5] + deployment_command_context.cluster_context.cluster
 
-                shared_cfg_file = os.path.join(
-                    "../" * len(destination_compose_dir.relative_to(deployment_dir_path).parts), constants.config_file_name
-                )
+                relative_prefix = "../" * len(destination_compose_dir.relative_to(deployment_dir_path).parts)
+                shared_env_files = [os.path.join(relative_prefix, constants.config_file_name)]
+                # Generated secrets live beside config.env in secrets.env (written
+                # by the deployer config generator, 0600 and gitignored), listed
+                # after it so a secret wins over a config value of the same name.
+                generated_secret_names = stack_secrets.generated_names(parsed_spec)
+                referenced_secrets = stack_secrets.referenced_entries(parsed_spec)
+                if generated_secret_names:
+                    shared_env_files.append(os.path.join(relative_prefix, constants.secrets_file_name))
                 if "env_file" in service_info:
                     env_files = service_info["env_file"]
                     if isinstance(env_files, list):
-                        service_info["env_file"] = [shared_cfg_file, *env_files]
+                        service_info["env_file"] = [*shared_env_files, *env_files]
                     else:
-                        service_info["env_file"] = [shared_cfg_file, env_files]
+                        service_info["env_file"] = [*shared_env_files, env_files]
                 else:
-                    service_info["env_file"] = [shared_cfg_file]
+                    service_info["env_file"] = shared_env_files
+
+                if referenced_secrets:
+                    # A referenced secret is never persisted in the deployment: the
+                    # compose file interpolates a variable the deployer exports for
+                    # the duration of an up, from the reference resolved just then.
+                    svc_env = service_info.get("environment", {})
+                    for secret_name in referenced_secrets:
+                        add_env_var(secret_name, f"${{{stack_secrets.shell_var(secret_name)}:-}}", svc_env)
+                    service_info["environment"] = svc_env
 
                 http_proxy_config = parsed_spec.get_http_proxy()
                 for pxy in http_proxy_config:

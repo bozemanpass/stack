@@ -116,6 +116,9 @@ class Spec:
     def get_kube_config(self):
         return self.obj.get(constants.kube_config_key, None)
 
+    def get_secrets(self):
+        return self.obj.get(constants.secrets_key, {}) or {}
+
     def get_volumes(self):
         return self.obj.get(constants.volumes_key, {})
 
@@ -304,6 +307,14 @@ class MergedSpec(Spec):
         for vol_name in other_volume_names:
             if vol_name in current_volume_names:
                 error_exit(f"Volume name conflict for {vol_name} in {other.file_path}.")
+
+        # Check for conflicts on secret names.  Secrets are deployment-wide env
+        # vars, so two stacks may share a name only if they agree on where the
+        # value comes from.
+        current_secrets = self.get_secrets()
+        for secret_name, secret_value in other.get_secrets().items():
+            if secret_name in current_secrets and current_secrets[secret_name] != secret_value:
+                error_exit(f"Secret conflict for {secret_name} in {other.file_path}")
 
         # Check for conflicts on mapped ports
         mapped_ports = {}

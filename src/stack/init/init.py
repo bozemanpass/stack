@@ -91,6 +91,12 @@ def _output_checks(specs, deploy_to, http_proxy_fqdn_specified=False):
 )
 @click.option("--config", help="Provide config variables for the deployment", multiple=True)
 @click.option("--config-file", help="Provide config variables in a file for the deployment")
+@click.option(
+    "--secret",
+    help="Provide a secret for the deployment as NAME=REFERENCE, where the reference "
+    "is generate, env:VAR_NAME, file:PATH, env-file:VAR_NAME or exec:COMMAND",
+    multiple=True,
+)
 @click.option("--cluster", help="specify a non-default cluster name")
 @click.option(
     "--deploy-to",
@@ -136,6 +142,7 @@ def command(
     cluster,
     config,
     config_file,
+    secret,
     kube_config,
     image_registry,
     http_proxy_fqdn,
@@ -173,6 +180,14 @@ def command(
             config_variables[k] = v.strip("'").strip('"')
         else:
             error_exit(f"Invalid config variable: {c}")
+
+    secret_variables = {}
+    for s in secret:
+        if "=" in s:
+            k, v = s.split("=", 1)
+            secret_variables[k] = v.strip("'").strip('"')
+        else:
+            error_exit(f"Invalid secret: {s}, expected NAME=REFERENCE")
 
     http_proxy_fqdn_specified = http_proxy_fqdn is not None
     if not http_proxy_fqdn:
@@ -233,6 +248,7 @@ def command(
             map_ports_to_host,
             backup_targets,
             clusterissuer_explicitly_set,
+            secret_variables=secret_variables,
         )
         specs.append(spec)
 
