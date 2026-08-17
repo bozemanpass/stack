@@ -43,7 +43,7 @@ CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 
 @click.group(context_settings=CONTEXT_SETTINGS, cls=StackCLI)
-@click.option("--log-file", help="Log to file (default stdout/stderr)")
+@click.option("--log-file", help="Divert log output to a file (default: stderr; results stay on stdout)")
 @click.option("--debug", help="enable debug options", is_flag=True, default=get_config_setting("debug", False))
 @click.option(
     "--profile", help="name of the configuration profile to use", default=os.environ.get("STACK_CONFIG_PROFILE", "config")
@@ -58,10 +58,13 @@ CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 def cli(ctx, profile, quiet, verbose, log_file, dry_run, debug, log_timestamps, log_elapsed):
     """BPI stack"""
 
+    # No default stream here: a None log_file means "diagnostics to stderr",
+    # decided per write in stack.log.  Materializing the default as sys.stderr
+    # made "is a log file in use?" indistinguishable from "is stderr a tty?",
+    # which is what used to duplicate every result line onto stderr whenever
+    # stderr was piped (CI logs, subprocess captures).
     if log_file:
         log_file = open(log_file, "w", encoding="utf-8")
-    else:
-        log_file = sys.stderr
 
     log_level = LOG_LEVELS["info"]
     if verbose:
