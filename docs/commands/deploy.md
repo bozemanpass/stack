@@ -50,17 +50,36 @@ stack deploy --spec-file my-stack.yml --cluster staging --deployment-dir ~/deplo
 
 ## Directory Structure
 
-The deployment directory will contain:
+A deployment directory is self-contained: it holds the deployment's own copies of
+everything the stack contributed, so `manage` reads nothing from the stack it was
+deployed from.
+
 ```
 deployment-dir/
-├── compose/           # For Docker Compose deployments
-│   └── docker-compose.yml
-├── k8s/              # For Kubernetes deployments
-│   ├── manifests/
-│   └── configmaps/
-├── config/           # Configuration files
-└── spec.yml          # Copy of deployment spec
+├── compose/
+│   └── composefile-<pod>.yml   one per pod, fixed up for this deployment
+├── config/<name>/              config directories the pod files mount
+├── configmaps/<name>/          k8s only: file trees that become ConfigMaps
+├── data/<volume>/              volume directories, for a spec that maps them here
+├── pods/<pod>/scripts/         the pod's pre/post-start scripts
+├── config.env                  config values shared by every service
+├── secrets.env                 generated secret values (0600)
+├── .gitignore                  written alongside secrets.env, listing it
+├── kubeconfig.yml              k8s only, when the spec gives a credential by path
+├── deployment.yml              the deployment's cluster id
+├── spec.yml                    copy of the spec it was deployed from
+└── stack.yml                   copy of the stack (merged, for several specs)
 ```
+
+Most entries appear only when the deployment has something to put in them: a stack
+with no config directories gets no `config/`, and `pods/` exists only for a stack
+whose pods declare a `pre_start_command` or `post_start_command` ([stack files
+reference](../stack-files.md)).  Those scripts are copied in at deploy time and run
+by `manage start` from the directory holding them, with `STACK_DEPLOYMENT_DIR` in
+the environment — which is why they are copied at all rather than run from the
+stack: like everything else here, the deployment keeps its own copy.
+
+A stack's `create` hook can write further files of its own; see [hooks](../hooks.md).
 
 ## See Also
 

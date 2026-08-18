@@ -598,8 +598,10 @@ def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec,
     os.mkdir(deployment_dir_path)
     destination_compose_dir = deployment_dir_path.joinpath("compose")
     os.mkdir(destination_compose_dir)
+    # pods/<pod>/scripts/ holds a pod's pre/post-start hook scripts, and is created
+    # below only for a pod that declares one -- an empty pods/<pod> next to every
+    # deployment was a puzzle worth more than it was worth (#128).
     destination_pods_dir = deployment_dir_path.joinpath("pods")
-    os.mkdir(destination_pods_dir)
 
     deployment_command_context.cluster_context.cluster = _create_deployment_file(
         deployment_dir_path, deployment_command_context.cluster_context.cluster
@@ -639,7 +641,6 @@ def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec,
         parsed_pod_file = parsed_spec.load_pod_file(pod)
         extra_config_dirs = _find_extra_config_dirs(parsed_pod_file, pod)
         destination_pod_dir = destination_pods_dir.joinpath(pod)
-        os.mkdir(destination_pod_dir)
         log_debug(f"extra config dirs: {extra_config_dirs}")
         parsed_stack = parsed_spec.stack_for_pod(pod) if isinstance(parsed_spec, MergedSpec) else parsed_spec.load_stack()
         # The deployment's copy of the pod file pulls each external image by the digest
@@ -820,7 +821,7 @@ def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec,
         # Copy the script files for the pod, if any
         if pod_has_scripts(parsed_stack, pod):
             destination_script_dir = destination_pod_dir.joinpath("scripts")
-            os.mkdir(destination_script_dir)
+            os.makedirs(destination_script_dir)
             script_paths = get_pod_script_paths(parsed_stack, pod)
             _copy_files_to_directory(script_paths, destination_script_dir)
         if parsed_spec.is_kubernetes_deployment():
