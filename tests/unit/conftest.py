@@ -175,3 +175,27 @@ def k8s_dict(obj):
     from kubernetes import client
 
     return client.ApiClient().sanitize_for_serialization(obj)
+
+
+def make_old_format_stack(base_dir, pod_composefiles, name="oldformatstack"):
+    """Create an old-format stack -- pods named as bare strings -- and return its path.
+
+    The pod files of such a stack are not next to the stack.yml: they are found by
+    name in the repo's shared `compose` directory, which is what the layout below
+    reproduces (and is why the git repo is the outer directory, not the stack's).
+    """
+    repo_dir = base_dir / f"{name}-repo"
+    stack_dir = repo_dir / "stack-files" / "stacks" / name
+    compose_dir = repo_dir / "stack-files" / "compose"
+    stack_dir.mkdir(parents=True)
+    compose_dir.mkdir(parents=True)
+    for pod_name, compose_yaml in pod_composefiles.items():
+        (compose_dir / f"composefile-{pod_name}.yml").write_text(textwrap.dedent(compose_yaml))
+    pods_yaml = "".join(f"  - {pod_name}\n" for pod_name in pod_composefiles)
+    (stack_dir / "stack.yml").write_text(f"name: {name}\ndescription: \"test stack\"\npods:\n{pods_yaml}")
+    subprocess.run(["git", "init", "-q", str(repo_dir)], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo_dir), "remote", "add", "origin", f"https://github.com/example/{name}.git"],
+        check=True,
+    )
+    return stack_dir
