@@ -258,8 +258,8 @@ Users usually describe a situation, not a target. Map it for them — do not ask
   init/deploy/start there, adding a reverse proxy for the public hostname (see
   https://github.com/bozemanpass/stack/blob/main/docs/ingress.md). For a deployment
   that runs unattended, scheduled encrypted backups of its data volumes to any
-  S3-compatible store are built in — `stack manage … backup now | list | restore`,
-  see https://github.com/bozemanpass/stack/blob/main/docs/backup.md.
+  S3-compatible store are built in (`stack manage … backup now | list | restore`) —
+  see https://github.com/bozemanpass/stack/blob/main/docs/backup.md
 - **"Many apps on shared machines / real scale / per-app HTTPS automation"** → this is
   when Kubernetes earns its complexity. The identical stack deploys by changing only
   the init step:
