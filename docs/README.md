@@ -40,7 +40,7 @@ stack authors should read [stack-files.md](stack-files.md) first.
 | [from-laptop-to-production.md](from-laptop-to-production.md) | Choosing a deployment target by situation: local development, a single always-on VM for real users, or Kubernetes — and why a PaaS is not required. Start here if you know your goal but not the options. |
 | [ingress.md](ingress.md) | Automatic HTTP route configuration for an ingress controller / reverse proxy via annotations in `composefile.yml`. |
 | [gateway-api.md](gateway-api.md) | HTTPS on Kubernetes via the Gateway API (with the legacy Ingress API as fallback), and the cluster contract required to use it. |
-| [k8s-deployment-enhancements.md](k8s-deployment-enhancements.md) | Controlling Kubernetes pod placement with node affinity rules in the deployment spec. |
+| [k8s-deployment-enhancements.md](k8s-deployment-enhancements.md) | Controlling Kubernetes pod placement with node affinity rules, and which container runtime (e.g. kata) a pod runs under. |
 | [kube-config.md](kube-config.md) | Naming the cluster credential by reference — an environment variable, a file, or a secret store command — so that a deployment directory committed to git contains no kubeconfig. |
 | [volumes.md](volumes.md) | Where each named volume's data lives on each deployment target: the spec's `volumes:` mapping, from the `./data` default through binding a volume to a chosen directory — including a specific path on a Kubernetes node. |
 | [secrets.md](secrets.md) | Secret environment variables for the deployed containers, declared in the stack and injected at deploy time — generated or pulled by reference — so that no value sits in the stack files, the spec, or the deployment artifacts. |

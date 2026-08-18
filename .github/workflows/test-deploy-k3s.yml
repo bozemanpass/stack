@@ -31,7 +31,7 @@ on:
         required: false
         type: choice
         default: all
-        options: [all, app-deploy, database, backup, database-backup, volumes]
+        options: [all, app-deploy, database, backup, database-backup, volumes, kata]
       mode:
         description: "Which leg to run; each one provisions its own VM"
         required: false
@@ -87,14 +87,22 @@ jobs:
           #
           # These are names rather than script paths: each one selects the test
           # step of the same name in the job below, which is what runs it.
-          gateway_tests='["app-deploy","database","backup","database-backup","volumes"]'
+          gateway_tests='["app-deploy","database","backup","database-backup","volumes","kata"]'
           ingress_tests='["app-deploy"]'
           # The `tests` dropdown names one test to run instead of the per-leg set
-          # above. Only the five that go through select_deploy_target and accept
+          # above. Only the six that go through select_deploy_target and accept
           # the remote target are offered; the rest are single-target by
           # construction (k8s-deployment-control owns its own kind cluster).
           case "${TESTS}" in
             ''|all) ;;
+            # kata is gateway-only, because only that leg provisions a cluster
+            # with the kata runtime installed (see the job's STACK_K3S_KATA).
+            # An ingress leg asking for it would provision a VM able to run
+            # nothing, so it is given an empty list instead.
+            kata)
+              gateway_tests="[\"${TESTS}\"]"
+              ingress_tests='[]'
+              ;;
             app-deploy|database|backup|database-backup|volumes)
               gateway_tests="[\"${TESTS}\"]"
               ingress_tests="${gateway_tests}"
@@ -137,6 +145,14 @@ jobs:
     # and repeating it per step is how the two drift apart.
     env:
       STACK_K3S_MODE: ${{ matrix.mode }}
+      # Kata Containers on the node, so that the kata test can put a pod in a
+      # VM. It costs a larger machine and a longer provisioning run, so it is
+      # installed for the legs that actually run that test rather than always:
+      # a dispatch asking only for the app deploy test gets the smaller, faster
+      # cluster it used to get. Nothing else in a leg is affected -- a pod that
+      # names no RuntimeClass runs exactly as it did before -- which is what
+      # lets the kata test share this cluster with the rest.
+      STACK_K3S_KATA: ${{ contains(fromJSON(matrix.tests), 'kata') }}
       MACHINE_DO_TOKEN: ${{ secrets.K3S_TEST_DO_TOKEN }}
       MACHINE_SSH_KEY_NAME: ${{ vars.K3S_TEST_SSH_KEY_NAME }}
       MACHINE_DNS_ZONE: ${{ vars.K3S_TEST_DNS_ZONE }}
@@ -187,8 +203,10 @@ jobs:
       - name: "Provision a k3s cluster on a cloud VM"
         id: provision
         # Cloud-init installs k3s, cert-manager, traefik and K8up; the script
-        # gives that 30 minutes before giving up on it.
-        timeout-minutes: 40
+        # gives that 30 minutes before giving up on it, or 45 when it is
+        # installing kata as well -- kata-deploy unpacks its artifacts and
+        # restarts k3s, on a machine whose nested virtualization is not fast.
+        timeout-minutes: 55
         run: ./tests/k3s-deploy/cluster.sh provision
 
       # Each test below runs against that one cluster, in a namespace of its own.
@@ -216,6 +234,10 @@ jobs:
         if: ${{ !cancelled() && steps.provision.outcome == 'success' && contains(fromJSON(matrix.tests), 'volumes') }}
         timeout-minutes: 30
         run: ./tests/volumes/run-test.sh
+      - name: "Kata: a service given a runtime class runs in a VM, its neighbour does not"
+        if: ${{ !cancelled() && steps.provision.outcome == 'success' && contains(fromJSON(matrix.tests), 'kata') }}
+        timeout-minutes: 30
+        run: ./tests/kata/run-test.sh
 
       - name: "Collect cluster diagnostics"
         # Only worth the SSH round trip when something above failed, and it has to

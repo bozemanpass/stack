@@ -180,6 +180,21 @@ class Spec:
     def get_labels(self):
         return self.obj.get(constants.labels_key, {})
 
+    def get_runtime_class(self, service_name):
+        # The RuntimeClass one service's pod runs under, or None to let the cluster
+        # pick its default.  Per-service rather than deployment-wide because a
+        # sandboxed runtime (kata) buys isolation at the cost of a VM's worth of
+        # memory and start-up time, and a stack usually wants that for the service
+        # running untrusted code rather than for its database as well.  A service
+        # named with an empty value opts back out of a default set alongside it.
+        config = self.obj.get(constants.runtime_class_key, {})
+        if not isinstance(config, dict):
+            return None
+        services = config.get(constants.services_key, {})
+        if isinstance(services, dict) and service_name in services:
+            return services[service_name] or None
+        return config.get("default") or None
+
     def get_privileged(self, container_name):
         return "true" == str(self.obj.get(constants.security_key, {}).get(container_name, {}).get("privileged", "false")).lower()
 
@@ -228,6 +243,11 @@ class Spec:
 
     def __str__(self):
         return get_yaml().dumps(self.obj)
+
+
+def _runtime_class_default(spec: Spec):
+    config = spec.obj.get(constants.runtime_class_key, {})
+    return config.get("default") if isinstance(config, dict) else None
 
 
 class MergedSpec(Spec):
@@ -296,6 +316,16 @@ class MergedSpec(Spec):
         # Check for conflicts on kube config.
         if self.get_kube_config() and self.get_kube_config() != other.get_kube_config():
             error_exit(f"{self.get_kube_config()} != {other.get_kube_config()} in {other.file_path}")
+
+        # Check for conflicts on a deployment-wide runtime class default.  Unlike the
+        # per-service entries, whose names are checked for conflicts below, a default
+        # from one spec would otherwise reach every service of every stack mixed in
+        # with it.
+        # (Shape is validated at create time, so tolerate anything unexpected here.)
+        our_default = _runtime_class_default(self)
+        their_default = _runtime_class_default(other)
+        if our_default and their_default and our_default != their_default:
+            error_exit(f"{our_default} != {their_default} for {constants.runtime_class_key} default in {other.file_path}")
 
         # Check for conflicts on pod names
         current_pods = self.get_pod_list()
