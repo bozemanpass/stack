@@ -83,6 +83,76 @@ def _pod_status(pod):
     return f"Running {ready}/{total} ready"
 
 
+def _requested_storage(pvc):
+    # A claim that has not bound yet has no capacity, so fall back to what it
+    # asked for -- with "?" as the last resort, matching the ingress fields.
+    requests = (pvc.spec.resources.requests or {}) if pvc.spec.resources else {}
+    return requests.get("storage", "?")
+
+
+def _node_affinity_summary(pv):
+    """The node terms a PV is pinned to, rendered the way `kubectl describe` does."""
+    required = pv.spec.node_affinity.required if pv.spec.node_affinity else None
+    if not required:
+        return None
+    terms = []
+    for term in required.node_selector_terms or []:
+        for expr in term.match_expressions or []:
+            values = ",".join(expr.values or [])
+            terms.append(f"{expr.key} {expr.operator} [{values}]")
+    return "; ".join(terms) if terms else None
+
+
+def _pv_source(pv):
+    """Where on the node (or elsewhere) a PV's bytes live.
+
+    Only the sources stack itself creates -- hostPath, and the `local` volumes
+    the common provisioners hand out -- get a path; anything else is named by
+    its type, which is still more than the claim says.
+    """
+    spec = pv.spec
+    if spec.host_path:
+        return f"hostPath {spec.host_path.path}"
+    if spec.local:
+        return f"local {spec.local.path}"
+    if spec.nfs:
+        return f"nfs {spec.nfs.server}:{spec.nfs.path}"
+    if spec.csi:
+        return f"csi {spec.csi.driver}"
+    return None
+
+
+def _pv_detail_lines(core_api, pvc):
+    volume_name = pvc.spec.volume_name
+    if not volume_name:
+        # Unbound: the storage class is all there is to say about where it will land.
+        return [f"StorageClass: {pvc.spec.storage_class_name}"] if pvc.spec.storage_class_name else []
+
+    lines = [f"PersistentVolume: {volume_name}"]
+    try:
+        pv = core_api.read_persistent_volume(name=volume_name)
+    except client.exceptions.ApiException as e:
+        # PVs are cluster-scoped, so this is the one part of the report a
+        # namespace-scoped credential can be refused.
+        log_debug(f"Unable to read PV {volume_name}: {e}")
+        return lines
+
+    if pv.spec.storage_class_name:
+        lines.append(f"StorageClass: {pv.spec.storage_class_name}")
+    source = _pv_source(pv)
+    if source:
+        lines.append(f"Source: {source}")
+    node = (pv.metadata.annotations or {}).get("local.path.provisioner/selected-node")
+    if node:
+        lines.append(f"Node: {node}")
+    affinity = _node_affinity_summary(pv)
+    if affinity:
+        lines.append(f"Node affinity: {affinity}")
+    if pv.spec.persistent_volume_reclaim_policy:
+        lines.append(f"Reclaim policy: {pv.spec.persistent_volume_reclaim_policy}")
+    return lines
+
+
 def _canonical_quantity(quantity):
     # Resource quantities are compared by value because the API server
     # canonicalizes what it stores ("1000m" comes back as "1", "1024Mi" as
@@ -658,6 +728,39 @@ class K8sDeployer(Deployer):
                 output_main(f"\t{p.metadata.namespace}/{p.metadata.name}: Terminating ({p.metadata.deletion_timestamp})")
             else:
                 output_main(f"\t{p.metadata.namespace}/{p.metadata.name}: {_pod_status(p)} ({p.metadata.creation_timestamp})")
+
+        self._output_volume_status()
+
+    def _output_volume_status(self):
+        """Report where each of the deployment's volumes actually keeps its data.
+
+        Read from the cluster rather than from the spec, because for the common
+        case -- an unmapped volume, left to the storage class -- the spec does
+        not know: which node the bytes landed on and the path they landed at are
+        decided by the provisioner at bind time, and are exactly what someone
+        looking for the data needs.
+        """
+        try:
+            pvc_response = self.core_api.list_namespaced_persistent_volume_claim(
+                namespace=self.k8s_namespace,
+                label_selector=f"app={self.cluster_info.app_name}",
+                watch=False,
+            )
+        except client.exceptions.ApiException as e:
+            log_debug(f"Unable to list PVCs: {e}")
+            return
+
+        pvcs = pvc_response.items
+        if not pvcs:
+            return
+
+        output_main("")
+        output_main("Volumes:")
+        for pvc in sorted(pvcs, key=lambda p: p.metadata.name):
+            capacity = (pvc.status.capacity or {}).get("storage") or _requested_storage(pvc)
+            output_main(f"\t{pvc.metadata.name}: {pvc.status.phase} ({capacity})")
+            for line in _pv_detail_lines(self.core_api, pvc):
+                output_main(f"\t\t{line}")
 
     def ps(self):
         try:

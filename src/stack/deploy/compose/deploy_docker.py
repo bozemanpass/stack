@@ -55,6 +55,7 @@ class DockerDeployer(Deployer):
         )
         self.type = type
         self.compose_files = compose_files
+        self.compose_project_name = compose_project_name
         self.deployment_context = deployment_context
 
     def _stage_local_images(self):
@@ -141,6 +142,36 @@ class DockerDeployer(Deployer):
                     output_main(f"{p.name}\t{p.state.status}")
             except DockerException as e:
                 raise DeployerException(e)
+            self._output_volume_status()
+
+    def _output_volume_status(self):
+        """Report where each of the deployment's volumes actually keeps its data.
+
+        Read from Docker rather than from the spec because the volume is what
+        the containers use: a spec volume edited after `deploy` names a
+        directory nothing is mounting, and the volume goes on pointing at the
+        one it was created with.  Every volume stack generates for a mapped
+        path is a `local` volume bind-mounted at `device`, so that option is
+        the host directory; an unmapped volume has no device and its data sits
+        under Docker's own mountpoint.
+        """
+        try:
+            volumes = self.docker.volume.list(
+                filters={"label": f"com.docker.compose.project={self.compose_project_name}"}
+            )
+        except DockerException as e:
+            raise DeployerException(e)
+
+        if not volumes:
+            return
+
+        output_main("")
+        output_main("Volumes:")
+        for volume in sorted(volumes, key=lambda v: v.name):
+            # The name the stack knows it by, not the project-prefixed one Docker made.
+            name = volume.labels.get("com.docker.compose.volume", volume.name)
+            path = (volume.options or {}).get("device") or volume.mountpoint
+            output_main(f"\t{name}: {path}")
 
     def ps(self):
         if not opts.o.dry_run:

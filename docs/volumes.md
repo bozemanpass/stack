@@ -147,3 +147,25 @@ into a ConfigMap by `init` (listed under `configmaps:` in the spec rather than
 `volumes:`): its files are baked into the deployment as cluster objects, so there is no
 host directory involved at all.  Everything else on this page concerns read-write data
 volumes.
+
+## Finding where the data ended up
+
+`stack manage status` reports each of the deployment's volumes along with the location of
+its data, which is worth having on any target and is close to essential where the spec
+does not say: a provisioner-allocated claim only learns its node and path when it binds.
+
+On compose the report is the host directory each volume is bind-mounted to.  On the
+Kubernetes targets it is the claim's phase and capacity, plus — from the
+PersistentVolume it bound to — the storage class, the path on the node, the node itself
+where the volume names one, and the reclaim policy:
+
+```
+Volumes:
+	db-data: Bound (2G)
+		PersistentVolume: pvc-fa5a690f-3fa0-4afe-a992-bc19694aa746
+		StorageClass: local-path
+		Source: local /var/lib/rancher/k3s/storage/pvc-fa5a690f-...-3fa0_stack-9aaaf7e199d5b254_db-data
+		Node: test19
+		Node affinity: kubernetes.io/hostname In [test19]
+		Reclaim policy: Delete
+```
