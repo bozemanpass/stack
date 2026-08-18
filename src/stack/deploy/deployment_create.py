@@ -592,7 +592,10 @@ def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec,
         parsed_stack = parsed_spec.stack_for_pod(pod) if isinstance(parsed_spec, MergedSpec) else parsed_spec.load_stack()
         # The deployment's copy of the pod file pulls each external image by the digest
         # recorded in the stack's lock file, when there is one (see build/image_pins.py).
-        if parsed_stack.file_path:
+        # Except on kind, whose images arrive by side-load rather than by pull: `kind
+        # load` re-serializes through a docker archive, which cannot reproduce the
+        # registry's manifest digest, so a by-digest pod spec is unsatisfiable there.
+        if parsed_stack.file_path and deployment_type != constants.k8s_kind_deploy_type:
             image_locks = read_stack_locks(parsed_stack.file_path.parent)["images"]
             if image_locks:
                 apply_image_locks_to_pod_file(parsed_pod_file, image_locks)

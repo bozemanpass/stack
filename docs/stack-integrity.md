@@ -109,6 +109,13 @@ images get the equivalent through the `images` section of the `stack.lock`:
 2. `stack deploy` rewrites the *deployment's copy* of each pod file to the pinned
    form, `postgres@sha256:...`.  The source pod file keeps the readable tag.
 
+   The one exception is the `k8s-kind` target, which deploys the tag as written:
+   kind clusters receive images by side-load (`kind load`) rather than by pull,
+   and the side-load re-serializes the image, so it can never satisfy a pod spec
+   that names the image by its registry digest.  Kind is a local test target, so
+   the reproducibility loss is confined to it; `compose` and real `k8s`
+   deployments both pull by digest.
+
 Commit the `stack.lock` to make the choice durable — the same rule as every other
 lock section.  An existing pin is never silently re-resolved: to move to a newer
 upstream image, delete the entry (or the file) and run `stack prepare` again.
