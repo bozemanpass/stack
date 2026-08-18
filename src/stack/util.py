@@ -212,6 +212,10 @@ def get_yaml():
     yaml = ruamel.yaml.YAML(typ=["rt", "string"])
     yaml.preserve_quotes = True
     yaml.indent(sequence=3, offset=1)
+    # Never fold long scalars onto a continuation line: a digest-pinned image
+    # reference is longer than the default 80-column wrap, and a folded value is
+    # easy to misread (and to miss with grep) even though it parses the same.
+    yaml.width = 4096
     return yaml
 
 

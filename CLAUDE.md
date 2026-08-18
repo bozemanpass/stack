@@ -254,6 +254,7 @@ Core commands defined in `main.py`:
 - `init` — generate a spec file
 - `prepare` — build/download containers
 - `list` — list available stacks
+- `validate` — check a stack's files for referential integrity (see `docs/stack-integrity.md`)
 - `config` — manage configuration profiles
 - `version` / `update` / `webapp` / `chart`
 

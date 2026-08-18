@@ -75,3 +75,5 @@ stacks_key = "stacks"
 volumes_key = "volumes"
 
 stack_annotation_marker = "@stack"
+# On an image: line, opts that external image out of digest locking (see docs/stack-integrity.md).
+unpinned_annotation = "unpinned"

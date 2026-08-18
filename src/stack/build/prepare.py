@@ -15,7 +15,9 @@
 
 import click
 
+from stack import validate
 from stack.build.build_containers import BUILD_POLICIES, build_containers
+from stack.build.image_pins import lock_external_images
 from stack.config.util import get_config_setting
 from stack.deploy.stack import resolve_stack
 from stack.opts import opts
@@ -76,8 +78,17 @@ def command(
     stack = resolve_stack(stack)
     cloned_or_pulled_repos = clone_all_repos_for_stack(stack, include_repos, exclude_repos, git_pull, git_ssh)
 
+    # Advisory for now: report integrity problems, but let the prepare proceed.
+    validate.log_findings(stack)
+
     if build_policy == "fetch-repos":
         return
+
+    # Record a digest for each external image the stack's pod files name, so that
+    # deployments pull exactly what was prepared (see build/image_pins.py).  Before
+    # the build, because a stack may consist only of external images (docker-ingress
+    # is one) and build_containers exits early on a stack with no containers.
+    lock_external_images(stack, allow_pull=not dont_pull_images)
 
     build_containers(stack, build_policy, image_registry, publish_images, include_containers, exclude_containers,
                      extra_build_args, git_ssh, git_pull, cloned_or_pulled_repos, target_arch, dont_pull_images)

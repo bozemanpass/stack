@@ -30,8 +30,8 @@ from python_on_whales import DockerClient
 import stack.deploy.stack as stack_util
 
 from stack import constants
-from stack.log import log_debug, log_info
-from stack.util import warn_exit, get_yaml, error_exit
+from stack.log import log_debug, log_info, log_warn
+from stack.util import get_yaml, error_exit
 
 
 class StackContainer:
@@ -177,7 +177,8 @@ def default_content_root(stack_container, spec_ref=None):
 def read_stack_locks(stack_dir) -> dict:
     """Read the stack.lock beside a stack.yml: the pinned versions of the stack's build inputs.
 
-    Format: {containers: {<container-name>: {ref, hash}}, wrappers: {<wrapper-name>: {ref, hash}}}.
+    Format: {containers: {<container-name>: {ref, hash}}, wrappers: {<wrapper-name>: {ref, hash}},
+    images: {<external-image-reference>: <manifest digest>}} (see build/image_pins.py for images).
     A legacy wrapper.lock is read as the wrappers section when no stack.lock exists."""
     locks = None
     lock_file_path = Path(stack_dir).joinpath(constants.stack_lock_file_name)
@@ -191,6 +192,7 @@ def read_stack_locks(stack_dir) -> dict:
         locks = {}
     locks.setdefault("containers", {})
     locks.setdefault("wrappers", {})
+    locks.setdefault("images", {})
     return locks
 
 
@@ -409,7 +411,12 @@ def get_containers_in_scope(stack):
             stack_config = stack
         raw_containers = stack_config.get("containers", [])
         if not raw_containers and not stack.is_super_stack():
-            warn_exit(f"stack {stack} does not define any containers")
+            # Not an exit: a stack of nothing but external images (docker-ingress, say)
+            # has no containers to build, but the callers still have work to do -- repos
+            # to clone, external images to digest-lock.  Exiting here also silently
+            # abandoned the rest of a super stack's children mid-clone.
+            log_warn(f"WARN: stack {stack_config.name} does not define any containers")
+            raw_containers = []
     else:
         # See: https://stackoverflow.com/a/20885799/1701505
         from stack import data
