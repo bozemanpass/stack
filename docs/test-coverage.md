@@ -68,6 +68,7 @@ file listing is its own index.
 | What | Test | Step | CI runs |
 |---|---|---|---|
 | Node affinity and toleration spec controls | [`tests/k8s-deployment-control/run-test.sh`](../tests/k8s-deployment-control/run-test.sh) | `deployment of pod test`, `pod placement test` | kind only (builds its own multi-node cluster), per-PR |
+| `runtime-class`: a sandboxed (kata) pod runs its own kernel, its neighbour does not | [`tests/kata/run-test.sh`](../tests/kata/run-test.sh) | `kata isolation test`, `unsandboxed pod control test` | remote only (needs a cluster provisioned with kata), weekly |
 | Volume bound to a node path (`local` PV with volume affinity) | [`tests/volumes/run-test.sh`](../tests/volumes/run-test.sh) | `external data visible test` on the remote target (see [`tests/k3s-deploy/`](../tests/k3s-deploy/)) | weekly |
 | HTTPS ingress on Docker (`docker-ingress` mix-in, real certificates) | [`tests/app-deploy/run-test.sh`](../tests/app-deploy/run-test.sh) | `deploy http` on the remote-compose target (see [`tests/docker-deploy/`](../tests/docker-deploy/)) | weekly |
 | Gateway API HTTP routing on a real cluster | [`tests/app-deploy/run-test.sh`](../tests/app-deploy/run-test.sh) | `deploy http` on the remote target (see [`tests/k3s-deploy/`](../tests/k3s-deploy/)) | weekly |

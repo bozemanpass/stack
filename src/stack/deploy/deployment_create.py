@@ -505,6 +505,41 @@ def _check_volume_definitions(spec):
             raise Exception(f"Affinity for volume {volume_name} must specify label and value")
 
 
+def _check_runtime_class(spec):
+    # A RuntimeClass is a k8s object, so naming one on a compose deployment cannot
+    # mean anything.  Rejected rather than ignored, on the same reasoning as the
+    # volume affinity above: a spec asking for a sandboxed runtime and silently
+    # getting an ordinary container looks exactly like one that worked, and the
+    # whole point of asking was the isolation.
+    config = spec.obj.get(constants.runtime_class_key)
+    if config is None:
+        return
+    if not spec.is_kubernetes_deployment():
+        raise Exception(f"{constants.runtime_class_key} not supported for deployment type {spec.get_deployment_type()}")
+    if not isinstance(config, dict):
+        raise Exception(f"{constants.runtime_class_key} must be a mapping of default and/or {constants.services_key}")
+    unknown = set(config.keys()) - {"default", constants.services_key}
+    if unknown:
+        raise Exception(f"Unknown key(s) {sorted(unknown)} in {constants.runtime_class_key}")
+    services = config.get(constants.services_key, {})
+    if not isinstance(services, dict):
+        raise Exception(f"{constants.runtime_class_key}.{constants.services_key} must be a mapping of service name to class")
+    for name, value in list(services.items()) + [("default", config.get("default"))]:
+        if value is not None and not isinstance(value, str):
+            raise Exception(f"Runtime class for {name} must be a string naming a RuntimeClass on the cluster")
+
+    # A sandboxed runtime runs the container inside a guest VM with its own kernel,
+    # where the host privileges `privileged: true` asks for are not the host's.  The
+    # combination is very unlikely to be what the author meant, so say so rather than
+    # leaving them to debug it inside the guest.
+    for service_name in spec.obj.get(constants.security_key, {}):
+        if spec.get_privileged(service_name) and spec.get_runtime_class(service_name):
+            raise Exception(
+                f"Service {service_name} cannot be both privileged and run under "
+                f"runtime class {spec.get_runtime_class(service_name)}"
+            )
+
+
 @click.command()
 @click.option("--cluster", help="specify a non-default cluster name")
 @click.option("--spec-file", required=True, help="Spec file to use to create this deployment", multiple=True)
@@ -546,6 +581,7 @@ def create(ctx, cluster, spec_file, deployment_dir):
 def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec, deployment_dir):  # noqa: C901
     log_debug(f"parsed spec: {parsed_spec}")
     _check_volume_definitions(parsed_spec)
+    _check_runtime_class(parsed_spec)
     # Validated here as well as at init, since a spec file is edited by hand.
     stack_secrets.validate_spec_secrets(parsed_spec)
 

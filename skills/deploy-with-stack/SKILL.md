@@ -280,6 +280,22 @@ Users usually describe a situation, not a target. Map it for them — do not ask
   https://github.com/bozemanpass/stack/blob/main/docs/gateway-api.md — instead of
   assuming it.
 
+  If one of the services runs code the user does not trust — submitted by their own
+  users, or from an AI agent — that service can be given a hardware-isolated runtime
+  per pod, so an escape from the container reaches a VM rather than the node:
+
+  ```yaml
+  runtime-class:
+    services:
+      user-code: kata
+  ```
+
+  in the spec file, naming only the services that need it. The cluster has to offer
+  the class (`k3s-node.sh --kata` installs it, on a host that allows nested
+  virtualization). Don't reach for this by default — it costs a VM's memory and
+  start-up time per pod. See
+  https://github.com/bozemanpass/stack/blob/main/docs/k8s-deployment-enhancements.md
+
 The reasoning behind this mapping, for users who want it:
 https://github.com/bozemanpass/stack/blob/main/docs/from-laptop-to-production.md — and
 the full docs index: https://github.com/bozemanpass/stack/blob/main/docs/README.md

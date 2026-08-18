@@ -582,6 +582,11 @@ class ClusterInfo:
                 # every service gets aliases of $name and $name.local to localhost
                 localhost_aliases = client.V1HostAlias(hostnames=[container.name, f"{container.name}.local"], ip="127.0.0.1")
 
+                # Unset unless the spec asks for one, which leaves the cluster's default
+                # runtime in place.  A named class must exist on the cluster: k8s rejects
+                # a pod naming one that does not, rather than falling back.
+                runtime_class_name = self.spec.get_runtime_class(service_name)
+
                 template = client.V1PodTemplateSpec(
                     metadata=client.V1ObjectMeta(annotations=annotations, labels=labels),
                     spec=client.V1PodSpec(
@@ -591,6 +596,7 @@ class ClusterInfo:
                         affinity=affinity,
                         tolerations=tolerations,
                         host_aliases=[localhost_aliases],
+                        runtime_class_name=runtime_class_name,
                     ),
                 )
 

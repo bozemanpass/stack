@@ -51,10 +51,21 @@
 #                            arrangement, which is k3s-node.sh's own default;
 #                            "ingress" provisions the legacy nginx arrangement
 #                            (k3s-node.sh --nginx-ingress)
+#   STACK_K3S_KATA           "true" (default) installs Kata Containers on the
+#                            node (k3s-node.sh --kata), so that a pod asking for
+#                            the "kata" RuntimeClass runs in a lightweight VM.
+#                            Costs a larger machine and a longer provisioning
+#                            run, and needs a provider that allows nested
+#                            virtualization; "false" leaves it out.  Nothing
+#                            else changes: a pod that names no RuntimeClass runs
+#                            exactly as it did before, which is what lets the
+#                            other tests share this cluster.
 #   STACK_K3S_STATE_DIR      Where the settings and the machine id are kept
 #                            between commands
 #   MACHINE_REGION           Provider region (default nyc3)
-#   MACHINE_SIZE             Machine size slug (default s-2vcpu-4gb)
+#   MACHINE_SIZE             Machine size slug (default s-2vcpu-4gb, or
+#                            s-4vcpu-8gb when kata is installed: each sandboxed
+#                            pod is a VM with its own kernel and memory)
 #   MACHINE_IMAGE            Machine image (default ubuntu-24-04-x64)
 #   MACHINE_PROJECT          DigitalOcean project to assign the VM to
 #   MACHINE_PROVISIONING_URL URL of combine.sh; sibling scripts are fetched
@@ -71,16 +82,29 @@ source "$( dirname -- "${BASH_SOURCE[0]}" )/../lib/common.sh"
 
 MACHINE_CMD=${MACHINE_CMD:-machine}
 MACHINE_REGION=${MACHINE_REGION:-nyc3}
-MACHINE_SIZE=${MACHINE_SIZE:-s-2vcpu-4gb}
 MACHINE_IMAGE=${MACHINE_IMAGE:-ubuntu-24-04-x64}
 MACHINE_PROVISIONING_URL=${MACHINE_PROVISIONING_URL:-https://raw.githubusercontent.com/stirlingbridge/machine-provisioning/refs/heads/main/scripts/combine.sh}
 STACK_K3S_MODE=${STACK_K3S_MODE:-gateway}
+STACK_K3S_KATA=${STACK_K3S_KATA:-true}
 STACK_K3S_STATE_DIR=${STACK_K3S_STATE_DIR:-${RUNNER_TEMP:-${TMPDIR:-/tmp}}/stack-k3s-cluster}
 MACHINE_NEW_USER=stacktest
 
-# How long to allow for the VM to boot and cloud-init to install k3s,
-# cert-manager etc. (seconds).
-PROVISION_TIMEOUT=1800
+# A kata machine is sized and timed differently, and both are defaults rather
+# than fixed values so that a caller can still say otherwise.  Installing kata
+# means kata-deploy unpacking its artifacts and restarting k3s, on a machine
+# whose nested virtualization is not fast, so provisioning takes appreciably
+# longer than a plain k3s node; and every sandboxed pod is a VM with a kernel
+# and memory of its own, on top of the k3s and cert-manager images the smaller
+# machine was already carrying.
+if [ "$STACK_K3S_KATA" == "true" ]; then
+    MACHINE_SIZE=${MACHINE_SIZE:-s-4vcpu-8gb}
+    # How long to allow for the VM to boot and cloud-init to install k3s,
+    # cert-manager, kata etc. (seconds).
+    PROVISION_TIMEOUT=${PROVISION_TIMEOUT:-2700}
+else
+    MACHINE_SIZE=${MACHINE_SIZE:-s-2vcpu-4gb}
+    PROVISION_TIMEOUT=${PROVISION_TIMEOUT:-1800}
+fi
 
 machine_config=$STACK_K3S_STATE_DIR/config.yml
 machine_id_file=$STACK_K3S_STATE_DIR/machine-id
@@ -123,6 +147,18 @@ provision () {
     if [ ! -f "$MACHINE_SSH_KEY_FILE" ]; then
         fail "Error: MACHINE_SSH_KEY_FILE $MACHINE_SSH_KEY_FILE does not exist"
     fi
+
+    local k3s_kata_args=""
+    case "$STACK_K3S_KATA" in
+        true)
+            k3s_kata_args="--kata"
+            ;;
+        false)
+            ;;
+        *)
+            fail "Error: STACK_K3S_KATA must be true or false, not $STACK_K3S_KATA"
+            ;;
+    esac
 
     local k3s_mode_args
     case "$STACK_K3S_MODE" in
@@ -180,10 +216,10 @@ machines:
         script-args:
           - health.sh
           - fqdn.sh
-          - k3s-node.sh -y ${k3s_mode_args} --letsencrypt-email ${LETSENCRYPT_EMAIL} --image-registry ${STACK_IMAGE_REGISTRY} --image-registry-username ${STACK_IMAGE_REGISTRY_USER} --image-registry-password ${STACK_IMAGE_REGISTRY_TOKEN}
+          - k3s-node.sh -y ${k3s_mode_args} ${k3s_kata_args} --letsencrypt-email ${LETSENCRYPT_EMAIL} --image-registry ${STACK_IMAGE_REGISTRY} --image-registry-username ${STACK_IMAGE_REGISTRY_USER} --image-registry-password ${STACK_IMAGE_REGISTRY_TOKEN}
 EOF
 
-    echo "Creating machine $machine_fqdn (mode: $STACK_K3S_MODE)"
+    echo "Creating machine $machine_fqdn (mode: $STACK_K3S_MODE, kata: $STACK_K3S_KATA, size: $MACHINE_SIZE)"
     $MACHINE_CMD --config-file "$machine_config" create --name "$machine_name" --type k8s-stack-host --wait-for-ip
 
     local machine_id
@@ -273,6 +309,14 @@ EOF
     # here, alongside cluster_ssh which they are copied from.
     publish_setting STACK_TEST_NODE_SSH_COMMAND \
         "ssh -i $MACHINE_SSH_KEY_FILE -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=$known_hosts ${MACHINE_NEW_USER}@${machine_fqdn}"
+    # And, for tests/kata, the name of a RuntimeClass this cluster can actually
+    # run.  Published only when kata was installed, so that the kata test refuses
+    # a cluster without it rather than deploying pods that stay Pending -- and so
+    # that the name lives here, next to the flag that installed it, rather than
+    # being assumed by the test.
+    if [ "$STACK_K3S_KATA" == "true" ]; then
+        publish_setting STACK_TEST_KATA_RUNTIME_CLASS kata
+    fi
     echo "Cluster ready at $machine_fqdn"
 }
 
@@ -290,6 +334,16 @@ diagnostics () {
          sudo kubectl get ingress -A 2>/dev/null; \
          sudo kubectl get certificate,order,challenge -A 2>/dev/null; \
          sudo kubectl describe gateway -A 2>/dev/null" || true
+    if [ "$STACK_K3S_KATA" == "true" ]; then
+        # What a pod stuck on the kata RuntimeClass leaves behind: whether the
+        # node ever finished installing kata, and whether a sandbox is running.
+        echo "----- kata state -----"
+        cluster_ssh \
+            "sudo kubectl get runtimeclass 2>/dev/null; \
+             sudo kubectl get nodes -o jsonpath='{.items[*].metadata.labels.katacontainers\.io/kata-runtime}{\"\n\"}' 2>/dev/null; \
+             sudo kubectl logs daemonset/kata-deploy -n kube-system --tail=50 2>/dev/null; \
+             ps -ef | grep -E '[c]ontainerd-shim-kata-v2|[q]emu-system|[c]loud-hypervisor' | head" || true
+    fi
 }
 
 # Destroying is safe to call when there is nothing to destroy: it is wired to run

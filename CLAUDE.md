@@ -125,6 +125,15 @@ the machine provisioning installs and a kind cluster does not have. Its
 per-target divergence (which object store, and whether the backup stack has to be
 mixed in) lives in `select_backup_target`, next to `select_deploy_target`.
 
+`tests/kata` is single-target the other way: it needs the `kata` RuntimeClass,
+which means a runtime installed on the nodes and a host allowing nested
+virtualization, so it runs on `remote` alone and refuses anything else. The
+cluster harness installs it when `STACK_K3S_KATA` is true (the default) and
+publishes `STACK_TEST_KATA_RUNTIME_CLASS` when it did, which is what the test
+requires rather than assuming the class is there. Installing kata changes
+nothing for the other tests -- a pod naming no RuntimeClass runs as before --
+which is why one cluster still serves them all.
+
 A test can also be legitimately single-target: `k8s-deployment-control` appends
 labelled and tainted worker nodes to the deployment's kind config, so it only
 works where the test owns the cluster. It still goes through
@@ -134,12 +143,13 @@ other than `kind` rather than silently testing nothing.
 Which combinations CI actually runs is a separate question from which ones a
 test supports, and is decided by cost: `app-deploy`, `database` and `volumes`
 run on compose and kind per-PR, and on remote weekly. `backup` runs on compose
-per-PR and on remote weekly. `app-deploy` also runs on `remote-compose` weekly,
-and it is the only test that does. The remote leg of `volumes` is the one place
-the node-path volume mechanism (a `local` PersistentVolume with node affinity —
-see `docs/volumes.md`) runs for real: it seeds a directory on the cluster's
-node over SSH, using the command `cluster.sh provision` publishes as
-`STACK_TEST_NODE_SSH_COMMAND`, and the compose and kind legs cover the same
+per-PR and on remote weekly, and `kata` on remote weekly only. `app-deploy`
+also runs on `remote-compose` weekly, and it is the only test that does. The
+remote leg of `volumes` is the one place the node-path volume mechanism (a
+`local` PersistentVolume with node affinity — see `docs/volumes.md`) runs for
+real: it seeds a directory on the cluster's node over SSH, using the command
+`cluster.sh provision` publishes as `STACK_TEST_NODE_SSH_COMMAND`, and the
+compose and kind legs cover the same
 spec edit's bind-mount meaning.
 
 Compose is worth keeping in that set for a reason beyond docker coverage: it is
