@@ -10,3 +10,5 @@ containers:
 pods:
   - name: skillfixture
     path: ./stack/pods/skillfixture
+secrets:
+  POSTGRES_PASSWORD:
