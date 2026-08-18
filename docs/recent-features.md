@@ -1,5 +1,9 @@
 # Recent New Features
 
+  - [#266](https://github.com/bozemanpass/stack/pull/266) [Stack integrity checking](./stack-integrity.md): `stack validate` verifies a stack's files agree with each other, and the same checks run advisorily during `prepare`, `build` and `init`
+  - [#260](https://github.com/bozemanpass/stack/pull/260) `stack manage … update` converges a running deployment onto changed images and configuration, recreating only the services that changed
+  - [#256](https://github.com/bozemanpass/stack/pull/256) [Secrets](./secrets.md): stacks declare which environment variables are secret; values are generated at deploy time or pulled from a reference (`env:`/`file:`/`exec:`), and never land in git, the spec, or `config.env`
+  - [#244](https://github.com/bozemanpass/stack/pull/244) [Scheduled backup & restore](./backup.md): encrypted restic backups of a deployment's volumes to any S3-compatible store, with `stack manage … backup now | list | restore`, restorable across targets and into new deployments
   - [#174](https://github.com/bozemanpass/stack/pull/174) Image identity anchored at the recipe repo: tags are the recipe repo's commit hash, `stack.lock` (superseding `wrapper.lock`) pins source and wrapper inputs, and unpinned/uncommitted builds get unpublishable `stackdev-` tags
   - [#163](https://github.com/bozemanpass/stack/pull/163) Prebuilt wrapper base images pulled from ghcr; `wrapper-ref` pinning and `wrapper.lock` for repeatable wrapped builds
   - [#161](https://github.com/bozemanpass/stack/pull/161) Deploy wrapped repositories (e.g. pure static HTML) directly from a stack via the `wrapper` field in stack.yml

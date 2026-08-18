@@ -40,7 +40,7 @@ file listing is its own index.
 | `init` spec generation | [`tests/app-deploy/run-test.sh`](../tests/app-deploy/run-test.sh) | `deploy init test` | compose + kind per-PR; remote + remote-compose weekly |
 | `deploy` deployment-directory creation | [`tests/app-deploy/run-test.sh`](../tests/app-deploy/run-test.sh) | `deploy create test` | compose + kind per-PR; remote + remote-compose weekly |
 | Stack deploy hooks (`init`, `create`) | [`tests/smoke-test/run-smoke-test.sh`](../tests/smoke-test/run-smoke-test.sh) | `deploy init hook`, `deploy create hook` | compose, per-PR |
-| The agent-skill quickstart path (project-local stack, `--config`) | [`tests/skill/run-skill-test.sh`](../tests/skill/run-skill-test.sh) | `skill test build`, `skill test deploy`, `skill test http` | compose, per-PR |
+| The agent-skill quickstart path (project-local stack, generated secrets) | [`tests/skill/run-skill-test.sh`](../tests/skill/run-skill-test.sh) | `skill test validate`, `skill test build`, `skill test deploy`, `skill test secrets`, `skill test http` | compose, per-PR |
 
 ## Manage: lifecycle and data
 

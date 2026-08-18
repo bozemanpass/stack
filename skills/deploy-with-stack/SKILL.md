@@ -77,6 +77,8 @@ containers:
 pods:
   - name: myproject
     path: ./stack/pods/myproject  # directory containing composefile.yml
+secrets:
+  POSTGRES_PASSWORD:
 ```
 
 Rules that matter:
@@ -102,6 +104,14 @@ Rules that matter:
   all services is the right default for a small system.
 - A pod entry can carry `pre_start_command` / `post_start_command` (host-side scripts,
   paths relative to the pod's `path`) for initialization such as seeding a database.
+- **`secrets:` declares the values that must never be written down** — database
+  passwords, API keys. A declared secret is delivered to every container of the
+  deployment as an ordinary environment variable, and by default stack generates a
+  random value at deploy time; nobody supplies it and it never lands in git, the spec,
+  or `config.env`. Never put a real credential in a stack file or composefile — declare
+  it here instead. Mark a secret whose counterpart lives outside the deployment (an
+  API key) `external: true`; it must then be given a reference at `init` time. See
+  https://github.com/bozemanpass/stack/blob/main/docs/secrets.md
 
 ### composefile.yml
 
@@ -113,7 +123,9 @@ services:
     image: myorg/backend:stack
     restart: always
     environment:
-      - DATABASE_URL=postgresql://postgres:password@db:5432/app
+      - DATABASE_HOST=db
+      - DATABASE_NAME=app
+      - DATABASE_USER=postgres
     ports:
       - 8080
   frontend:
@@ -124,8 +136,6 @@ services:
   db:
     image: postgres:16
     restart: always
-    environment:
-      - POSTGRES_PASSWORD=password
     volumes:
       - db-data:/var/lib/postgresql/data
 
@@ -138,14 +148,32 @@ volumes:
 - **Ports:** list the container port bare (`- 8080`); host mapping is decided later at
   `init` time. Don't hardcode host ports here.
 - **Env precedence:** deployment-time `config.env` overrides `env_file:` entries, which
-  override the inline `environment:` block. Put sane defaults inline; anything the
-  deployer should set (passwords, external URLs) gets forwarded explicitly, e.g.
-  `POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"`, and supplied via `--config` at init.
+  override the inline `environment:` block. Put sane defaults inline for non-secret
+  settings; anything the deployer should choose (external URLs, feature flags) is
+  supplied via `--config` at init.
+- **Secrets are not composefile environment entries.** The `secrets:` block in stack.yml
+  delivers each declared secret to every container, so the database and its clients
+  share `POSTGRES_PASSWORD` automatically — have the app read it from the environment
+  rather than embedding a password in a connection URL. Declaring a secret also strips
+  any leftover hardcoded default for it from the deployed copy of the composefile.
 
 Full file-format reference:
 https://github.com/bozemanpass/stack/blob/main/docs/stack-files.md
 
-## Step 2 — Build the images
+## Step 2 — Validate the stack files
+
+```bash
+stack validate --stack ./stack
+```
+
+This checks the files just written for referential integrity — that every `:stack`
+image in a composefile matches a declared container, that paths exist, that no
+`image:` value uses variable interpolation. Fix anything it reports before building;
+the same checks run as warnings during `build` and `init`, and `--strict` treats
+warnings as errors. See
+https://github.com/bozemanpass/stack/blob/main/docs/stack-integrity.md
+
+## Step 3 — Build the images
 
 ```bash
 stack build containers --stack ./stack
@@ -155,14 +183,13 @@ stack build containers --stack ./stack
 exists afterward: `docker images | grep ':stack'`. If a build fails, fix the Dockerfile
 and rerun — the command is idempotent (`--build-policy build-force` forces a rebuild).
 
-## Step 3 — Generate a spec and deploy
+## Step 4 — Generate a spec and deploy
 
 ```bash
 stack init --stack ./stack \
   --output myproject-spec.yml \
   --deploy-to compose \
-  --map-ports-to-host localhost-same \
-  --config POSTGRES_PASSWORD=example
+  --map-ports-to-host localhost-same
 
 stack deploy --spec-file myproject-spec.yml --deployment-dir ./myproject-deployment
 ```
@@ -172,10 +199,16 @@ stack deploy --spec-file myproject-spec.yml --deployment-dir ./myproject-deploym
   (random ports), or use `any-same` for a server deployment.
 - `--config KEY=VALUE` (repeatable) and `--config-file file.env` set the deployment-time
   variables; they land in the deployment's `config.env`.
+- Declared secrets need nothing here: they default to `generate`, and stack mints a
+  random value at deploy time. A secret marked `external: true` must be given a
+  reference — `--secret STRIPE_API_KEY=env:STRIPE_KEY` (also `file:PATH` and
+  `exec:COMMAND` for secret stores); the value itself never appears in the spec. To
+  read a generated value later (e.g. to run `psql` by hand):
+  `stack manage --dir <deployment-dir> secrets show POSTGRES_PASSWORD`.
 - The deployment directory is generated, disposable state — don't commit it. The spec
   file, by contrast, is a reasonable thing to commit as a deployment profile.
 
-## Step 4 — Start and verify
+## Step 5 — Start and verify
 
 ```bash
 stack manage --dir ./myproject-deployment start
@@ -223,7 +256,10 @@ Users usually describe a situation, not a target. Map it for them — do not ask
   https://github.com/stirlingbridge/machine-provisioning can install Docker and
   `stack` on it automatically at first boot), point DNS at it, and run the same
   init/deploy/start there, adding a reverse proxy for the public hostname (see
-  https://github.com/bozemanpass/stack/blob/main/docs/ingress.md).
+  https://github.com/bozemanpass/stack/blob/main/docs/ingress.md). For a deployment
+  that runs unattended, scheduled encrypted backups of its data volumes to any
+  S3-compatible store are built in (`stack manage … backup now | list | restore`) —
+  see https://github.com/bozemanpass/stack/blob/main/docs/backup.md
 - **"Many apps on shared machines / real scale / per-app HTTPS automation"** → this is
   when Kubernetes earns its complexity. The identical stack deploys by changing only
   the init step:

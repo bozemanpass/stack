@@ -25,19 +25,23 @@ git -C $project_dir remote add origin https://github.com/example/skillfixture.gi
 git -C $project_dir add .
 git -C $project_dir -c user.email=test@example.com -c user.name="Skill Test" commit -q -m "fixture"
 
-# Step 2 of the skill: build the images
+# Step 2 of the skill: validate the stack files
+$TEST_TARGET_STACK validate --stack $project_dir/stack
+echo "skill test validate: passed"
+
+# Step 3 of the skill: build the images
 $TEST_TARGET_STACK build containers --stack $project_dir/stack
 if ! docker images | grep -q "bpitest/skill-backend"; then
   fail "skill test: FAILED - built image not found"
 fi
 echo "skill test build: passed"
 
-# Step 3 of the skill: generate a spec and deploy
+# Step 4 of the skill: generate a spec and deploy.  The declared
+# POSTGRES_PASSWORD secret defaults to generate, so no --config/--secret here.
 $TEST_TARGET_STACK init --stack $project_dir/stack \
   --output $test_spec \
   --deploy-to compose \
-  --map-ports-to-host localhost-same \
-  --config POSTGRES_PASSWORD=example
+  --map-ports-to-host localhost-same
 if [ ! -f "$test_spec" ]; then
   fail "skill test: FAILED - spec file not present"
 fi
@@ -49,11 +53,18 @@ if [ ! -d "$test_deployment_dir" ]; then
 fi
 echo "skill test deploy: passed"
 
-# Step 4 of the skill: start and verify with a real request
+# Step 5 of the skill: start and verify with a real request.  The postgres
+# image refuses to start without POSTGRES_PASSWORD, so both containers running
+# also proves the generated secret was delivered.
 $TEST_TARGET_STACK manage --dir $test_deployment_dir start
 wait_for_running 2
 $TEST_TARGET_STACK manage --dir $test_deployment_dir ps
 $TEST_TARGET_STACK manage --dir $test_deployment_dir port backend 8080
+
+if ! $TEST_TARGET_STACK manage --dir $test_deployment_dir secrets list | grep -q "POSTGRES_PASSWORD"; then
+  fail "skill test: FAILED - declared secret not present in deployment"
+fi
+echo "skill test secrets: passed"
 
 wait_for_content http://localhost:8080/index.html "skill-fixture-ok" 10
 echo "skill test http: passed"
