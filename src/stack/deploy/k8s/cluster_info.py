@@ -31,6 +31,7 @@ from stack.deploy.k8s.helpers import (
     volume_mounts_for_service,
     volumes_for_service,
     container_ports_for_service,
+    exec_command_for_service,
 )
 from stack.deploy.k8s.helpers import get_kind_pv_bind_mount_path
 from stack.deploy.k8s.helpers import (
@@ -489,9 +490,17 @@ class ClusterInfo:
                 resources = self.spec.get_container_resources(service_name)
                 if not resources:
                     resources = DEFAULT_CONTAINER_RESOURCES
+                # The composefile's entrypoint/command map onto the container's
+                # command/args, whose override semantics agree between the engines:
+                # entrypoint (k8s command) replaces the image's ENTRYPOINT and
+                # discards its CMD, while command (k8s args) replaces the CMD alone.
+                entrypoint = exec_command_for_service(service_info.get("entrypoint"))
+                command = exec_command_for_service(service_info.get("command"))
                 container = client.V1Container(
                     name=container_name,
                     image=image_to_use,
+                    command=entrypoint,
+                    args=command,
                     image_pull_policy=image_pull_policy,
                     env=envs,
                     ports=container_ports,

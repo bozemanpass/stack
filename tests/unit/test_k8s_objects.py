@@ -754,6 +754,68 @@ def test_liveness_probe_time_units_converted(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# Deployments: entrypoint and command
+# ---------------------------------------------------------------------------
+
+
+def test_no_command_or_args_without_entrypoint_or_command(tmp_path):
+    cluster_info = make_cluster_info(tmp_path, MINIMAL_POD, k8s_spec())
+
+    container = k8s_dict(cluster_info.get_deployments()[0])["spec"]["template"]["spec"]["containers"][0]
+    # Absent fields must stay absent, leaving the image's own ENTRYPOINT and CMD.
+    assert "command" not in container
+    assert "args" not in container
+
+
+def test_entrypoint_and_command_lists_map_to_command_and_args(tmp_path):
+    pod = """\
+        services:
+          seaweedfs:
+            image: seaweedfs:local
+            entrypoint: ["/usr/bin/weed"]
+            command: ["server", "-dir=/data", "-s3", "-s3.port", 8333]
+        """
+    cluster_info = make_cluster_info(tmp_path, pod, k8s_spec())
+
+    container = k8s_dict(cluster_info.get_deployments()[0])["spec"]["template"]["spec"]["containers"][0]
+    assert container["command"] == ["/usr/bin/weed"]
+    # YAML-typed items (the bare 8333) are stringified: k8s takes only strings here.
+    assert container["args"] == ["server", "-dir=/data", "-s3", "-s3.port", "8333"]
+
+
+def test_string_entrypoint_and_command_split_like_compose(tmp_path):
+    pod = """\
+        services:
+          web:
+            image: nginx:local
+            entrypoint: /docker-entrypoint.sh
+            command: nginx -g 'daemon off;'
+        """
+    cluster_info = make_cluster_info(tmp_path, pod, k8s_spec())
+
+    container = k8s_dict(cluster_info.get_deployments()[0])["spec"]["template"]["spec"]["containers"][0]
+    assert container["command"] == ["/docker-entrypoint.sh"]
+    # Compose splits a string form shlex-style rather than running a shell, so
+    # the quoted argument survives as one item and no shell is interposed.
+    assert container["args"] == ["nginx", "-g", "daemon off;"]
+
+
+def test_command_without_entrypoint_keeps_image_entrypoint(tmp_path):
+    pod = """\
+        services:
+          web:
+            image: nginx:local
+            command: ["nginx-debug", "-g", "daemon off;"]
+        """
+    cluster_info = make_cluster_info(tmp_path, pod, k8s_spec())
+
+    container = k8s_dict(cluster_info.get_deployments()[0])["spec"]["template"]["spec"]["containers"][0]
+    # args alone overrides only the image's CMD, matching compose's command.
+    assert "command" not in container
+    assert container["args"] == ["nginx-debug", "-g", "daemon off;"]
+
+
+# ---------------------------------------------------------------------------
 # Deployments: image tagging
 # ---------------------------------------------------------------------------
 
