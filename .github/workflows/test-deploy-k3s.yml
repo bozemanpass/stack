@@ -31,7 +31,7 @@ on:
         required: false
         type: choice
         default: all
-        options: [all, app-deploy, database, backup, database-backup, volumes, kata]
+        options: [all, app-deploy, database, backup, database-backup, cross-backup, volumes, kata]
       mode:
         description: "Which leg to run; each one provisions its own VM"
         required: false
@@ -73,11 +73,14 @@ jobs:
           #
           # The backup tests only run here: K8up, which runs backups on a
           # cluster, is installed by the machine provisioning and is not present
-          # on a kind cluster. There are two of them, covering the two shapes a
-          # backup can have -- files (tests/backup) and a streamed logical dump
-          # (tests/database/run-backup-test.sh) -- and this is the only place the
-          # dump one runs against the engine that actually takes it in
-          # production.
+          # on a kind cluster. There are three of them: two covering the two
+          # shapes a backup can have -- files (tests/backup) and a streamed
+          # logical dump (tests/database/run-backup-test.sh) -- and this is the
+          # only place the dump one runs against the engine that actually takes
+          # it in production. The third (cross-backup) restores each engine's
+          # backup with the other one, compose deployments on the runner's own
+          # Docker against K8up on the cluster, and so runs nowhere but here by
+          # construction.
           #
           # The volumes test only runs here against a real cluster: its remote
           # leg is the one place the node-path volume mechanism (a `local`
@@ -87,12 +90,12 @@ jobs:
           #
           # These are names rather than script paths: each one selects the test
           # step of the same name in the job below, which is what runs it.
-          gateway_tests='["app-deploy","database","backup","database-backup","volumes","kata"]'
+          gateway_tests='["app-deploy","database","backup","database-backup","cross-backup","volumes","kata"]'
           ingress_tests='["app-deploy"]'
           # The `tests` dropdown names one test to run instead of the per-leg set
-          # above. Only the six that go through select_deploy_target and accept
-          # the remote target are offered; the rest are single-target by
-          # construction (k8s-deployment-control owns its own kind cluster).
+          # above. Only the ones that accept the remote target are offered; the
+          # rest are single-target by construction (k8s-deployment-control owns
+          # its own kind cluster).
           case "${TESTS}" in
             ''|all) ;;
             # kata is gateway-only, because only that leg provisions a cluster
@@ -103,7 +106,7 @@ jobs:
               gateway_tests="[\"${TESTS}\"]"
               ingress_tests='[]'
               ;;
-            app-deploy|database|backup|database-backup|volumes)
+            app-deploy|database|backup|database-backup|cross-backup|volumes)
               gateway_tests="[\"${TESTS}\"]"
               ingress_tests="${gateway_tests}"
               ;;
@@ -230,6 +233,10 @@ jobs:
         if: ${{ !cancelled() && steps.provision.outcome == 'success' && contains(fromJSON(matrix.tests), 'database-backup') }}
         timeout-minutes: 30
         run: ./tests/database/run-backup-test.sh
+      - name: "Cross-target backup: each engine restores the other's backup"
+        if: ${{ !cancelled() && steps.provision.outcome == 'success' && contains(fromJSON(matrix.tests), 'cross-backup') }}
+        timeout-minutes: 30
+        run: ./tests/backup/run-cross-target-test.sh
       - name: "Volumes: data at a chosen node path reaches the container"
         if: ${{ !cancelled() && steps.provision.outcome == 'success' && contains(fromJSON(matrix.tests), 'volumes') }}
         timeout-minutes: 30

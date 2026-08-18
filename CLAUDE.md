@@ -125,6 +125,15 @@ the machine provisioning installs and a kind cluster does not have. Its
 per-target divergence (which object store, and whether the backup stack has to be
 mixed in) lives in `select_backup_target`, next to `select_deploy_target`.
 
+`tests/backup/run-cross-target-test.sh` is the cross-target restore test (issue
+#242): a compose deployment's restic-written backup restored by K8up into a k8s
+deployment, and that deployment's K8up-written backup restored by restic into a
+new compose deployment. It is remote-only by construction — the k8s side needs
+K8up and both sides need an object store both can reach, so the compose side is
+the machine the test runs on and the store is the remote target's real one. It
+covers the volume path only; the dump path's recovery route is external and
+target-independent, and covered by `run-backup-test.sh`.
+
 `tests/kata` is single-target the other way: it needs the `kata` RuntimeClass,
 which means a runtime installed on the nodes and a host allowing nested
 virtualization, so it runs on `remote` alone and refuses anything else. The
