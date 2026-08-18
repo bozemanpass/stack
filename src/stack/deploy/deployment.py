@@ -42,9 +42,8 @@ from stack.deploy.deploy import (
 from stack.deploy.deploy_types import DeployCommandContext
 from stack.deploy.deployment_context import DeploymentContext
 from stack.deploy.explain import explain_op
-from stack.deploy.stack import Stack
 from stack.log import output_main
-from stack.util import error_exit
+from stack.util import error_exit, get_yaml
 
 
 @click.group()
@@ -274,9 +273,20 @@ def show(ctx, names):
 @command.command()
 @click.pass_context
 def services(ctx):
-    """list stack service names"""
-    ctx.obj = make_deploy_context(ctx)
-    stack = Stack(ctx.obj.stack).init_from_file(ctx.obj.stack.joinpath(constants.stack_file_name))
-    services = list(stack.get_services().keys())
-    services.sort()
-    output_main("\n".join(services))
+    """list the deployment's service names"""
+    # Read the deployment's own copies of the pod files, the same ones the
+    # deployer runs, rather than re-resolving the stack's pod list against the
+    # stack search path: a deployment directory is not a stack repo, so an
+    # old-format stack's bare pod names resolved from here missed the copies
+    # sitting next to them and fell through to the builtin stacks (#257).
+    # Every other subcommand already works this way, through get_compose_files().
+    #
+    # It also makes the list the one that matters to the sibling subcommands
+    # that take a service name: what the deployment runs, mixed-in stacks and
+    # all, not what the stack declared before the mix-ins were folded in.
+    deployment_context: DeploymentContext = ctx.obj
+    services = set()
+    for compose_file in deployment_context.get_compose_files():
+        parsed_pod_file = get_yaml().load(open(compose_file, "rt")) or {}
+        services.update(parsed_pod_file.get(constants.services_key, {}).keys())
+    output_main("\n".join(sorted(services)))
