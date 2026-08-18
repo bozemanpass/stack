@@ -911,48 +911,69 @@ class K8sDeployer(Deployer):
 
         for desired in desired_deployments:
             name = desired.metadata.name
-            live = live_deployments[name]
-            changes = []
-            force_restart = kind_images_reloaded or secrets_changed
             desired_containers = {c.name: c for c in desired.spec.template.spec.containers}
-            for container in live.spec.template.spec.containers:
-                desired_container = desired_containers[container.name]
-                if container.image != desired_container.image:
-                    changes.append(f"image {container.image} -> {desired_container.image}")
-                    container.image = desired_container.image
-                elif is_staged_reference(desired_container.image, deployment_id) and desired_container.image not in stale_refs:
-                    # New content under this deployment's mutable staging tag
-                    # arrives with the reference unchanged, so picking it up
-                    # means a restart and a re-pull rather than a spec change.
-                    changes.append(f"re-pulling staged image {desired_container.image}")
-                    force_restart = True
-                live_env, desired_env = _env_by_name(container), _env_by_name(desired_container)
-                env_changed = sorted(k for k in set(live_env) | set(desired_env) if live_env.get(k) != desired_env.get(k))
-                if env_changed:
-                    changes.append(f"env changed ({', '.join(env_changed)})")
-                    container.env = desired_container.env
 
+            def converge(live):
+                changes = []
+                restart = kind_images_reloaded or secrets_changed
+                for container in live.spec.template.spec.containers:
+                    desired_container = desired_containers[container.name]
+                    if container.image != desired_container.image:
+                        changes.append(f"image {container.image} -> {desired_container.image}")
+                        container.image = desired_container.image
+                    elif is_staged_reference(desired_container.image, deployment_id) and desired_container.image not in stale_refs:
+                        # New content under this deployment's mutable staging tag
+                        # arrives with the reference unchanged, so picking it up
+                        # means a restart and a re-pull rather than a spec change.
+                        changes.append(f"re-pulling staged image {desired_container.image}")
+                        restart = True
+                    live_env, desired_env = _env_by_name(container), _env_by_name(desired_container)
+                    env_changed = sorted(k for k in set(live_env) | set(desired_env) if live_env.get(k) != desired_env.get(k))
+                    if env_changed:
+                        changes.append(f"env changed ({', '.join(env_changed)})")
+                        container.env = desired_container.env
+                if restart:
+                    # Merged, not assigned: the pod template also carries the K8up
+                    # backup-command annotations, which a restart must not strip.
+                    annotations = live.spec.template.metadata.annotations or {}
+                    annotations["kubectl.kubernetes.io/restartedAt"] = (
+                        datetime.utcnow().replace(tzinfo=timezone.utc).isoformat()
+                    )
+                    live.spec.template.metadata.annotations = annotations
+                return changes, restart
+
+            live = live_deployments[name]
+            changes, force_restart = converge(live)
             if not changes and not force_restart:
                 output_main(f"{name}: unchanged")
                 continue
             for change in changes:
                 output_main(f"{name}: {change}")
-            if force_restart:
-                if not changes and not secrets_changed:
-                    output_main(f"{name}: restarting")
-                # Merged, not assigned: the pod template also carries the K8up
-                # backup-command annotations, which a restart must not strip.
-                annotations = live.spec.template.metadata.annotations or {}
-                annotations["kubectl.kubernetes.io/restartedAt"] = (
-                    datetime.utcnow().replace(tzinfo=timezone.utc).isoformat()
-                )
-                live.spec.template.metadata.annotations = annotations
+            if force_restart and not changes and not secrets_changed:
+                output_main(f"{name}: restarting")
 
-            self.apps_api.patch_namespaced_deployment(
-                name=name,
-                namespace=self.k8s_namespace,
-                body=live,
-            )
+            # The patch sends back the object read at the top of update(), whose
+            # resourceVersion is by now stale: on kind the image reload sits
+            # between that read and here, and each earlier patch in this loop
+            # sets off a rollout.  Anything touching the Deployment meanwhile --
+            # the controller updating status is enough -- makes this write a
+            # 409, so a conflict is re-read and re-applied rather than raised:
+            # what is being requested is content convergence, which a fresh
+            # read expresses just as well.
+            for attempt in range(3):
+                try:
+                    self.apps_api.patch_namespaced_deployment(
+                        name=name,
+                        namespace=self.k8s_namespace,
+                        body=live,
+                    )
+                    break
+                except client.exceptions.ApiException as e:
+                    if e.status != 409 or attempt == 2:
+                        raise
+                    log_debug(f"{name}: patch conflicted, re-reading and retrying")
+                    live = self.apps_api.read_namespaced_deployment(name=name, namespace=self.k8s_namespace)
+                    converge(live)
 
     def read_secrets(self):
         spec = self.cluster_info.spec
