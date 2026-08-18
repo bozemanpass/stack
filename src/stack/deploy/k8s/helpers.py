@@ -16,6 +16,7 @@
 
 import os
 import re
+import shlex
 
 from expandvars import expand
 from kubernetes import client, utils, watch
@@ -142,6 +143,19 @@ def named_volumes_from_pod_files(parsed_pod_files):
 
 def get_kind_pv_bind_mount_path(volume_name: str):
     return f"/mnt/{volume_name}"
+
+
+def exec_command_for_service(value):
+    """A composefile entrypoint/command as k8s exec form (a list of strings).
+
+    A string form is split the way compose splits it -- shlex, not a shell --
+    and a list form is passed through, with any YAML-typed items stringified.
+    """
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return shlex.split(value)
+    return [str(item) for item in value]
 
 
 def container_ports_for_service(service):
