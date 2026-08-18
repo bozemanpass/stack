@@ -16,7 +16,6 @@
 
 import click
 import os
-import sys
 
 from stack.opts import opts
 from stack import update
@@ -26,7 +25,7 @@ from stack import version
 from stack.build import build, prepare
 from stack.chart import chart
 from stack.checklist import list_stack, checklist
-from stack.cli_util import StackCLI, load_subcommands_from_stack
+from stack.cli_util import StackCLI
 from stack.command_types import CommandOptions
 from stack.complete import complete
 from stack.config import config
@@ -35,7 +34,6 @@ from stack.deploy import deployment
 from stack.deploy import deployment_create
 from stack.init import init
 from stack.repos import fetch
-from stack.util import STACK_USE_BUILTIN_STACK
 from stack.webapp import webapp
 
 from stack.log import LOG_LEVELS
@@ -102,21 +100,3 @@ cli.add_command(update.command, "update")
 cli.add_command(validate.command, "validate")
 cli.add_command(version.command, "version")
 cli.add_command(webapp.command, "webapp")
-
-# DBDB Note that this code is run at module import time, before the
-# process is properly initialized. Therefore it may fail.
-# While we sort that out, let's catch exceptions here.
-# We only try to load external commands from an external stack.
-if not STACK_USE_BUILTIN_STACK:
-    try:
-        stack_path = None
-        for i in range(len(sys.argv)):
-            arg = sys.argv[i]
-            if arg == "--stack":
-                if i + 1 < len(sys.argv):
-                    stack_path = sys.argv[i + 1]
-                    break
-        if stack_path:
-            load_subcommands_from_stack(cli, stack_path)
-    except Exception as e:
-        print(f"WARNING, ignoring exception in command loading code: {e}")

@@ -22,22 +22,63 @@ import importlib.util
 from click import Context, HelpFormatter
 from gettext import gettext as _
 
-from stack.deploy.stack import resolve_stack
+from stack.config.util import get_dev_root_path
+from stack.deploy.stack import locate_stacks_beneath, resolve_stack
+from stack.log import log_warn
+from stack.util import STACK_USE_BUILTIN_STACK
 
 
 class StackCLI(click.Group):
     command_group_section_name = {}
+    _stack_subcommands_loaded = False
 
     def add_command_group_section(self, name: str):
         self.command_group_section_name[name] = name
 
-    def format_commands(self, ctx: Context, formatter: HelpFormatter) -> None:
-        command_sections = {"core": []}
+    def _load_stack_subcommands(self):
+        """Register the subcommands contributed by every stack beneath the repo base dir.
 
+        This is done on demand rather than at import time, and keyed on nothing but the
+        stack's own name, so that `stack <stack>-<subcommand>` works with no option to
+        say which stack it came from.  The previous trigger was a scan of sys.argv for
+        `--stack`, which coupled command registration to the spelling of an option the
+        loader does not own -- and broke silently when that option moved to the
+        individual commands (issue #233).
+        """
+        if self._stack_subcommands_loaded or STACK_USE_BUILTIN_STACK:
+            return
+        self._stack_subcommands_loaded = True
+
+        for stack in locate_stacks_beneath(get_dev_root_path()):
+            # One stack with a broken subcommand file should cost that stack its
+            # subcommands, not take the whole CLI down with it.
+            try:
+                load_subcommands_from_stack(self, stack)
+            except Exception as e:
+                log_warn(f"WARN: ignoring exception loading subcommands from {stack.file_path.parent}: {e}")
+
+    def get_command(self, ctx: Context, cmd_name: str):
+        cmd = super().get_command(ctx, cmd_name)
+        if cmd is None:
+            # Only a name that is not a built-in command pays for the stack search.
+            self._load_stack_subcommands()
+            cmd = super().get_command(ctx, cmd_name)
+        return cmd
+
+    def list_commands(self, ctx: Context):
+        self._load_stack_subcommands()
+        return super().list_commands(ctx)
+
+    def format_commands(self, ctx: Context, formatter: HelpFormatter) -> None:
+        # Listed first: a stack's subcommands register their section as they load, and
+        # that loading is what list_commands triggers.
+        subcommands = self.list_commands(ctx)
+
+        command_sections = {"core": []}
         for sub in self.command_group_section_name:
             command_sections[sub] = []
 
-        for subcommand in self.list_commands(ctx):
+        for subcommand in subcommands:
             cmd = self.get_command(ctx, subcommand)
             if cmd is None or cmd.hidden:
                 continue
