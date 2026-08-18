@@ -61,6 +61,7 @@ stack COMMAND SUBCOMMAND --help
 ### 📊 Information & Analysis
 - **[list](commands/list.md)** - List available stacks
 - **[check](commands/check.md)** - Dry run of prepare: report what is missing
+- **[validate](commands/validate.md)** - Check the stack's files for referential integrity
 - **[chart](commands/chart.md)** - Generate a mermaid graph of the stack
 
 ### 🌐 Web Applications

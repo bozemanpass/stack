@@ -20,6 +20,7 @@ import os
 from click.core import ParameterSource
 
 from stack import constants
+from stack import validate
 from stack.log import log_info, log_debug, log_warn
 from stack.config.util import get_config_setting
 from stack.deploy.deploy import create_deploy_context
@@ -172,6 +173,8 @@ def command(
     )
 
     top_stack_config = resolve_stack(stack)
+    # Advisory for now: report integrity problems, but let the init proceed.
+    validate.log_findings(top_stack_config)
     required_stacks = top_stack_config.get_required_stacks_paths()
     config_variables = {}
     for c in config:

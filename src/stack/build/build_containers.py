@@ -645,7 +645,11 @@ def build_containers(parent_stack,  # noqa: C901
 def command(ctx, stack, include, exclude, git_ssh, build_policy, extra_build_args, dont_pull_images, publish_images,
             image_registry, target_arch):
     """build stack containers"""
+    from stack import validate
+
     stack = resolve_stack(stack)
+    # Advisory for now: report integrity problems, but let the build proceed.
+    validate.log_findings(stack)
     build_containers(stack,
                      build_policy,
                      image_registry,

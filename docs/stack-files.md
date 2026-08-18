@@ -3,6 +3,9 @@
 The `stack.yml` file defines the structure and configuration of a deployment stack. It specifies the containers, pods,
 and any pre/post-start commands required for the deployment.
 
+How these files relate to each other — which one is authoritative for what, and how `stack validate`
+checks that they agree — is described in [stack-integrity.md](./stack-integrity.md).
+
 ### Example
 
 ```yaml
@@ -315,6 +318,11 @@ pull).  Commit it to make the stack's builds repeatable and its image tags stabl
 
 > Note: `stack.lock` supersedes the earlier `wrapper.lock`; an existing `wrapper.lock` is still read (as the
 > `wrappers` section) when no `stack.lock` is present, and can be deleted once a `stack.lock` has been generated.
+
+The `stack.lock` also carries an `images` section pinning each *external* image the stack's pod files name
+(anything not tagged `:stack`, e.g. `postgres:14`) to its manifest digest.  `stack prepare` records the pins and
+`stack deploy` applies them to the deployment's copy of the pod files; an image annotated `# @stack unpinned` on
+its `image:` line is left floating.  See [stack-integrity.md](./stack-integrity.md).
 
 ## composefile.yml
 

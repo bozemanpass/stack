@@ -44,7 +44,7 @@ def _strip_registry_host(image_name: str):
     return image_name
 
 
-def _split_image_reference(image: str):
+def split_image_reference(image: str):
     """Split an image reference into its host-less name and its tag.
 
     Any registry host in the reference is dropped, because the remote registry URL
@@ -74,14 +74,14 @@ def _image_needs_pushed(image: str):
     # A locally built tag that is also published (a prebuilt image prepare pulled, or one
     # a previous --publish-images uploaded) is deployed under that published reference, so
     # it does not need staging either -- see resolve_image_for_deployment.
-    if _split_image_reference(image)[1] not in LOCALLY_BUILT_TAGS:
+    if split_image_reference(image)[1] not in LOCALLY_BUILT_TAGS:
         return False
     return _published_reference_for_image(image) is None
 
 
 def _remote_tag_for_image(image: str, remote_repo_url: str):
     # Turns image tags of the form: org/bar:stack into remote.repo/org/bar:deploy
-    image_name, image_version = _split_image_reference(image)
+    image_name, image_version = split_image_reference(image)
     if image_version in LOCALLY_BUILT_TAGS:
         return f"{remote_repo_url}/{image_name}:deploy"
     else:
@@ -115,7 +115,7 @@ def add_tags_to_image(remote_repo_url: str, local_tag: str, *additional_tags):
 
 def remote_tag_for_image_unique(image: str, remote_repo_url: str, deployment_id: str):
     # Turns image tags of the form: org/bar:stack into remote.repo/org/bar:deploy-<id>
-    image_name, image_version = _split_image_reference(image)
+    image_name, image_version = split_image_reference(image)
     if image_version in LOCALLY_BUILT_TAGS:
         # Salt the tag with part of the deployment id to make it unique to this deployment
         deployment_tag = deployment_id[-8:]
@@ -158,7 +158,7 @@ def stale_staged_images(images, image_registry: str, deployment_id: str):
             return None
 
     for image in sorted(images):
-        _, image_version = _split_image_reference(image)
+        _, image_version = split_image_reference(image)
         if image_version not in LOCALLY_BUILT_TAGS or _published_reference_for_image(image):
             continue
         source_id = local_id(image)
@@ -185,7 +185,7 @@ def _published_reference_for_image(image: str):
 
     Returns None when the image has no such tag -- or does not exist locally at all.
     """
-    image_name, _ = _split_image_reference(image)
+    image_name, _ = split_image_reference(image)
     try:
         repo_tags = DockerClient().image.inspect(image).repo_tags
     except Exception:
@@ -194,7 +194,7 @@ def _published_reference_for_image(image: str):
     local_versions = set()
     qualified = []
     for ref in repo_tags:
-        ref_name, ref_version = _split_image_reference(ref)
+        ref_name, ref_version = split_image_reference(ref)
         if not ref_version or ref_version in LOCALLY_BUILT_TAGS or ref_name != image_name:
             continue
         if ref_version.startswith("stackdev-"):
@@ -223,7 +223,7 @@ def resolve_image_for_deployment(image: str, image_registry: str, deployment_id:
     If neither exists the deployment cannot work, so fail now with the remedy rather than
     as an ImagePullBackOff later.
     """
-    _, image_version = _split_image_reference(image)
+    _, image_version = split_image_reference(image)
     if image_version not in LOCALLY_BUILT_TAGS:
         return image
     published = _published_reference_for_image(image)

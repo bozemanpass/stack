@@ -26,6 +26,8 @@ from shutil import copy, copyfile, copytree
 from typing import List
 
 from stack import constants
+from stack.build.build_util import read_stack_locks
+from stack.build.image_pins import apply_image_locks_to_pod_file
 from stack.deploy.compose.helpers import add_env_var
 from stack.deploy.backup import backup_settings
 from stack.log import log_debug, log_warn, log_info
@@ -587,6 +589,13 @@ def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec,
         destination_pod_dir = destination_pods_dir.joinpath(pod)
         os.mkdir(destination_pod_dir)
         log_debug(f"extra config dirs: {extra_config_dirs}")
+        parsed_stack = parsed_spec.stack_for_pod(pod) if isinstance(parsed_spec, MergedSpec) else parsed_spec.load_stack()
+        # The deployment's copy of the pod file pulls each external image by the digest
+        # recorded in the stack's lock file, when there is one (see build/image_pins.py).
+        if parsed_stack.file_path:
+            image_locks = read_stack_locks(parsed_stack.file_path.parent)["images"]
+            if image_locks:
+                apply_image_locks_to_pod_file(parsed_pod_file, image_locks)
         _fixup_pod_file(parsed_pod_file, parsed_spec, destination_compose_dir)
 
         # On every target: the deployment's copy of the pod file must not carry a
@@ -742,8 +751,6 @@ def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec,
 
         with open(destination_compose_dir.joinpath(f"{constants.compose_file_prefix}-%s.yml" % pod), "w") as output_file:
             yaml.dump(parsed_pod_file, output_file)
-
-        parsed_stack = parsed_spec.stack_for_pod(pod) if isinstance(parsed_spec, MergedSpec) else parsed_spec.load_stack()
 
         # Copy the config files for the pod, if any
         config_dirs = {pod}

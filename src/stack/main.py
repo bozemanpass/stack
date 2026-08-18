@@ -20,6 +20,7 @@ import sys
 
 from stack.opts import opts
 from stack import update
+from stack import validate
 from stack import version
 
 from stack.build import build, prepare
@@ -98,6 +99,7 @@ cli.add_command(list_stack.command, "list")
 cli.add_command(deployment.command, "manage")
 cli.add_command(prepare.command, "prepare")
 cli.add_command(update.command, "update")
+cli.add_command(validate.command, "validate")
 cli.add_command(version.command, "version")
 cli.add_command(webapp.command, "webapp")
 
