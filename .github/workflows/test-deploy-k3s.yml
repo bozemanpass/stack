@@ -31,7 +31,7 @@ on:
         required: false
         type: choice
         default: all
-        options: [all, app-deploy, database, backup, database-backup]
+        options: [all, app-deploy, database, backup, database-backup, volumes]
       mode:
         description: "Which leg to run; each one provisions its own VM"
         required: false
@@ -79,17 +79,23 @@ jobs:
           # dump one runs against the engine that actually takes it in
           # production.
           #
+          # The volumes test only runs here against a real cluster: its remote
+          # leg is the one place the node-path volume mechanism (a `local`
+          # PersistentVolume with node affinity, docs/volumes.md) runs for
+          # real, and it needs the node SSH access that only the cluster
+          # harness has.
+          #
           # These are names rather than script paths: each one selects the test
           # step of the same name in the job below, which is what runs it.
-          gateway_tests='["app-deploy","database","backup","database-backup"]'
+          gateway_tests='["app-deploy","database","backup","database-backup","volumes"]'
           ingress_tests='["app-deploy"]'
           # The `tests` dropdown names one test to run instead of the per-leg set
-          # above. Only the four that go through select_deploy_target and accept
+          # above. Only the five that go through select_deploy_target and accept
           # the remote target are offered; the rest are single-target by
           # construction (k8s-deployment-control owns its own kind cluster).
           case "${TESTS}" in
             ''|all) ;;
-            app-deploy|database|backup|database-backup)
+            app-deploy|database|backup|database-backup|volumes)
               gateway_tests="[\"${TESTS}\"]"
               ingress_tests="${gateway_tests}"
               ;;
@@ -206,6 +212,10 @@ jobs:
         if: ${{ !cancelled() && steps.provision.outcome == 'success' && contains(fromJSON(matrix.tests), 'database-backup') }}
         timeout-minutes: 30
         run: ./tests/database/run-backup-test.sh
+      - name: "Volumes: data at a chosen node path reaches the container"
+        if: ${{ !cancelled() && steps.provision.outcome == 'success' && contains(fromJSON(matrix.tests), 'volumes') }}
+        timeout-minutes: 30
+        run: ./tests/volumes/run-test.sh
 
       - name: "Collect cluster diagnostics"
         # Only worth the SSH round trip when something above failed, and it has to

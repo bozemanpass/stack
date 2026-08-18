@@ -52,6 +52,7 @@ file listing is its own index.
 | `manage update`: config change reaches the containers | [`tests/app-deploy/run-test.sh`](../tests/app-deploy/run-test.sh) | `deploy update config` | compose + kind per-PR; remote + remote-compose weekly |
 | `manage update`: data survives the in-place update | [`tests/app-deploy/run-test.sh`](../tests/app-deploy/run-test.sh) | `deploy update storage` | compose + kind per-PR; remote + remote-compose weekly |
 | `manage update`: rebuilt image content reaches the deployment | [`tests/app-deploy/run-test.sh`](../tests/app-deploy/run-test.sh) | `deploy update content` | compose + kind per-PR; remote + remote-compose weekly |
+| Spec-mapped volume path: pre-existing host data reaches the container | [`tests/volumes/run-test.sh`](../tests/volumes/run-test.sh) | `external data visible test`, `unmapped volume fresh test`, `volume write-back test` | compose + kind per-PR; remote weekly |
 | `manage exec` against a running service | [`tests/database/run-backup-test.sh`](../tests/database/run-backup-test.sh) | `Replay dump test` | compose per-PR; remote weekly |
 
 ## Backup and restore
@@ -67,5 +68,6 @@ file listing is its own index.
 | What | Test | Step | CI runs |
 |---|---|---|---|
 | Node affinity and toleration spec controls | [`tests/k8s-deployment-control/run-test.sh`](../tests/k8s-deployment-control/run-test.sh) | `deployment of pod test`, `pod placement test` | kind only (builds its own multi-node cluster), per-PR |
+| Volume bound to a node path (`local` PV with volume affinity) | [`tests/volumes/run-test.sh`](../tests/volumes/run-test.sh) | `external data visible test` on the remote target (see [`tests/k3s-deploy/`](../tests/k3s-deploy/)) | weekly |
 | HTTPS ingress on Docker (`docker-ingress` mix-in, real certificates) | [`tests/app-deploy/run-test.sh`](../tests/app-deploy/run-test.sh) | `deploy http` on the remote-compose target (see [`tests/docker-deploy/`](../tests/docker-deploy/)) | weekly |
 | Gateway API HTTP routing on a real cluster | [`tests/app-deploy/run-test.sh`](../tests/app-deploy/run-test.sh) | `deploy http` on the remote target (see [`tests/k3s-deploy/`](../tests/k3s-deploy/)) | weekly |

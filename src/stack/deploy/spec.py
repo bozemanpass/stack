@@ -120,7 +120,16 @@ class Spec:
         return self.obj.get(constants.secrets_key, {}) or {}
 
     def get_volumes(self):
-        return self.obj.get(constants.volumes_key, {})
+        # A volume entry is either a bare path (or nothing), or a mapping
+        # carrying the path plus placement -- see docs/volumes.md.  Callers of
+        # get_volumes() see name -> path either way; the placement has an
+        # accessor of its own (get_volume_affinity).
+        volumes = self.obj.get(constants.volumes_key, {}) or {}
+        return {name: value.get("path") if isinstance(value, dict) else value for name, value in volumes.items()}
+
+    def get_volume_affinity(self, volume_name):
+        value = (self.obj.get(constants.volumes_key, {}) or {}).get(volume_name)
+        return value.get("affinity") if isinstance(value, dict) else None
 
     def get_configmaps(self):
         return self.obj.get(constants.configmaps_key, {})

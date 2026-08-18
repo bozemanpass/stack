@@ -25,6 +25,7 @@ Regression coverage: kind used to be lumped in with the remote case and got an
 unmapped volume, so a stop/start silently emptied the deployment's database.
 """
 
+import pytest
 import yaml
 
 from conftest import k8s_dict, make_cluster_info, make_stack_from_compose, run_stack
@@ -117,3 +118,69 @@ def test_remote_k8s_binds_an_absolute_volume_path(tmp_path):
     pvs = [k8s_dict(pv) for pv in cluster_info.get_pvs()]
     assert len(pvs) == 1
     assert pvs[0]["spec"]["hostPath"]["path"] == "/srv/db-data"
+
+
+# The mapping form of a volume entry: a path plus the node(s) that hold it --
+# see docs/volumes.md "Placing the pod where the data is".
+
+AFFINITY = {"label": "kubernetes.io/hostname", "value": "node-1"}
+
+
+def test_remote_k8s_volume_with_affinity_is_a_local_volume(tmp_path):
+    # With an affinity the PV is a `local` volume rather than a hostPath one, so
+    # the placement constraint rides on the PV and the scheduler puts any pod
+    # mounting the claim onto a matching node.
+    cluster_info = make_cluster_info(
+        tmp_path,
+        VOLUME_POD,
+        {
+            "stack": "teststack",
+            "deploy-to": "k8s",
+            "volumes": {"db-data": {"path": "/srv/db-data", "affinity": AFFINITY}},
+        },
+    )
+
+    pvs = [k8s_dict(pv) for pv in cluster_info.get_pvs()]
+    assert len(pvs) == 1
+    assert "hostPath" not in pvs[0]["spec"]
+    assert pvs[0]["spec"]["local"]["path"] == "/srv/db-data"
+    match = pvs[0]["spec"]["nodeAffinity"]["required"]["nodeSelectorTerms"][0]["matchExpressions"][0]
+    assert match == {"key": "kubernetes.io/hostname", "operator": "In", "values": ["node-1"]}
+
+    # The claim binds to the PV by name exactly as it does for a bare path, so
+    # the mapping form changes nothing downstream of the PV itself.
+    pvcs = [k8s_dict(pvc) for pvc in cluster_info.get_pvcs()]
+    assert len(pvcs) == 1
+    assert pvcs[0]["spec"]["storageClassName"] == "manual"
+    assert pvcs[0]["spec"]["volumeName"] == pvs[0]["metadata"]["name"]
+
+
+def _check(spec_obj):
+    from stack.deploy.deployment_create import _check_volume_definitions
+    from stack.deploy.spec import Spec
+
+    _check_volume_definitions(Spec(obj=spec_obj))
+
+
+def test_affinity_is_rejected_on_a_local_target(tmp_path):
+    # Rejected rather than ignored: on compose or kind the data lives on this
+    # machine, and an affinity that silently did nothing would look exactly like
+    # one that worked.
+    for deploy_to in ["compose", "k8s-kind"]:
+        with pytest.raises(Exception, match="not supported for deployment type"):
+            _check({"deploy-to": deploy_to, "volumes": {"db-data": {"path": "./data/db-data", "affinity": AFFINITY}}})
+
+
+def test_affinity_requires_a_path(tmp_path):
+    with pytest.raises(Exception, match="requires a path"):
+        _check({"deploy-to": "k8s", "volumes": {"db-data": {"affinity": AFFINITY}}})
+
+
+def test_affinity_requires_label_and_value(tmp_path):
+    with pytest.raises(Exception, match="label and value"):
+        _check({"deploy-to": "k8s", "volumes": {"db-data": {"path": "/srv/db-data", "affinity": {"label": "x"}}}})
+
+
+def test_mapping_form_path_gets_the_same_checks_as_a_bare_one(tmp_path):
+    with pytest.raises(Exception, match="Relative path"):
+        _check({"deploy-to": "k8s", "volumes": {"db-data": {"path": "./data/db-data", "affinity": AFFINITY}}})

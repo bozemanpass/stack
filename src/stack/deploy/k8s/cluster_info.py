@@ -364,15 +364,37 @@ class ClusterInfo:
             if not resources:
                 resources = DEFAULT_VOLUME_RESOURCES
 
+            affinity = self.spec.get_volume_affinity(volume_name)
+            source_args = {}
             if self.spec.is_kind_deployment():
-                host_path = client.V1HostPathVolumeSource(path=get_kind_pv_bind_mount_path(volume_name))
+                source_args["host_path"] = client.V1HostPathVolumeSource(path=get_kind_pv_bind_mount_path(volume_name))
+            elif affinity:
+                # A volume that names its node(s) is a `local` volume rather than
+                # a hostPath one: the affinity rides on the PersistentVolume, so
+                # the scheduler places any pod mounting the claim onto a matching
+                # node, instead of the pod landing anywhere and finding the path
+                # empty.  Naming one node is the kubernetes.io/hostname label.
+                source_args["local"] = client.V1LocalVolumeSource(path=volume_path)
+                source_args["node_affinity"] = client.V1VolumeNodeAffinity(
+                    required=client.V1NodeSelector(
+                        node_selector_terms=[
+                            client.V1NodeSelectorTerm(
+                                match_expressions=[
+                                    client.V1NodeSelectorRequirement(
+                                        key=affinity["label"], operator="In", values=[str(affinity["value"])]
+                                    )
+                                ]
+                            )
+                        ]
+                    )
+                )
             else:
-                host_path = client.V1HostPathVolumeSource(path=volume_path)
+                source_args["host_path"] = client.V1HostPathVolumeSource(path=volume_path)
             spec = client.V1PersistentVolumeSpec(
                 storage_class_name="manual",
                 access_modes=["ReadWriteOnce"],
                 capacity=to_k8s_resource_requirements(resources).requests,
-                host_path=host_path,
+                **source_args,
             )
             pv = client.V1PersistentVolume(
                 metadata=client.V1ObjectMeta(
