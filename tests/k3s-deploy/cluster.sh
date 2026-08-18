@@ -267,6 +267,12 @@ EOF
     publish_setting STACK_KUBE_CONFIG "$kube_config"
     publish_setting STACK_K8S_HOSTNAME "$machine_fqdn"
     publish_setting STACK_IMAGE_REGISTRY "$STACK_IMAGE_REGISTRY"
+    # And, for the one test whose subject is data at a path on the node itself
+    # (tests/volumes), how to run a command there.  Published as a whole command
+    # rather than its pieces so that the user name and host-key handling stay
+    # here, alongside cluster_ssh which they are copied from.
+    publish_setting STACK_TEST_NODE_SSH_COMMAND \
+        "ssh -i $MACHINE_SSH_KEY_FILE -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=$known_hosts ${MACHINE_NEW_USER}@${machine_fqdn}"
     echo "Cluster ready at $machine_fqdn"
 }
 

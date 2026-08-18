@@ -1,0 +1,52 @@
+name: Volumes Test
+
+on:
+  pull_request:
+    branches:
+      - '*'
+  push:
+    branches:
+      - '*'
+
+# Tests that a volume mapped to a chosen host directory in the spec surfaces
+# that directory's pre-existing contents inside the container -- see
+# tests/volumes/run-test.sh and docs/volumes.md.
+#
+# The kind leg is the point of this test: it is the one per-PR check of the
+# hostPath PersistentVolume plumbing (kind is pre-installed on ubuntu-latest;
+# see test-database.yml for the caveats).  The compose leg checks that the same
+# spec edit means the same thing as a bind mount.  The remote target's variant
+# of the mechanism (a path on the cluster's node, bound as a `local`
+# PersistentVolume with node affinity) needs the node's filesystem and so runs
+# weekly from test-deploy-k3s.yml, whose harness has the SSH access.
+
+jobs:
+  test:
+    name: "Run volumes test (${{ matrix.target }})"
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [compose, kind]
+    env:
+      STACK_TEST_TARGET: ${{ matrix.target }}
+    steps:
+      - name: "Clone project repository"
+        uses: actions/checkout@v5
+      - name: "Install uv"
+        uses: astral-sh/setup-uv@v8.2.0
+        with:
+          python-version: '3.12'
+      - name: "Print kind version"
+        if: matrix.target == 'kind'
+        run: kind version
+      - name: "Generate build version file"
+        run: ./scripts/create_build_tag_file.sh
+      - name: "Build local shiv package"
+        run: ./scripts/build_shiv_package.sh
+      - name: "Run volumes test"
+        env:
+          # "Enable debug logging" on a re-run sets runner.debug; pass it through
+          # so the test script turns on xtrace and dumps its environment.
+          STACK_SCRIPT_DEBUG: ${{ runner.debug }}
+        run: ./tests/volumes/run-test.sh

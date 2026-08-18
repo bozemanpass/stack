@@ -74,8 +74,8 @@ calls `select_deploy_target` (in `tests/lib/common.sh`) and is pointed at one
 with `STACK_TEST_TARGET`: `compose` (the default), `kind`, `remote` (a real k8s
 cluster) or `remote-compose` (Docker Compose on a real cloud machine). Tests
 that are only about general behaviour stay on compose; the ones likely to find
-target-specific bugs — currently `app-deploy` and `database` — are written to
-run on more than one. Anything genuinely target-shaped belongs in
+target-specific bugs — currently `app-deploy`, `database` and `volumes` — are
+written to run on more than one. Anything genuinely target-shaped belongs in
 `select_deploy_target` rather than in an `if` inside a test.
 
 Target-shaped is not the same as engine-shaped, and the two used to be conflated
@@ -132,10 +132,15 @@ works where the test owns the cluster. It still goes through
 other than `kind` rather than silently testing nothing.
 
 Which combinations CI actually runs is a separate question from which ones a
-test supports, and is decided by cost: `app-deploy` and `database` both run on
-compose and kind per-PR, and on remote weekly. `backup` runs on compose per-PR
-and on remote weekly. `app-deploy` also runs on `remote-compose` weekly, and it
-is the only test that does.
+test supports, and is decided by cost: `app-deploy`, `database` and `volumes`
+run on compose and kind per-PR, and on remote weekly. `backup` runs on compose
+per-PR and on remote weekly. `app-deploy` also runs on `remote-compose` weekly,
+and it is the only test that does. The remote leg of `volumes` is the one place
+the node-path volume mechanism (a `local` PersistentVolume with node affinity —
+see `docs/volumes.md`) runs for real: it seeds a directory on the cluster's
+node over SSH, using the command `cluster.sh provision` publishes as
+`STACK_TEST_NODE_SSH_COMMAND`, and the compose and kind legs cover the same
+spec edit's bind-mount meaning.
 
 Compose is worth keeping in that set for a reason beyond docker coverage: it is
 the only target that does not restart a failed container, so a service that only

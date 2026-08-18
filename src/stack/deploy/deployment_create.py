@@ -83,7 +83,9 @@ def _fixup_pod_file(pod, spec, compose_dir):
     deployment_type = spec[constants.deploy_to_key]
     # Fix up volumes
     if "volumes" in spec:
-        spec_volumes = spec["volumes"]
+        # Through the accessor rather than the raw object: a volume entry may be
+        # the mapping form, and what this pass needs is the path.
+        spec_volumes = spec.get_volumes()
         if "volumes" in pod:
             pod_volumes = pod["volumes"]
             for volume in pod_volumes.keys():
@@ -479,14 +481,28 @@ def _check_volume_definitions(spec):
     # node runs on this machine, and a relative path is resolved against the
     # deployment directory when its bind mount is generated
     # (_make_absolute_host_path), so ./data/<name> works there and is what init writes.
-    if spec.is_kubernetes_deployment() and not spec.is_kind_deployment():
-        for volume_name, volume_path in spec.get_volumes().items():
-            if volume_path:
-                if not os.path.isabs(volume_path):
-                    raise Exception(
-                        f"Relative path {volume_path} for volume {volume_name} not "
-                        f"supported for deployment type {spec.get_deployment_type()}"
-                    )
+    remote_k8s = spec.is_kubernetes_deployment() and not spec.is_kind_deployment()
+    for volume_name, volume_path in spec.get_volumes().items():
+        if remote_k8s and volume_path and not os.path.isabs(volume_path):
+            raise Exception(
+                f"Relative path {volume_path} for volume {volume_name} not "
+                f"supported for deployment type {spec.get_deployment_type()}"
+            )
+        affinity = spec.get_volume_affinity(volume_name)
+        if affinity is None:
+            continue
+        # An affinity names the node(s) holding the volume's data, so it means
+        # nothing without a path, and nothing at all on a target whose volumes
+        # live on this machine.  Rejected rather than ignored: an affinity that
+        # silently did nothing would look exactly like one that worked.
+        if not remote_k8s:
+            raise Exception(
+                f"Affinity for volume {volume_name} not supported for deployment type {spec.get_deployment_type()}"
+            )
+        if not volume_path:
+            raise Exception(f"Affinity for volume {volume_name} requires a path")
+        if not isinstance(affinity, dict) or not affinity.get("label") or not affinity.get("value"):
+            raise Exception(f"Affinity for volume {volume_name} must specify label and value")
 
 
 @click.command()

@@ -11,6 +11,10 @@ node-affinities:
     value: typeb
 ```
 This example denotes that the stack's pods should only be placed on nodes that have the label `nodetype` with value `typeb`.
+
+Note that these rules apply to every pod in the deployment.  For the narrower case of placing a pod on the node that
+holds a volume's data, put the affinity on the volume instead — see [volumes.md](volumes.md) — which constrains only
+the pods that mount it.
 ### Node Taint Toleration
 K8s nodes can be given one or more "taints". These are special fields (distinct from labels) with a name (key) and optional value.
 When placing pods, the k8s scheduler will only assign a pod to a tainted node if the pod posesses a corresponding "toleration".
