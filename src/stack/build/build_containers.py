@@ -26,7 +26,6 @@ import os
 from pathlib import Path
 from python_on_whales import DockerClient
 
-from stack.base import get_npm_registry_url
 from stack.build.build_types import BuildContext
 from stack.build.build_util import (
     ContainerSpec,
@@ -76,7 +75,7 @@ BUILD_POLICIES = [
 
 def make_container_build_env(dev_root_path: str, default_container_base_dir: str, force_rebuild: bool, extra_build_args: str):
     container_build_env = {
-        "STACK_NPM_REGISTRY_URL": get_npm_registry_url(),
+        "STACK_NPM_REGISTRY_URL": get_config_setting("STACK_NPM_REGISTRY_URL", default=""),
         "STACK_GO_AUTH_TOKEN": get_config_setting("STACK_GO_AUTH_TOKEN", default=""),
         "STACK_NPM_AUTH_TOKEN": get_config_setting("STACK_NPM_AUTH_TOKEN", default=""),
         "STACK_REPO_BASE_DIR": dev_root_path,

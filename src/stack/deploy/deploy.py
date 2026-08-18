@@ -16,7 +16,6 @@
 
 # Deploys the system components using a deployer (either docker-compose or k8s)
 
-import copy
 import os
 import subprocess
 import sys
@@ -28,7 +27,7 @@ from stack.constants import compose_file_prefix
 from stack.log import log_debug, log_warn, output_main
 from stack.util import include_exclude_check, stack_is_in_deployment, resolve_compose_file, error_exit
 from stack.deploy.backup import backup_settings
-from stack.deploy.deployer import ClusterNotRunningException, Deployer, DeployerException
+from stack.deploy.deployer import ClusterNotRunningException, DeployerException
 from stack.opts import opts
 from stack.deploy.deployer_factory import getDeployer
 from stack.deploy.deploy_types import ClusterContext, DeployCommandContext
@@ -260,26 +259,6 @@ def logs_operation(ctx, tail: int, follow: bool, extra_args: str):
         error_exit("the deployment is not running")
     for stream_type, stream_content in logs_stream:
         output_main(stream_content.decode("utf-8"), end="")
-
-
-def get_stack_status(ctx, stack):
-    ctx_copy = copy.copy(ctx)
-    ctx_copy.stack = stack
-
-    cluster_context = _make_cluster_context(ctx_copy, stack, None, None, None, None)
-    deployer = Deployer(
-        compose_files=cluster_context.compose_files,
-        compose_project_name=cluster_context.cluster,
-    )
-    # TODO: refactor to avoid duplicating this code above
-    log_debug("Running compose ps")
-    container_list = deployer.ps()
-    if len(container_list) > 0:
-        log_debug(f"Container list from compose ps: {container_list}")
-        return True
-
-    log_debug("No containers found from compose ps")
-    return False
 
 
 def _make_runtime_env(ctx):
