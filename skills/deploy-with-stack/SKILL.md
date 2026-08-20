@@ -266,6 +266,12 @@ Three things to raise with the user when adding this:
 - **The namespace must be the GitHub organization** (see the stack.yml rules above).
   This is the usual reason a published image is never found again, and it is a breaking
   rename to fix afterwards.
+- **Commit `stack.lock` before enabling the workflow.** The first `stack prepare` writes
+  a `stack.lock` beside stack.yml pinning each off-the-shelf image (`postgres:17-alpine`,
+  …) to a digest. Run `stack prepare --stack ./stack` once locally and commit the result.
+  Skip this and CI regenerates the lock on every run, finds it uncommitted, and tags the
+  images `stackdev-` — they build and are then silently *not* pushed, with only a `WARN`
+  in the log. Staging the file is not enough; the check is whether it is committed.
 - **Only clean, committed, fully-pinned state publishes.** A dirty checkout or an
   unpinned input yields a `stackdev-` version, which stack never pushes and never looks
   for remotely — so local edits still build locally exactly as before, and CI stays the
