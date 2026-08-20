@@ -35,6 +35,9 @@ assume).  Deployments whose hostname is already covered by such a listener get
 no listener of their own -- only an HTTPRoute.
 """
 
+import hashlib
+import re
+
 from kubernetes import client
 
 from stack.log import log_debug
@@ -55,6 +58,12 @@ GATEWAY_HTTP_PORT = 8000
 GATEWAY_HTTPS_PORT = 8443
 
 HTTP_ROUTE_NAME = "http-route"
+
+# Listeners and certificate Secrets are named after the hostname they serve,
+# under a prefix that marks them as stack's among whatever else lives in the
+# Gateway's namespace.
+NAME_PREFIX = "stack-"
+MAX_OBJECT_NAME_LENGTH = 253
 
 CLUSTER_ISSUER_ANNOTATION = "cert-manager.io/cluster-issuer"
 
@@ -162,24 +171,48 @@ def https_listener_covering_host(gateway, host_name: str):
     return None
 
 
-def listener_name_for_deployment(deployment_name: str) -> str:
-    return f"{deployment_name}-https"
+def _name_for_host(host_name: str, suffix: str) -> str:
+    """A Kubernetes object name derived from a hostname.
+
+    Listener and Secret names are keyed by hostname rather than by deployment
+    so that redeploying the same hostname lands on the same Secret, where
+    cert-manager finds the certificate it already issued.  Keyed by deployment
+    instead, every redeploy asked Let's Encrypt for another certificate, and the
+    sixth in a week hit the rate limit and left the site with none (issue #283).
+
+    Names are lowercased and reduced to alphanumerics and dashes: a hostname's
+    dots are legal in a name but a wildcard's asterisk is not, and the two would
+    otherwise be indistinguishable from each other after the asterisk was
+    dropped.  A hostname at the length limit is truncated, with a digest of the
+    whole hostname keeping the result unique.
+    """
+    sanitized = re.sub(r"[^a-z0-9]+", "-", host_name.lower()).strip("-")
+    stem = f"{NAME_PREFIX}{sanitized}"
+    budget = MAX_OBJECT_NAME_LENGTH - len(suffix)
+    if len(stem) > budget:
+        digest = hashlib.sha256(host_name.encode()).hexdigest()[:8]
+        stem = f"{stem[: budget - len(digest) - 1]}-{digest}"
+    return f"{stem}{suffix}"
 
 
-def secret_name_for_deployment(deployment_name: str) -> str:
-    return f"{deployment_name}-tls"
+def listener_name_for_host(host_name: str) -> str:
+    return _name_for_host(host_name, "-https")
 
 
-def https_listener_for_deployment(deployment_name: str, host_name: str):
+def secret_name_for_host(host_name: str) -> str:
+    return _name_for_host(host_name, "-tls")
+
+
+def https_listener_for_host(host_name: str):
     return {
-        "name": listener_name_for_deployment(deployment_name),
+        "name": listener_name_for_host(host_name),
         "port": GATEWAY_HTTPS_PORT,
         "protocol": "HTTPS",
         "hostname": host_name,
         "allowedRoutes": {"namespaces": {"from": "All"}},
         "tls": {
             "mode": "Terminate",
-            "certificateRefs": [{"name": secret_name_for_deployment(deployment_name)}],
+            "certificateRefs": [{"name": secret_name_for_host(host_name)}],
         },
     }
 
@@ -197,17 +230,23 @@ def _patch_listeners(custom_obj_api: client.CustomObjectsApi, listeners):
     )
 
 
-def add_https_listener(custom_obj_api: client.CustomObjectsApi, gateway, deployment_name: str, host_name: str):
-    """Add (or update in place) this deployment's HTTPS listener on the Gateway."""
-    new_listener = https_listener_for_deployment(deployment_name, host_name)
+def add_https_listener(custom_obj_api: client.CustomObjectsApi, gateway, host_name: str):
+    """Add (or update in place) the HTTPS listener for a hostname on the Gateway."""
+    new_listener = https_listener_for_host(host_name)
     listeners = [listener for listener in gateway["spec"]["listeners"] if listener["name"] != new_listener["name"]]
     listeners.append(new_listener)
     log_debug(f"Adding Gateway listener: {new_listener}")
     _patch_listeners(custom_obj_api, listeners)
 
 
-def remove_https_listener(custom_obj_api: client.CustomObjectsApi, deployment_name: str):
-    """Remove this deployment's HTTPS listener from the Gateway, if present.
+def remove_https_listener(custom_obj_api: client.CustomObjectsApi, host_name: str, deployment_name: str = None):
+    """Remove a deployment's HTTPS listener from the Gateway, if present.
+
+    Listeners are matched by name rather than by hostname, so that a listener
+    stack did not add -- a machine-provisioned one for the same hostname -- is
+    left alone.  deployment_name, when given, also removes a listener named the
+    way stack named them before they were keyed by hostname, so that stopping a
+    deployment made by an older stack still cleans up after it.
 
     The certificate Secret is left behind deliberately: a redeployment of the
     same hostname re-adds the listener and cert-manager reuses the still-valid
@@ -216,11 +255,13 @@ def remove_https_listener(custom_obj_api: client.CustomObjectsApi, deployment_na
     gateway = get_gateway(custom_obj_api)
     if not gateway:
         return
-    listener_name = listener_name_for_deployment(deployment_name)
+    names = {listener_name_for_host(host_name)}
+    if deployment_name:
+        names.add(f"{deployment_name}-https")
     listeners = gateway["spec"]["listeners"]
-    remaining = [listener for listener in listeners if listener["name"] != listener_name]
+    remaining = [listener for listener in listeners if listener["name"] not in names]
     if len(remaining) != len(listeners):
-        log_debug(f"Removing Gateway listener: {listener_name}")
+        log_debug(f"Removing Gateway listeners: {names}")
         _patch_listeners(custom_obj_api, remaining)
 
 
