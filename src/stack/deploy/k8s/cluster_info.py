@@ -617,7 +617,14 @@ class ClusterInfo:
                 spec = client.V1DeploymentSpec(
                     replicas=self.spec.get_replicas(),
                     template=template,
-                    selector={"matchLabels": {"app": self.app_name}},
+                    # The selector has to name the service as well as the app: with
+                    # "app" alone every Deployment in the deployment nominally selects
+                    # every pod in it, and only the pod-template-hash the controller
+                    # adds to each ReplicaSet keeps them from fighting.  What that costs
+                    # in the meantime is legibility -- "kubectl logs deploy/deploy-foo"
+                    # picks an arbitrary pod out of all of them.  Immutable once the
+                    # Deployment exists, so this applies to newly created ones.
+                    selector={"matchLabels": {"app": self.app_name, "service": service_name}},
                 )
 
                 deployment = client.V1Deployment(
