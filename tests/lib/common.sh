@@ -407,7 +407,7 @@ start_object_store_deployment () {
 }
 
 stop_object_store_deployment () {
-    $TEST_TARGET_STACK manage --dir "$TEST_OBJECT_STORE_DIR" stop --delete-volumes
+    $TEST_TARGET_STACK manage --dir "$TEST_OBJECT_STORE_DIR" destroy --yes
 }
 
 # Wait until the object store backups go to can serve back what it accepts.
@@ -513,7 +513,7 @@ _test_exit_handler () {
         if [ $rc -ne 0 ]; then
             dump_diagnostics
         fi
-        $TEST_TARGET_STACK manage --dir "$TEST_DEPLOYMENT_DIR" stop --delete-volumes
+        $TEST_TARGET_STACK manage --dir "$TEST_DEPLOYMENT_DIR" destroy --yes
     fi
     if [ -n "$TEST_CONTAINER_IDS" ]; then
         docker stop $TEST_CONTAINER_IDS > /dev/null 2>&1
@@ -538,17 +538,18 @@ start_container () {
     trap _test_exit_handler EXIT
 }
 
-# Destroy a deployment completely: stop it, delete its volumes, and remove the
-# deployment directory, so that nothing of it is left for a later step to lean on
-# by accident.  For a test whose point is that something survives the deployment
-# that produced it -- a backup taken from a deployment that is then destroyed --
-# a half-removed deployment is the way that test passes for the wrong reason.
+# Destroy a deployment completely: `manage destroy`, which takes its volumes (and
+# on k8s its namespace) with it, and then remove the deployment directory, so that
+# nothing of it is left for a later step to lean on by accident.  For a test whose
+# point is that something survives the deployment that produced it -- a backup taken
+# from a deployment that is then destroyed -- a half-removed deployment is the way
+# that test passes for the wrong reason.
 #
 # The exit-time teardown is dropped along with it, so a test destroying the
 # deployment the helpers are pointed at should point them at its replacement with
 # stop_deployment_on_exit.
 destroy_deployment () {
-    $TEST_TARGET_STACK manage --dir "$1" stop --delete-volumes
+    $TEST_TARGET_STACK manage --dir "$1" destroy --yes
     force_rm "$1"
     if [ "$TEST_DEPLOYMENT_DIR" == "$1" ]; then
         TEST_DEPLOYMENT_DIR=""

@@ -17,6 +17,7 @@
 import os
 import re
 import shlex
+import subprocess
 
 from expandvars import expand
 from kubernetes import client, utils, watch
@@ -35,10 +36,29 @@ from stack.util import get_k8s_dir, error_exit, run_shell_command
 DEFAULT_K8S_NAMESPACE = "default"
 
 
-def create_cluster(name: str, config_file: str):
+def cluster_exists(name: str) -> bool:
+    result = subprocess.run(["kind", "get", "clusters"], capture_output=True, text=True)
+    if result.returncode != 0:
+        raise DeployerException(f"kind get clusters failed: {result.returncode}")
+    return name in result.stdout.split()
+
+
+def create_cluster(name: str, config_file: str) -> bool:
+    """Create the kind cluster if it is not already there.  True if it was created.
+
+    A stopped kind deployment keeps its cluster, since its volumes live inside
+    the node container and stop is not allowed to delete data.  Starting it
+    again therefore finds the cluster already there, which kind treats as an
+    error rather than as nothing to do -- and what was installed into it the
+    first time is still installed, which is what the return value is for.
+    """
+    if cluster_exists(name):
+        log_info(f"Using existing kind cluster {name}")
+        return False
     rc = run_shell_command(f"kind create cluster --name {name} --config {config_file}")
     if rc != 0:
         raise DeployerException(f"kind create cluster failed: {rc}")
+    return True
 
 
 def destroy_cluster(name: str):

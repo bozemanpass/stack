@@ -41,6 +41,10 @@ backup_file_extension_annotation = "backup-file-extension"
 # that the same stack produces a snapshot of the same name whichever engine took it.
 backup_default_file_extension = "dump"
 deployment_file_name = "deployment.yml"
+# Written by `manage destroy` to record that this deployment's cluster objects are
+# gone, so that the rest of `manage` refuses a directory that no longer describes
+# anything running.
+destroyed_file_name = "destroyed"
 host_name_key = "host-name"
 http_proxy_key = "http-proxy"
 http_proxy_prefix_key = "http-proxy-prefix"

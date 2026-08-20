@@ -37,6 +37,19 @@ assert_file_contains $test_deployment_dir/create-file "create-command-output-dat
 $TEST_TARGET_STACK manage --dir $test_deployment_dir start
 # Down
 $TEST_TARGET_STACK manage --dir $test_deployment_dir stop
+# Destroy: the signal that the deployment is finished.  On compose a stopped
+# deployment and a destroyed one look much the same from outside, so what is
+# asserted is the marker destroy leaves and the refusal that follows it -- a
+# deployment directory whose objects are gone must not go on answering questions
+# about them.
+$TEST_TARGET_STACK manage --dir $test_deployment_dir destroy --yes
+if [ ! -f "$test_deployment_dir/destroyed" ]; then
+    fail "deploy destroy: FAILED - destroyed marker not written"
+fi
+if $TEST_TARGET_STACK manage --dir $test_deployment_dir status > /dev/null 2>&1; then
+    fail "deploy destroy: FAILED - manage still operates on a destroyed deployment"
+fi
+echo "deploy destroy: PASSED"
 # Run same test but not using the stack definition
 # Test building the a stack container
 $TEST_TARGET_STACK --debug --verbose build containers --stack test --include bozemanpass/test-container

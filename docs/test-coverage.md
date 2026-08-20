@@ -53,6 +53,7 @@ file listing is its own index.
 | `manage update`: data survives the in-place update | [`tests/app-deploy/run-test.sh`](../tests/app-deploy/run-test.sh) | `deploy update storage` | compose + kind per-PR; remote + remote-compose weekly |
 | `manage update`: rebuilt image content reaches the deployment | [`tests/app-deploy/run-test.sh`](../tests/app-deploy/run-test.sh) | `deploy update content` | compose + kind per-PR; remote + remote-compose weekly |
 | Spec-mapped volume path: pre-existing host data reaches the container | [`tests/volumes/run-test.sh`](../tests/volumes/run-test.sh) | `external data visible test`, `unmapped volume fresh test`, `volume write-back test` | compose + kind per-PR; remote weekly |
+| `manage destroy`: the deployment is finished; later `manage` commands refuse its directory | [`tests/smoke-test/run-smoke-test.sh`](../tests/smoke-test/run-smoke-test.sh) | `deploy destroy` | compose, per-PR |
 | `manage exec` against a running service | [`tests/database/run-backup-test.sh`](../tests/database/run-backup-test.sh) | `Replay dump test` | compose per-PR; remote weekly |
 
 ## Backup and restore

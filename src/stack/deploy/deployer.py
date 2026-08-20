@@ -23,7 +23,23 @@ class Deployer(ABC):
         pass
 
     @abstractmethod
-    def down(self, timeout, volumes, skip_cluster_management):
+    def down(self, timeout):
+        """Stop the deployment.
+
+        Symmetric with up(): whatever this deletes, up() has to be able to make
+        again.  Nothing that holds data is touched -- that is destroy's job.
+        """
+        pass
+
+    @abstractmethod
+    def destroy(self, timeout, delete_volumes, delete_certificate, skip_cluster_management):
+        """Stop the deployment for the last time and collect what it leaves.
+
+        The signal that a deployment is finished, which is what makes it safe to
+        remove the things stop keeps precisely because start would want them
+        back.  Backups are not among them: they exist to outlive the deployment
+        that made them (see docs/backup.md).
+        """
         pass
 
     @abstractmethod
@@ -106,11 +122,11 @@ class DeployerException(Exception):
 class ClusterNotRunningException(DeployerException):
     """There is no cluster to talk to, so nothing of the deployment is running.
 
-    Only a kind deployment reaches this state: stopping one deletes the whole
+    Only a kind deployment reaches this state: destroying one deletes the whole
     cluster, so afterwards there is no kube context left to connect to.  That is
-    the normal resting state of a stopped kind deployment rather than a fault,
-    which is why it is distinguishable -- the commands that report what is
-    running answer "nothing" instead of failing.
+    the resting state of a destroyed kind deployment rather than a fault, which
+    is why it is distinguishable -- the commands that report what is running
+    answer "nothing" instead of failing.
     """
 
 

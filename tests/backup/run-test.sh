@@ -200,7 +200,7 @@ if [ -n "$TEST_BACKUP_CAN_SEED" ]; then
     # tears it down.
     first_deployment_dir=$test_deployment_dir
     stop_first_deployment () {
-        $TEST_TARGET_STACK manage --dir "$first_deployment_dir" stop --delete-volumes
+        $TEST_TARGET_STACK manage --dir "$first_deployment_dir" destroy --yes
     }
     TEST_EXTRA_CLEANUP=stop_first_deployment
     stop_deployment_on_exit "$seeded_deployment_dir"

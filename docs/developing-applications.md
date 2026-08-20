@@ -138,9 +138,9 @@ the pods. Use it to check the Kubernetes *shape* of a deployment — pods, volum
 without a real cluster; a change to the shape itself (ports, volumes, services) is the one
 thing `update` refuses, and there the loop is still `stop` then `start`.
 
-Note that `stop` deletes the kind cluster and `start` builds a new one, so nothing kept
-inside the cluster survives that loop. Your data does, because `init` maps each volume to a
-directory under the deployment:
+Note that `destroy` deletes the kind cluster and the next `start` builds a new one, so
+nothing kept inside the cluster survives that. Your data does, because `init` maps each
+volume to a directory under the deployment:
 
 ```yaml
 volumes:
@@ -149,7 +149,7 @@ volumes:
 
 which is bind mounted into the kind node, exactly as it is bind mounted into the container on
 compose. The database you were working against is still there after a `stop`/`start`. To
-start from an empty one, `stop --delete-volumes`, or delete the directory.
+start from an empty one, delete the directory.
 
 A remote cluster is the one target where this cannot work, since the data would have to live
 on the cluster's nodes: there `init` leaves the volume unmapped and it becomes a PVC from the

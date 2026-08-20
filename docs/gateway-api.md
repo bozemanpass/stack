@@ -48,6 +48,16 @@ For a spec with an `http-proxy` section, `stack manage start` creates:
 behind deliberately: redeploying the same hostname reuses the still-valid certificate instead of asking
 Let's Encrypt for a new one.
 
+`stack manage destroy` leaves it too, for the same reason — a destroyed deployment's hostname is often
+redeployed, and a certificate is worth more to the next deployment than the few kilobytes it occupies are worth
+to the cluster. `--delete-certificate` overrides that for a hostname being retired for good. What `destroy`
+does collect is certificates that are past being useful to anyone: a secret no listener has referenced for a
+full certificate lifetime holds an expired certificate, since cert-manager's Certificate object goes with the
+listener and nothing renews an unreferenced one. The first sweep to find such a secret marks it with
+`stack.bozemanpass.com/certificate-unreferenced-since` and a later one deletes it; serving the hostname again
+clears the mark, so the interval measured is always the current one. Measuring it, rather than reading
+`notAfter` out of the certificate, keeps an X.509 parser (and a dependency) out of stack for the sake of a date.
+
 Naming those objects after the hostname rather than after the deployment is what makes that reuse work. A
 deployment id changes whenever the stack is re-`init`ed, and a new secret name means cert-manager sees no
 certificate to reuse and places a fresh ACME order; Let's Encrypt issues five certificates per hostname per 168

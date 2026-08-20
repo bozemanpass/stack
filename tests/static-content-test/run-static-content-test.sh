@@ -125,7 +125,7 @@ docker run -d --name stack-test-registry -p 5000:5000 registry:2
 
 # The deployment holds a running container using the image, which would block
 # image removal below; it has served its purpose, so stop it now.
-$TEST_TARGET_STACK manage --dir $test_deployment_dir stop --delete-volumes
+$TEST_TARGET_STACK manage --dir $test_deployment_dir destroy --yes
 
 static_content_stack_dir=$STACK_REPO_BASE_DIR/github.com/bozemanpass/stack-test-stacks/stack-files/stacks/test-static-content-stack
 

@@ -41,18 +41,67 @@ stack manage --dir DEPLOYMENT_DIR start [OPTIONS] [EXTRA_ARGS]...
 
 ### stop
 
-Stop the stack and remove the containers
+Stop the stack and remove the containers.
+
+`stop` is the symmetric opposite of `start`: it deletes only what `start` makes
+again from the deployment directory. Volumes, the namespace on Kubernetes, and
+the cluster on kind are all left in place, so a later `start` finds the data
+where it left it. Use [`destroy`](#destroy) when a deployment is finished.
 
 ```bash
-stack manage --dir DEPLOYMENT_DIR stop [OPTIONS] [EXTRA_ARGS]...
+stack manage --dir DEPLOYMENT_DIR stop [EXTRA_ARGS]...
 ```
+
+`--delete-volumes` used to be how a finished deployment was cleaned up. It is
+rejected now rather than ignored, so that a script asking for deletion is told
+where deletion moved to instead of quietly leaking the volumes it meant to
+reclaim.
+
+### destroy
+
+Destroy the deployment: the signal that it is finished and will not be started
+again, which is what makes it safe to remove the things `stop` keeps precisely
+because `start` would want them back.
+
+```bash
+stack manage --dir DEPLOYMENT_DIR destroy [OPTIONS]
+```
+
+On Kubernetes that is the deployment's PersistentVolumeClaims, the cluster-scoped
+PersistentVolumes a namespace delete does not reach, and the namespace itself; on
+kind, the cluster; on Docker, the compose project's volume objects. As everywhere
+else in stack, deleting a volume deletes the volume object and never the contents
+of a bind-mounted directory (see [volumes.md](../volumes.md)).
+
+Two things deliberately survive, and `destroy` says so rather than leaving you to
+wonder:
+
+- **Backups.** The restic/K8up repository is untouched: backups exist to outlive
+  the deployment that made them (see [backup.md](../backup.md)).
+- **The TLS certificate**, on a Gateway-provisioned cluster. Certificates are
+  keyed by hostname, so redeploying the same hostname reuses the one already
+  issued instead of asking Let's Encrypt for another — whose duplicate limit is
+  five a week for the same name. `--delete-certificate` overrides this for a
+  hostname you are retiring for good.
+
+  Certificates that no listener has referenced for a full certificate lifetime
+  are collected automatically as part of `destroy`: nothing renews an
+  unreferenced certificate, so one that has been idle that long is expired and
+  of no use to any future deployment.
+
+The deployment directory is left where it is — it is yours, and it is what a
+replacement deployment would be created from — but a `destroyed` marker is
+written into it, and the other `manage` subcommands refuse a directory carrying
+one rather than reporting on objects that no longer exist.
 
 #### Options
 
 | Option | Type | Description | Default |
 |--------|------|-------------|---------|
-| `--delete-volumes/--preserve-volumes` | FLAG | Delete data volumes | False |
-| `--skip-cluster-management/--perform-cluster-management` | FLAG | Skip cluster initialization/tear-down (kind-k8s only) | False |
+| `--yes` / `-y` | FLAG | Do not prompt for confirmation | False |
+| `--delete-volumes/--preserve-volumes` | FLAG | Delete the deployment's volumes (and, on k8s, its namespace) | True |
+| `--delete-certificate` | FLAG | Also delete the TLS certificate issued for this deployment's hostname | False |
+| `--skip-cluster-management/--perform-cluster-management` | FLAG | Skip cluster tear-down (kind-k8s only) | False |
 
 ### ps
 
@@ -292,11 +341,14 @@ stack manage --dir ~/deployments/my-stack start
 # Start and stay attached to see output
 stack manage --dir ~/deployments/my-stack start --stay-attached
 
-# Stop a stack (preserve volumes)
+# Stop a stack; its data stays where it is
 stack manage --dir ~/deployments/my-stack stop
 
-# Stop and delete volumes
-stack manage --dir ~/deployments/my-stack stop --delete-volumes
+# Finished with it: stop it for the last time and collect what it leaves
+stack manage --dir ~/deployments/my-stack destroy
+
+# The same without the prompt, keeping the volumes
+stack manage --dir ~/deployments/my-stack destroy --yes --preserve-volumes
 ```
 
 ### Monitoring and Debugging

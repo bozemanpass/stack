@@ -16,6 +16,7 @@
 
 import click
 
+from datetime import datetime, timezone
 from pathlib import Path
 
 from stack import constants
@@ -26,6 +27,7 @@ from stack.deploy.deploy import (
     ps_operation,
     port_operation,
     status_operation,
+    destroy_operation,
 )
 from stack.deploy.deploy import (
     exec_operation,
@@ -41,6 +43,7 @@ from stack.deploy.deploy import (
 )
 from stack.deploy.deploy_types import DeployCommandContext
 from stack.deploy.deployment_context import DeploymentContext
+from stack.deploy.backup import backup_settings
 from stack.deploy.explain import explain_op
 from stack.log import output_main
 from stack.util import error_exit, get_yaml
@@ -58,6 +61,16 @@ def command(ctx, dir):
         error_exit(f"Error: deployment directory {dir} does not exist")
     if not dir_path.is_dir():
         error_exit(f"Error: supplied deployment directory path {dir} exists but is a file not a directory")
+    # A destroyed deployment's directory still describes a deployment, but nothing
+    # it describes exists any more, so every command here but destroy itself would
+    # be answering about something that is gone.  Destroy stays available so that
+    # an interrupted one can be run again.
+    destroyed_marker = dir_path.joinpath(constants.destroyed_file_name)
+    if destroyed_marker.exists() and ctx.invoked_subcommand != "destroy":
+        error_exit(
+            f"Error: deployment {dir} was destroyed ({destroyed_marker.read_text().strip()}). "
+            "Create a new deployment with `stack deploy`."
+        )
     # Store the deployment context for subcommands
     deployment_context = DeploymentContext()
     deployment_context.init(dir_path)
@@ -114,19 +127,74 @@ def start(ctx, stay_attached, skip_cluster_management, extra_args):
 
 
 @command.command()
-@click.option("--delete-volumes/--preserve-volumes", default=False, help="delete data volumes")
+@click.option("--delete-volumes", is_flag=True, default=False, hidden=True)
+@click.argument("extra_args", nargs=-1)  # help: command: down <service1> <service2>
+@click.pass_context
+def stop(ctx, delete_volumes, extra_args):
+    """stop the deployment and remove the containers"""
+    # Stop is the symmetric opposite of start and deletes nothing that start
+    # cannot make again.  --delete-volumes used to be how a finished deployment
+    # was cleaned up; that is what destroy is for now.  It is still accepted so
+    # that a script asking for deletion is told, rather than quietly leaking the
+    # volumes it meant to reclaim.
+    if delete_volumes:
+        error_exit("Error: stop no longer deletes volumes. Use `stack manage --dir <dir> destroy` instead.")
+    # TODO: add cluster name and env file here
+    ctx.obj = make_deploy_context(ctx)
+    down_operation(ctx, extra_args)
+
+
+@command.command()
+@click.option("--yes", "-y", is_flag=True, default=False, help="do not prompt for confirmation")
+@click.option(
+    "--delete-volumes/--preserve-volumes",
+    default=True,
+    help="delete the deployment's volumes (and, on k8s, its namespace)",
+)
+@click.option(
+    "--delete-certificate",
+    is_flag=True,
+    default=False,
+    help="also delete the TLS certificate issued for this deployment's hostname",
+)
 @click.option(
     "--skip-cluster-management/--perform-cluster-management",
     default=False,
-    help="Skip cluster initialization/tear-down (only for kind-k8s deployments)",
+    help="Skip cluster tear-down (only for kind-k8s deployments)",
 )
-@click.argument("extra_args", nargs=-1)  # help: command: down <service1> <service2>
+@click.argument("extra_args", nargs=-1)  # help: command: destroy
 @click.pass_context
-def stop(ctx, delete_volumes, skip_cluster_management, extra_args):
-    """stop the deployment and remove the containers"""
-    # TODO: add cluster name and env file here
+def destroy(ctx, yes, delete_volumes, delete_certificate, skip_cluster_management, extra_args):
+    """destroy the deployment: it is finished and its resources can be collected"""
+    deployment_context: DeploymentContext = ctx.obj
+    if not yes:
+        volumes = "and its volumes " if delete_volumes else ""
+        click.confirm(
+            f"Destroy deployment {deployment_context.deployment_dir} {volumes}permanently?",
+            abort=True,
+        )
     ctx.obj = make_deploy_context(ctx)
-    down_operation(ctx, delete_volumes, extra_args, skip_cluster_management)
+    destroy_operation(ctx, delete_volumes, delete_certificate, extra_args, skip_cluster_management)
+    _report_backups_kept(deployment_context)
+    _mark_destroyed(deployment_context)
+
+
+def _report_backups_kept(deployment_context: DeploymentContext):
+    """Say out loud that the backups were not part of this.
+
+    Backups exist to outlive the deployment that made them (see docs/backup.md),
+    so destroy leaves the repository alone -- which is worth stating at the one
+    moment a user is being told everything else is gone.
+    """
+    settings = backup_settings()
+    if settings.enabled and settings.s3_bucket:
+        output_main(f"Backups kept: repository {settings.s3_bucket} at {settings.s3_endpoint} is untouched")
+
+
+def _mark_destroyed(deployment_context: DeploymentContext):
+    marker = deployment_context.deployment_dir.joinpath(constants.destroyed_file_name)
+    marker.write_text(f"destroyed {datetime.now(timezone.utc).isoformat()}\n")
+    output_main(f"Deployment destroyed. Its directory {deployment_context.deployment_dir} is left for you to remove.")
 
 
 @command.command()
