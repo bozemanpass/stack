@@ -23,7 +23,7 @@ then a fixed four-command pipeline takes it to a running system:
 stack build containers   # build the images
 stack init               # generate a deployment spec (choose target, ports, config)
 stack deploy             # materialize a deployment directory from the spec
-stack manage             # start / stop / logs / exec against that directory
+stack manage             # start / stop / logs / exec / destroy against that directory
 ```
 
 The same stack deploys unchanged to Docker Compose (`--deploy-to compose`), a real
@@ -236,16 +236,21 @@ stack manage --dir ./myproject-deployment logs -f backend     # follow one servi
 stack manage --dir ./myproject-deployment update              # apply config/image changes
 ```
 
-To stop: `stack manage --dir ./myproject-deployment stop` (data volumes are preserved;
-add `--delete-volumes` only if the user explicitly wants the data gone).
+To stop: `stack manage --dir ./myproject-deployment stop`. Stop is the opposite of start
+and nothing more — the data is still there when it starts again. When a deployment is
+finished for good, `stack manage --dir ./myproject-deployment destroy` deletes its
+volumes too (it asks first, and backups are kept). Only ever reach for `destroy` when
+the user has said the deployment and its data are done with.
 
 ## Iterating
 
 After changing service source: rebuild (`stack build containers --stack ./stack`), then
 `update` the deployment — it recreates only the services whose image or configuration
 changed. After changing `stack.yml` or the composefile: rerun `init` and `deploy` to a
-fresh deployment directory (or the same one after `stop`), since `update` applies content
-changes only and refuses changes to the deployment's shape.
+fresh deployment directory, since `update` applies content changes only and refuses
+changes to the deployment's shape. `deploy` will not write into a directory that already
+exists, so reusing a name means destroying the old deployment and removing its directory
+first.
 
 ## Choosing where to deploy
 
