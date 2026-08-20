@@ -145,12 +145,18 @@ volumes:
 
 - **Hostnames:** every service reaches every other by its service name (`db`, `backend`),
   even across pods, on both compose and k8s. Use service names in connection URLs.
+  Declaring `ports:` is not what makes a service addressable — a service with no `ports:`
+  still answers to its own name (on k8s, via a headless Service). Don't publish a port
+  merely to obtain a hostname; on compose `--map-ports-to-host` would then expose it.
 - **Ports:** list the container port bare (`- 8080`); host mapping is decided later at
   `init` time. Don't hardcode host ports here.
-- **Env precedence:** deployment-time `config.env` overrides `env_file:` entries, which
-  override the inline `environment:` block. Put sane defaults inline for non-secret
-  settings; anything the deployer should choose (external URLs, feature flags) is
-  supplied via `--config` at init.
+- **Env precedence:** later sources win — the deployment's `config.env`, then `env_file:`
+  entries, then the inline `environment:` block. So an inline literal beats a value the
+  deployer supplied with `--config`, identically on both targets. Anything the deployer
+  should choose (external URLs, feature flags) must therefore be *forwarded* rather than
+  defaulted: write `- SOME_VAR=${SOME_VAR}`, not `- SOME_VAR=some-default`. `stack deploy`
+  warns when an inline literal shadows a differing key in `config.env`, naming the
+  service, the key and both values.
 - **Secrets are not composefile environment entries.** The `secrets:` block in stack.yml
   delivers each declared secret to every container, so the database and its clients
   share `POSTGRES_PASSWORD` automatically — have the app read it from the environment
