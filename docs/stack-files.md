@@ -363,6 +363,8 @@ A service can pick up the same variable from more than one place.  Later sources
 This is the order Docker Compose uses, and it is applied identically for Kubernetes deployments, so a pod file
 hands its containers the same values whichever target it is deployed to.  A pod file that wants a deployment-time
 value to reach the container can forward it explicitly, e.g. `environment: {SOME_VAR: "${SOME_VAR}"}`.
+In the sequence form, a bare `- SOME_VAR` does the same thing: it names a variable to take from the sources
+listed above it, and passes nothing at all when none of them set it.
 
 The consequence worth knowing is that an inline default beats a value the deployer supplied with `--config`: the
 composefile wins, and the deployment is wrong rather than failed.  So `stack deploy` reports it, naming the service

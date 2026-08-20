@@ -18,9 +18,11 @@
 import re
 
 import pytest
+from ruamel.yaml.comments import CommentedSeq
 
 from stack.deploy.deploy_util import convert_to_seconds
 from stack.deploy.deployment_create import _get_mapped_ports, _parse_config_variables
+from stack.deploy.k8s.helpers import envs_from_compose_file
 from stack.init.init import _parse_http_proxy
 
 
@@ -180,3 +182,49 @@ def test_parse_http_proxy_rejects_non_numeric_port(value):
     # The path leads: the reversed 'svc:port:path' form must fail rather than reach the spec.
     with pytest.raises(SystemExit):
         _parse_http_proxy(value)
+
+
+# ---------------------------------------------------------------------------
+# envs_from_compose_file
+# ---------------------------------------------------------------------------
+
+
+def _seq(*items):
+    # The composefile is parsed by ruamel, so a sequence arrives as a CommentedSeq.
+    seq = CommentedSeq()
+    seq.extend(items)
+    return seq
+
+
+def test_envs_from_compose_file_mapping_form():
+    assert envs_from_compose_file({"A": "1", "B": True}, {}) == {"A": "1", "B": "true"}
+
+
+def test_envs_from_compose_file_sequence_form():
+    assert envs_from_compose_file(_seq("A=1", "B=2"), {}) == {"A": "1", "B": "2"}
+
+
+def test_envs_from_compose_file_value_containing_equals():
+    # Only the first "=" separates name from value; the rest belongs to the value.
+    assert envs_from_compose_file(_seq("URL=a=b"), {}) == {"URL": "a=b"}
+
+
+def test_envs_from_compose_file_pass_through_takes_surrounding_value():
+    # The bare form names a variable to pick up from the environment it is merged into.
+    assert envs_from_compose_file(_seq("SOME_VAR"), {"SOME_VAR": "from-config"}) == {"SOME_VAR": "from-config"}
+
+
+def test_envs_from_compose_file_pass_through_omitted_when_unset():
+    # Compose passes nothing at all rather than an empty string, so neither does this.
+    assert envs_from_compose_file(_seq("SOME_VAR"), {}) == {}
+
+
+def test_envs_from_compose_file_forwarding_form_expands():
+    assert envs_from_compose_file(_seq("SOME_VAR=${SOME_VAR}"), {"SOME_VAR": "from-config"}) == {
+        "SOME_VAR": "from-config"
+    }
+
+
+def test_envs_from_compose_file_plain_list_form():
+    # A sequence that did not come from ruamel is still a sequence.
+    assert envs_from_compose_file(["A=1", "SOME_VAR"], {"SOME_VAR": "x"}) == {"A": "1", "SOME_VAR": "x"}
