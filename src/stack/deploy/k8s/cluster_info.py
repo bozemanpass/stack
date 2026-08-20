@@ -243,22 +243,27 @@ class ClusterInfo:
             services = pod["services"]
             for service_name in services:
                 service_info = services[service_name]
-                if "ports" in service_info:
-                    int_ports = [int(p.split(":")[-1].replace("/udp", "")) for p in service_info["ports"]]
-                    svc_ports = [client.V1ServicePort(port=p, target_port=p, name=f"{service_name}-{p}") for p in int_ports]
-                    service = client.V1Service(
-                        metadata=client.V1ObjectMeta(
-                            name=service_name,
-                            labels={"app": self.app_name, "service": service_name},
-                        ),
-                        spec=client.V1ServiceSpec(
-                            type="ClusterIP",
-                            ports=svc_ports,
-                            # TODO: For balancing, we should use some sort of shared tag among pods of the same type
-                            selector={"app": self.app_name, "service": service_name},
-                        ),
-                    )
-                    ret.append(service)
+                int_ports = [int(p.split(":")[-1].replace("/udp", "")) for p in service_info.get("ports", [])]
+                svc_ports = [client.V1ServicePort(port=p, target_port=p, name=f"{service_name}-{p}") for p in int_ports]
+                # A service that declares no ports still needs a name: every service
+                # reaches every other by service name on both targets, and on compose
+                # that holds whether or not a port is published.  A headless Service
+                # (no cluster IP, no ports) resolves the name to the pod's own IP,
+                # which is the closest k8s equivalent.
+                service = client.V1Service(
+                    metadata=client.V1ObjectMeta(
+                        name=service_name,
+                        labels={"app": self.app_name, "service": service_name},
+                    ),
+                    spec=client.V1ServiceSpec(
+                        type="ClusterIP",
+                        cluster_ip=None if svc_ports else "None",
+                        ports=svc_ports if svc_ports else None,
+                        # TODO: For balancing, we should use some sort of shared tag among pods of the same type
+                        selector={"app": self.app_name, "service": service_name},
+                    ),
+                )
+                ret.append(service)
         return ret
 
     def get_pvcs(self):

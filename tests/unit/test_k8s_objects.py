@@ -109,7 +109,15 @@ def test_service_strips_udp_suffix_from_port(tmp_path):
     assert svc["spec"]["ports"] == [{"name": "dns-53", "port": 53, "targetPort": 53}]
 
 
-def test_service_omitted_when_no_ports(tmp_path):
+def test_service_is_headless_when_no_ports(tmp_path):
+    """A service with no ports is still addressable by name (issue #280).
+
+    Compose gives every container on the network a DNS name whether or not a
+    port is published, and the stack file contract says a service reaches every
+    other by service name.  On k8s that costs a headless Service; without one
+    the name simply does not resolve, and the failure surfaces as a DNS error
+    inside whichever container tried to connect.
+    """
     pod = """\
         services:
           worker:
@@ -117,7 +125,11 @@ def test_service_omitted_when_no_ports(tmp_path):
         """
     cluster_info = make_cluster_info(tmp_path, pod, k8s_spec())
 
-    assert cluster_info.get_services() == []
+    svc = k8s_dict(cluster_info.get_services()[0])
+    assert svc["metadata"]["name"] == "worker"
+    assert svc["spec"]["clusterIP"] == "None"
+    assert svc["spec"].get("ports") is None
+    assert svc["spec"]["selector"] == {"app": TEST_CLUSTER_ID, "service": "worker"}
 
 
 # ---------------------------------------------------------------------------
