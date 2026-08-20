@@ -140,19 +140,39 @@ def test_http_route_multiple_routes_preserve_order(tmp_path):
 
 
 def test_https_listener_shape(tmp_path):
-    listener = gateway.https_listener_for_deployment("mydeployment", "app.example.com")
+    listener = gateway.https_listener_for_host("app.example.com")
 
     assert listener == {
-        "name": "mydeployment-https",
+        "name": "stack-app-example-com-https",
         "port": 8443,
         "protocol": "HTTPS",
         "hostname": "app.example.com",
         "allowedRoutes": {"namespaces": {"from": "All"}},
         "tls": {
             "mode": "Terminate",
-            "certificateRefs": [{"name": "mydeployment-tls"}],
+            "certificateRefs": [{"name": "stack-app-example-com-tls"}],
         },
     }
+
+
+def test_listener_and_secret_are_keyed_by_hostname_not_deployment():
+    # Issue #283: keyed by deployment, every redeploy of the same hostname
+    # ordered another Let's Encrypt certificate and the sixth in a week was
+    # refused.  The same hostname must always name the same Secret, so that
+    # cert-manager finds the certificate it already issued.
+    assert gateway.secret_name_for_host("app.example.com") == "stack-app-example-com-tls"
+    assert gateway.listener_name_for_host("app.example.com") == "stack-app-example-com-https"
+
+
+def test_names_are_legal_kubernetes_names():
+    # Uppercase and the wildcard's asterisk are both illegal in an object name.
+    assert gateway.secret_name_for_host("*.Example.COM") == "stack-example-com-tls"
+    assert gateway.secret_name_for_host("app.example.com") != gateway.secret_name_for_host("*.example.com")
+
+    long_host = ".".join(["a" * 60] * 4)
+    name = gateway.secret_name_for_host(long_host)
+    assert len(name) <= 253
+    assert name != gateway.secret_name_for_host(long_host[:-1] + "b")
 
 
 def test_hostname_matches_exact_and_wildcard():
@@ -186,6 +206,6 @@ def test_listener_covering_host_finds_wildcard():
 
 
 def test_listener_covering_host_finds_exact():
-    exact = gateway.https_listener_for_deployment("mydeployment", "app.example.com")
+    exact = gateway.https_listener_for_host("app.example.com")
     gw = gateway_with_listeners([exact])
     assert gateway.https_listener_covering_host(gw, "app.example.com") is exact

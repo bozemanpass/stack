@@ -473,7 +473,7 @@ class K8sDeployer(Deployer):
             else:
                 # cert-manager sees the new listener on the annotated Gateway
                 # and obtains its certificate over HTTP-01.
-                gateway.add_https_listener(self.custom_obj_api, gw, self.k8s_namespace, host_name)
+                gateway.add_https_listener(self.custom_obj_api, gw, host_name)
 
         http_route = self.cluster_info.get_http_route(gateway.GATEWAY_NAME, gateway.GATEWAY_NAMESPACE)
         log_debug(f"Sending this HTTPRoute: {http_route}")
@@ -612,11 +612,13 @@ class K8sDeployer(Deployer):
             if backup_settings().enabled and k8up.k8up_available(self.custom_obj_api):
                 k8up.delete_backup_configuration(self.core_api, self.custom_obj_api, self.k8s_namespace)
 
-            if self.cluster_info.spec.get_http_proxy() and gateway.gateway_api_available(self.custom_obj_api):
+            http_proxy_info_list = self.cluster_info.spec.get_http_proxy()
+            if http_proxy_info_list and gateway.gateway_api_available(self.custom_obj_api):
                 gateway.delete_http_route(self.custom_obj_api, self.k8s_namespace)
                 # The certificate Secret survives so that a redeployment of the
                 # same hostname reuses it rather than asking for a new one.
-                gateway.remove_https_listener(self.custom_obj_api, self.k8s_namespace)
+                host_name = http_proxy_info_list[0][constants.host_name_key]
+                gateway.remove_https_listener(self.custom_obj_api, host_name, self.k8s_namespace)
             else:
                 ingress: client.V1Ingress = self.cluster_info.get_ingress(use_tls=not self.is_kind())
                 if ingress:

@@ -31,8 +31,9 @@ stack-added listeners).
 
 For a spec with an `http-proxy` section, `stack manage start` creates:
 
-1. **An HTTPS listener on `stack-gateway`** for the deployment's `host-name`, named `<deployment-id>-https`,
-   referencing a certificate secret named `<deployment-id>-tls`. cert-manager notices the new listener on the
+1. **An HTTPS listener on `stack-gateway`** for the deployment's `host-name`, named after the hostname
+   (`app.example.com` gives `stack-app-example-com-https`), referencing a certificate secret named the same way
+   (`stack-app-example-com-tls`). cert-manager notices the new listener on the
    annotated Gateway and obtains a Let's Encrypt certificate for the hostname over ACME HTTP-01 (solving the
    challenge with a temporary HTTPRoute on the Gateway's HTTP listener). If an existing HTTPS listener already
    covers the hostname — in particular a machine-provisioned wildcard listener (`*.example.com`, certificate
@@ -46,6 +47,13 @@ For a spec with an `http-proxy` section, `stack manage start` creates:
 `stack manage stop` deletes the HTTPRoute and removes the deployment's listener. The certificate secret is left
 behind deliberately: redeploying the same hostname reuses the still-valid certificate instead of asking
 Let's Encrypt for a new one.
+
+Naming those objects after the hostname rather than after the deployment is what makes that reuse work. A
+deployment id changes whenever the stack is re-`init`ed, and a new secret name means cert-manager sees no
+certificate to reuse and places a fresh ACME order; Let's Encrypt issues five certificates per hostname per 168
+hours, so the sixth redeploy in a week used to leave the site with no certificate at all until the window
+rolled over (issue #283). Keyed by hostname, redeploying is free: the certificate is reissued only on genuine
+expiry, and only one secret per hostname accumulates in the Gateway's namespace.
 
 Because the certificate belongs to the Gateway's listener rather than to the workload, everything here is plain
 Kubernetes API objects — provisioning an HTTPS endpoint needs no access to the host beyond the Kubernetes API
