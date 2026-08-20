@@ -372,3 +372,9 @@ Every service in a deployment is reachable from every other service by its servi
 
 This works the same way whether the deployment target is Docker Compose or Kubernetes: on Kubernetes each deployment
 gets its own namespace, so the unqualified service name resolves within it.
+
+Declaring `ports:` is not what makes a service addressable.  A service with no `ports:` at all -- a database whose
+port nothing outside the deployment should reach, say -- still answers to its own name on both targets; on Kubernetes
+it gets a headless Service (no cluster IP, no ports) whose name resolves to the pod.  So there is no need to publish
+a port merely to obtain a hostname, which on the Compose target would also publish it on the host under
+`--map-ports-to-host`.
