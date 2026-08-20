@@ -961,7 +961,7 @@ def test_deployment_shape_and_defaults(tmp_path):
     assert deployment["kind"] == "Deployment"
     assert deployment["metadata"]["name"] == "deploy-web"
     assert deployment["spec"]["replicas"] == 1
-    assert deployment["spec"]["selector"] == {"matchLabels": {"app": TEST_CLUSTER_ID}}
+    assert deployment["spec"]["selector"] == {"matchLabels": {"app": TEST_CLUSTER_ID, "service": "web"}}
     assert deployment["spec"]["template"]["metadata"]["labels"] == {
         "app": TEST_CLUSTER_ID,
         "service": "web",
@@ -996,6 +996,12 @@ def test_one_deployment_per_service(tmp_path):
 
     deployments = cluster_info.get_deployments()
     assert [k8s_dict(d)["metadata"]["name"] for d in deployments] == ["deploy-web", "deploy-worker"]
+    # Each Deployment selects its own pods and nobody else's: with "app" alone in the
+    # selector every one of them nominally owns every pod in the deployment.
+    assert [k8s_dict(d)["spec"]["selector"]["matchLabels"] for d in deployments] == [
+        {"app": TEST_CLUSTER_ID, "service": "web"},
+        {"app": TEST_CLUSTER_ID, "service": "worker"},
+    ]
 
 
 # ---------------------------------------------------------------------------
