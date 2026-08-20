@@ -540,6 +540,26 @@ def _check_volume_definitions(spec):
             raise Exception(f"Affinity for volume {volume_name} must specify label and value")
 
 
+def _check_labels(spec):
+    # A spec's labels go onto the pod template, where two keys are already spoken
+    # for: the Deployment selects its own pods on app and service, and so does the
+    # Service.  Redefining either leaves a selector that no longer matches the pods
+    # it names, which k8s rejects outright -- with an error about label selectors
+    # rather than about the spec that caused it, at the point of creating the
+    # object rather than here.  Every other key is the author's to use.  Checked on
+    # every target and not just k8s: the names are reserved either way, and labels
+    # that do nothing on compose today would break the deployment on retargeting.
+    labels = spec.get_labels()
+    if not isinstance(labels, dict):
+        raise Exception(f"{constants.labels_key} must be a mapping of label name to value")
+    reserved = sorted(key for key in labels if key in constants.reserved_label_keys)
+    if reserved:
+        raise Exception(
+            f"{constants.labels_key} cannot redefine {', '.join(reserved)}: "
+            f"stack sets {' and '.join(constants.reserved_label_keys)} on every pod and selects on them"
+        )
+
+
 def _check_runtime_class(spec):
     # A RuntimeClass is a k8s object, so naming one on a compose deployment cannot
     # mean anything.  Rejected rather than ignored, on the same reasoning as the
@@ -617,6 +637,7 @@ def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec,
     log_debug(f"parsed spec: {parsed_spec}")
     _check_volume_definitions(parsed_spec)
     _check_runtime_class(parsed_spec)
+    _check_labels(parsed_spec)
     # Validated here as well as at init, since a spec file is edited by hand.
     stack_secrets.validate_spec_secrets(parsed_spec)
 

@@ -27,6 +27,7 @@ reaches a cluster only via connect_api(), which is never called here.
 import pytest
 
 from conftest import TEST_CLUSTER_ID, k8s_dict, make_cluster_info
+from stack import constants
 
 
 MINIMAL_POD = """\
@@ -1054,6 +1055,47 @@ def test_labels_substitute_container_name_and_keep_defaults(tmp_path):
         "service": "web",
         "web-tier": "web",
     }
+
+
+def _check_labels(spec_obj):
+    from stack.deploy.deployment_create import _check_labels as check
+    from stack.deploy.spec import Spec
+
+    check(Spec(obj=spec_obj))
+
+
+def test_reserved_label_keys_are_the_ones_generated(tmp_path):
+    # The check below knows which keys are stack's own; this is what keeps that
+    # list honest if the generated set ever changes.
+    cluster_info = make_cluster_info(tmp_path, MINIMAL_POD, k8s_spec())
+
+    labels = k8s_dict(cluster_info.get_deployments()[0])["spec"]["template"]["metadata"]["labels"]
+    assert set(labels) == set(constants.reserved_label_keys)
+
+
+@pytest.mark.parametrize("key", ["app", "service"])
+def test_reserved_label_key_is_rejected(key):
+    # Redefining either leaves the Deployment's selector naming pods that no longer
+    # carry the label, which k8s rejects when the object is created -- too late, and
+    # complaining about label selectors rather than about the spec.
+    with pytest.raises(Exception, match="cannot redefine"):
+        _check_labels(k8s_spec(labels={key: "whatever"}))
+
+
+def test_reserved_label_key_is_rejected_on_compose_too(tmp_path):
+    # Nothing reads labels on compose today, so this one costs the author nothing
+    # now and saves them the rejection on retargeting to k8s.
+    with pytest.raises(Exception, match="cannot redefine"):
+        _check_labels(k8s_spec(labels={"app": "whatever"}, **{"deploy-to": "compose"}))
+
+
+def test_other_label_keys_are_accepted(tmp_path):
+    _check_labels(k8s_spec(labels={"{name}-tier": "web", "owner": "team"}))
+
+
+def test_scalar_labels_are_rejected(tmp_path):
+    with pytest.raises(Exception, match="must be a mapping"):
+        _check_labels(k8s_spec(labels="web"))
 
 
 def test_node_affinity_from_spec(tmp_path):

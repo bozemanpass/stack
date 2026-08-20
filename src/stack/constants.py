@@ -51,6 +51,10 @@ kind_config_filename = "kind-config.yml"
 kube_config_filename = "kubeconfig.yml"
 kube_config_key = "kube-config"
 labels_key = "labels"
+# The pod labels stack generates for itself.  Both the Deployment and the Service
+# select their pods on these, so a spec's `labels` may not redefine them -- see
+# _check_labels in deployment_create.
+reserved_label_keys = ("app", "service")
 network_key = "network"
 node_affinities_key = "node-affinities"
 node_tolerations_key = "node-tolerations"
