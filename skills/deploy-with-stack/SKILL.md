@@ -86,9 +86,17 @@ Rules that matter:
 - **Every `path` in stack.yml is relative to the repository root**, not to stack.yml.
   A stack.yml in a `stack/` subdirectory still names its pod directory as
   `./stack/pods/...` and a sibling service as `./backend`.
-- **Container names are `<organization>/<name>`.** The composefile must reference the
-  image by that exact name with the tag `stack`, e.g. `image: myorg/backend:stack` —
-  this is the contract linking the two files.
+- **Container names are `<namespace>/<name>`, where `<namespace>` is the image registry
+  namespace the project publishes under** — for a github-hosted project, the GitHub
+  organization or user that owns the repo. The composefile must reference the image by
+  that exact name with the tag `stack`, e.g. `image: myorg/backend:stack` — this is the
+  contract linking the two files. The `<name>` half is free-form: it is *not* derived
+  from the repo name, and one repo normally declares several containers
+  (`myorg/todo-frontend` and `myorg/todo-backend` from a single repo is the usual
+  shape). Since the namespace is shared by every repo in the organization, make the
+  name project-specific rather than `api` or `frontend`. Nothing validates the
+  namespace — getting it wrong is not an error, just an image that can never be found
+  again (see "publish images", below).
 - A container's `path` points at its build recipe: a directory holding a `Dockerfile`,
   a `build.sh`, or a `container.yml`. Since the stack lives in the project's own repo
   and `ref` is omitted, containers build directly from the current checkout — no
@@ -188,6 +196,93 @@ stack build containers --stack ./stack
 `--stack` takes the path to the directory containing `stack.yml`. Verify every image
 exists afterward: `docker images | grep ':stack'`. If a build fails, fix the Dockerfile
 and rerun — the command is idempotent (`--build-policy build-force` forces a rebuild).
+
+## Optional — publish images so deploys don't build
+
+By default every deploy host builds every image from source. That is fine for one
+laptop and wasteful for anything else: a small VM may not have the memory to build a
+frontend, and each host repeats work that could be done once. The alternative is to
+publish images from CI and let `prepare` pull them.
+
+Discovery is a lookup on two things, and needs no configuration on the pulling side:
+
+- the **name**, taken verbatim from stack.yml with the registry host prefixed — the
+  registry being inferred from the recipe repo's git host, `github.com` → `ghcr.io`;
+- the **tag**, which is the commit hash of the *recipe repo* — the repo holding the
+  stack files, which for a project carrying its own `stack/` directory is simply that
+  repo.
+
+Repo identity lives entirely in the tag. That is why the name is free-form and why one
+commit can produce several images. So `stack prepare` computes the hash of the checkout
+in front of it, looks for `ghcr.io/<container-name>:<hash>`, pulls it if it is there and
+builds only if it is not — the default `as-needed` build policy. A production host that
+should never build can use `prebuilt-remote`, which fails rather than falling back.
+
+Publishing is one flag on the build. It does require the registry to be named
+explicitly; only pulling is auto-detected:
+
+```bash
+stack prepare --stack ./stack --publish-images --image-registry ghcr.io
+```
+
+As a GitHub Actions workflow (`.github/workflows/publish-images.yml`) that keeps `main`
+published:
+
+```yaml
+name: Publish Container Images
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install stack
+        run: |
+          mkdir -p "$HOME/bin"
+          curl -L -o "$HOME/bin/stack" https://github.com/bozemanpass/stack/releases/latest/download/stack
+          chmod +x "$HOME/bin/stack"
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and publish
+        run: |
+          stack prepare --stack ./stack \
+            --publish-images --image-registry ghcr.io
+```
+
+Three things to raise with the user when adding this:
+
+- **The namespace must be the GitHub organization** (see the stack.yml rules above).
+  This is the usual reason a published image is never found again, and it is a breaking
+  rename to fix afterwards.
+- **Commit `stack.lock` before enabling the workflow.** The first `stack prepare` writes
+  a `stack.lock` beside stack.yml pinning each off-the-shelf image (`postgres:17-alpine`,
+  …) to a digest. Run `stack prepare --stack ./stack` once locally and commit the result.
+  Skip this and CI regenerates the lock on every run, finds it uncommitted, and tags the
+  images `stackdev-` — they build and are then silently *not* pushed, with only a `WARN`
+  in the log. Staging the file is not enough; the check is whether it is committed.
+- **Only clean, committed, fully-pinned state publishes.** A dirty checkout or an
+  unpinned input yields a `stackdev-` version, which stack never pushes and never looks
+  for remotely — so local edits still build locally exactly as before, and CI stays the
+  only publisher.
+- **Architecture has to match.** A remote image counts as available only if its manifest
+  includes the deploy host's architecture. GitHub's standard runners are amd64, so an
+  arm64 host will quietly fall back to building locally.
+
+Reference:
+https://github.com/bozemanpass/stack/blob/main/docs/fetching-containers.md and
+https://github.com/bozemanpass/stack/blob/main/docs/image-names.md
 
 ## Step 4 — Generate a spec and deploy
 
