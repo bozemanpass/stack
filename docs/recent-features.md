@@ -1,5 +1,6 @@
 # Recent New Features
 
+  - [#292](https://github.com/bozemanpass/stack/pull/292) [`stack manage … destroy`](./commands/manage.md#destroy): the signal that a deployment is finished, so what it left in a cluster can be collected — `stop` and `start` are symmetric now and delete nothing permanent, while `destroy` takes the volumes, the namespace and (on kind) the cluster, keeping backups and any certificate a redeployment could still use
   - [#272](https://github.com/bozemanpass/stack/pull/272) [Sandboxed pods on Kubernetes](./k8s-deployment-enhancements.md): a spec's `runtime-class` puts named services on a RuntimeClass such as kata, so a service running untrusted code gets a VM of its own while the rest of the deployment stays ordinary containers
   - [#266](https://github.com/bozemanpass/stack/pull/266) [Stack integrity checking](./stack-integrity.md): `stack validate` verifies a stack's files agree with each other, and the same checks run advisorily during `prepare`, `build` and `init`
   - [#260](https://github.com/bozemanpass/stack/pull/260) `stack manage … update` converges a running deployment onto changed images and configuration, recreating only the services that changed
