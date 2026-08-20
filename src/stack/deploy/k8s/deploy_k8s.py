@@ -251,8 +251,8 @@ class K8sDeployer(Deployer):
 
     def connect_api(self):
         if self.is_kind():
-            # Stopping a kind deployment deletes its cluster, and kind removes the
-            # context with it, so there is nothing to load once one is stopped.
+            # Destroying a kind deployment deletes its cluster, and kind removes
+            # the context with it, so there is nothing left to load afterwards.
             # Raised as a condition of its own rather than let the kubernetes
             # client's ConfigException out: to the caller this is "not running",
             # and asking a stopped deployment what it is running is a fair
@@ -355,9 +355,9 @@ class K8sDeployer(Deployer):
         is typically baked into a data volume, so it has to live exactly as long
         as the data does.  On a remote cluster both live in the cluster, so the
         existing Secret is the store.  On kind the data lives under the
-        deployment directory and the cluster is destroyed on stop, so generated
-        values persist beside the data in secrets.env and the Secret is rebuilt
-        from them.  Referenced values are resolved fresh on every up.
+        deployment directory and the cluster does not survive destroy, so
+        generated values persist beside the data in secrets.env and the Secret
+        is rebuilt from them.  Referenced values are resolved fresh on every up.
 
         Returns True when the Secret was created or its data changed, so update
         knows the pods have to be restarted to see the new values.
@@ -472,8 +472,12 @@ class K8sDeployer(Deployer):
                 log_debug(f"Host {host_name} already covered by Gateway listener {listener['name']}")
             else:
                 # cert-manager sees the new listener on the annotated Gateway
-                # and obtains its certificate over HTTP-01.
+                # and obtains its certificate over HTTP-01 -- or reuses the
+                # certificate left behind by whoever served this hostname last.
                 gateway.add_https_listener(self.custom_obj_api, gw, host_name)
+            # Either way the certificate is in use again, so the sweep's clock
+            # for it starts over from the next time it falls out of use.
+            gateway.clear_unreferenced_mark(self.core_api, host_name)
 
         http_route = self.cluster_info.get_http_route(gateway.GATEWAY_NAME, gateway.GATEWAY_NAMESPACE)
         log_debug(f"Sending this HTTPRoute: {http_route}")
@@ -483,9 +487,10 @@ class K8sDeployer(Deployer):
         try:
             self.skip_cluster_management = skip_cluster_management
             if not opts.o.dry_run:
+                cluster_created = False
                 if self.is_kind() and not self.skip_cluster_management:
                     # Create the kind cluster
-                    create_cluster(
+                    cluster_created = create_cluster(
                         self.kind_cluster_name,
                         self.deployment_dir.joinpath(constants.kind_config_filename),
                     )
@@ -493,8 +498,10 @@ class K8sDeployer(Deployer):
                     load_images_into_kind(self.kind_cluster_name, self.cluster_info.image_set)
                 self.connect_api()
                 if self.is_kind() and not self.skip_cluster_management:
-                    # Now configure an ingress controller (not installed by default in kind)
-                    install_ingress_for_kind()
+                    # Now configure an ingress controller (not installed by default in kind).
+                    # A cluster that was already there still has the one it was given.
+                    if cluster_created:
+                        install_ingress_for_kind()
                     # Wait for ingress to start (deployment provisioning will fail unless this is done)
                     wait_for_ingress_in_kind()
 
@@ -545,104 +552,166 @@ class K8sDeployer(Deployer):
         except Exception as e:
             error_exit(f"Exception thrown bringing stack up: {e}")
 
-    def down(self, timeout, volumes, skip_cluster_management):  # noqa: C901
+    def _delete_deployment_objects(self):
+        """Delete the objects that up() creates from the deployment directory.
+
+        Everything here is derived from the deployment's own files, so a later
+        start recreates it identically.  Nothing here holds data.
+        """
+        # Figure out the ConfigMaps for this deployment
+        cfg_maps = self.cluster_info.get_configmaps()
+        for cfg_map in cfg_maps:
+            log_debug(f"Deleting this ConfigMap: {cfg_map}")
+            try:
+                cfg_map_resp = self.core_api.delete_namespaced_config_map(
+                    name=cfg_map.metadata.name,
+                    namespace=self.k8s_namespace
+                    )
+                log_debug("ConfigMap deleted:")
+                log_debug(f"{cfg_map_resp}")
+            except client.exceptions.ApiException as e:
+                _check_delete_exception(e)
+
+        deployments = self.cluster_info.get_deployments()
+        for deployment in deployments:
+            log_debug(f"Deleting this deployment: {deployment}")
+            try:
+                self.apps_api.delete_namespaced_deployment(name=deployment.metadata.name, namespace=self.k8s_namespace)
+            except client.exceptions.ApiException as e:
+                _check_delete_exception(e)
+
+        services: client.V1Service = self.cluster_info.get_services()
+        for svc in services:
+            log_debug(f"Deleting service: {svc}")
+            try:
+                self.core_api.delete_namespaced_service(namespace=self.k8s_namespace, name=svc.metadata.name)
+            except client.exceptions.ApiException as e:
+                _check_delete_exception(e)
+
+        # Only the scheduling stops; the repository the backups are in is
+        # deliberately left alone, since backups exist to outlive the
+        # deployment that made them.
+        if backup_settings().enabled and k8up.k8up_available(self.custom_obj_api):
+            k8up.delete_backup_configuration(self.core_api, self.custom_obj_api, self.k8s_namespace)
+
+        http_proxy_info_list = self.cluster_info.spec.get_http_proxy()
+        if http_proxy_info_list and gateway.gateway_api_available(self.custom_obj_api):
+            gateway.delete_http_route(self.custom_obj_api, self.k8s_namespace)
+            # The certificate Secret survives so that a redeployment of the
+            # same hostname reuses it rather than asking for a new one.
+            host_name = http_proxy_info_list[0][constants.host_name_key]
+            gateway.remove_https_listener(self.custom_obj_api, host_name, self.k8s_namespace)
+        else:
+            ingress: client.V1Ingress = self.cluster_info.get_ingress(use_tls=not self.is_kind())
+            if ingress:
+                log_debug(f"Deleting this ingress: {ingress}")
+                try:
+                    self.networking_api.delete_namespaced_ingress(name=ingress.metadata.name, namespace=self.k8s_namespace)
+                except client.exceptions.ApiException as e:
+                    _check_delete_exception(e)
+            else:
+                log_debug("No ingress to delete")
+
+    def _delete_volume_objects(self):
+        """Delete the deployment's PVCs and its cluster-scoped PVs.
+
+        The PVs are cluster-scoped, so deleting the namespace does not reach
+        them.  Neither deletion touches the data itself: a node-path volume's
+        directory is on the node, and stack has no way in from here.
+        """
+        pvs = self.cluster_info.get_pvs()
+        for pv in pvs:
+            log_debug(f"Deleting this pv: {pv}")
+            try:
+                pv_resp = self.core_api.delete_persistent_volume(name=pv.metadata.name)
+                log_debug("PV deleted:")
+                log_debug(f"{pv_resp}")
+            except client.exceptions.ApiException as e:
+                _check_delete_exception(e)
+
+        # Figure out the PVCs for this deployment
+        pvcs = self.cluster_info.get_pvcs()
+        for pvc in pvcs:
+            log_debug(f"Deleting this pvc: {pvc}")
+            try:
+                pvc_resp = self.core_api.delete_namespaced_persistent_volume_claim(
+                    name=pvc.metadata.name, namespace=self.k8s_namespace
+                )
+                log_debug("PVCs deleted:")
+                log_debug(f"{pvc_resp}")
+            except client.exceptions.ApiException as e:
+                _check_delete_exception(e)
+
+    def down(self, timeout):
+        """Stop the deployment: delete what start recreates, and nothing else.
+
+        The namespace, the volumes and (on kind) the cluster stay, so that a
+        later start finds the data where it left it.  Getting rid of those is
+        destroy's business.
+        """
+        try:
+            self.connect_api()
+            self._delete_deployment_objects()
+        except Exception as e:
+            error_exit(f"Exception thrown stopping stack: {e}")
+
+    def destroy(self, timeout, delete_volumes, delete_certificate, skip_cluster_management):  # noqa: C901
         try:
             self.skip_cluster_management = skip_cluster_management
-            self.connect_api()
-            # Delete the k8s objects
+            try:
+                self.connect_api()
+            except ClusterNotRunningException as e:
+                # A kind deployment whose cluster is already gone has nothing
+                # left in a cluster to destroy.
+                log_debug(f"{e}: nothing left to destroy")
+                return
+            self._delete_deployment_objects()
 
-            if volumes:
-                # Create the host-path-mounted PVs for this deployment
-                pvs = self.cluster_info.get_pvs()
-                for pv in pvs:
-                    log_debug(f"Deleting this pv: {pv}")
-                    try:
-                        pv_resp = self.core_api.delete_persistent_volume(name=pv.metadata.name)
-                        log_debug("PV deleted:")
-                        log_debug(f"{pv_resp}")
-                    except client.exceptions.ApiException as e:
-                        _check_delete_exception(e)
-
-                # Figure out the PVCs for this deployment
-                pvcs = self.cluster_info.get_pvcs()
-                for pvc in pvcs:
-                    log_debug(f"Deleting this pvc: {pvc}")
-                    try:
-                        pvc_resp = self.core_api.delete_namespaced_persistent_volume_claim(
-                            name=pvc.metadata.name, namespace=self.k8s_namespace
-                        )
-                        log_debug("PVCs deleted:")
-                        log_debug(f"{pvc_resp}")
-                    except client.exceptions.ApiException as e:
-                        _check_delete_exception(e)
-
-            # Figure out the ConfigMaps for this deployment
-            cfg_maps = self.cluster_info.get_configmaps()
-            for cfg_map in cfg_maps:
-                log_debug(f"Deleting this ConfigMap: {cfg_map}")
-                try:
-                    cfg_map_resp = self.core_api.delete_namespaced_config_map(
-                        name=cfg_map.metadata.name,
-                        namespace=self.k8s_namespace
-                        )
-                    log_debug("ConfigMap deleted:")
-                    log_debug(f"{cfg_map_resp}")
-                except client.exceptions.ApiException as e:
-                    _check_delete_exception(e)
-
-            deployments = self.cluster_info.get_deployments()
-            for deployment in deployments:
-                log_debug(f"Deleting this deployment: {deployment}")
-                try:
-                    self.apps_api.delete_namespaced_deployment(name=deployment.metadata.name, namespace=self.k8s_namespace)
-                except client.exceptions.ApiException as e:
-                    _check_delete_exception(e)
-
-            services: client.V1Service = self.cluster_info.get_services()
-            for svc in services:
-                log_debug(f"Deleting service: {svc}")
-                try:
-                    self.core_api.delete_namespaced_service(namespace=self.k8s_namespace, name=svc.metadata.name)
-                except client.exceptions.ApiException as e:
-                    _check_delete_exception(e)
-
-            # Only the scheduling stops; the repository the backups are in is
-            # deliberately left alone, since backups exist to outlive the
-            # deployment that made them.
-            if backup_settings().enabled and k8up.k8up_available(self.custom_obj_api):
-                k8up.delete_backup_configuration(self.core_api, self.custom_obj_api, self.k8s_namespace)
-
-            http_proxy_info_list = self.cluster_info.spec.get_http_proxy()
-            if http_proxy_info_list and gateway.gateway_api_available(self.custom_obj_api):
-                gateway.delete_http_route(self.custom_obj_api, self.k8s_namespace)
-                # The certificate Secret survives so that a redeployment of the
-                # same hostname reuses it rather than asking for a new one.
-                host_name = http_proxy_info_list[0][constants.host_name_key]
-                gateway.remove_https_listener(self.custom_obj_api, host_name, self.k8s_namespace)
-            else:
-                ingress: client.V1Ingress = self.cluster_info.get_ingress(use_tls=not self.is_kind())
-                if ingress:
-                    log_debug(f"Deleting this ingress: {ingress}")
-                    try:
-                        self.networking_api.delete_namespaced_ingress(name=ingress.metadata.name, namespace=self.k8s_namespace)
-                    except client.exceptions.ApiException as e:
-                        _check_delete_exception(e)
-                else:
-                    log_debug("No ingress to delete")
-
-            if volumes:
+            # A kind deployment's cluster goes below, taking every object in it,
+            # so deleting them one at a time here would be for nothing -- and
+            # promising to keep any of them would be a lie.  Its volume data is
+            # not in the cluster anyway: it is bind-mounted from the deployment
+            # directory, where destroy leaves it.
+            cluster_goes = self.is_kind() and not self.skip_cluster_management
+            if delete_volumes and not cluster_goes:
+                self._delete_volume_objects()
                 try:
                     self.core_api.delete_namespace(name=self.k8s_namespace)
                     log_debug(f"Namespace {self.k8s_namespace} deleted")
                 except client.exceptions.ApiException as e:
                     _check_delete_exception(e)
+            elif not delete_volumes and not cluster_goes:
+                # The PVCs live in the namespace, so keeping the volumes means
+                # keeping the namespace they are claimed in.
+                output_main(f"Volumes preserved: namespace {self.k8s_namespace} left in place")
 
-            if self.is_kind() and not self.skip_cluster_management:
+            http_proxy_info_list = self.cluster_info.spec.get_http_proxy()
+            if http_proxy_info_list and gateway.gateway_api_available(self.custom_obj_api):
+                host_name = http_proxy_info_list[0][constants.host_name_key]
+                secret_name = gateway.secret_name_for_host(host_name)
+                if delete_certificate:
+                    if gateway.delete_certificate_secret(self.core_api, host_name):
+                        output_main(f"Certificate for {host_name} deleted (Secret {secret_name})")
+                else:
+                    output_main(
+                        f"Certificate for {host_name} kept (Secret {secret_name} in {gateway.GATEWAY_NAMESPACE}): "
+                        "redeploying this hostname reuses it rather than ordering a new one"
+                    )
+                # Whatever this deployment's hostname, this is a good moment to
+                # collect the certificates that are past being useful to anyone.
+                for name in gateway.sweep_certificate_secrets(self.core_api, self.custom_obj_api):
+                    log_info(f"Deleted expired certificate Secret {name}")
+
+            if cluster_goes:
                 # Destroy the kind cluster
                 destroy_cluster(self.kind_cluster_name)
+                output_main(
+                    f"kind cluster {self.kind_cluster_name} deleted. Volume data under the deployment "
+                    "directory is untouched."
+                )
 
         except Exception as e:
-            error_exit(f"Exception thrown bringing stack up: {e}")
+            error_exit(f"Exception thrown destroying stack: {e}")
 
     def status(self):
         try:

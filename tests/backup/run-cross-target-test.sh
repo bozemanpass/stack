@@ -115,7 +115,7 @@ extra_deployment_dirs=()
 stop_extra_deployments () {
     local dir
     for dir in "${extra_deployment_dirs[@]}"; do
-        $TEST_TARGET_STACK manage --dir "$dir" stop --delete-volumes
+        $TEST_TARGET_STACK manage --dir "$dir" destroy --yes
     done
 }
 TEST_EXTRA_CLEANUP=stop_extra_deployments

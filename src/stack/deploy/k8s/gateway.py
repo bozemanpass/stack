@@ -35,6 +35,7 @@ assume).  Deployments whose hostname is already covered by such a listener get
 no listener of their own -- only an HTTPRoute.
 """
 
+import datetime
 import hashlib
 import re
 
@@ -63,7 +64,14 @@ HTTP_ROUTE_NAME = "http-route"
 # under a prefix that marks them as stack's among whatever else lives in the
 # Gateway's namespace.
 NAME_PREFIX = "stack-"
+SECRET_SUFFIX = "-tls"
 MAX_OBJECT_NAME_LENGTH = 253
+
+# A certificate Secret is collectable only once it is certainly expired, which is
+# a Let's Encrypt certificate's lifetime after the last listener stopped naming
+# it.  See sweep_certificate_secrets.
+UNREFERENCED_SINCE_ANNOTATION = "stack.bozemanpass.com/certificate-unreferenced-since"
+CERTIFICATE_LIFETIME = datetime.timedelta(days=90)
 
 CLUSTER_ISSUER_ANNOTATION = "cert-manager.io/cluster-issuer"
 
@@ -200,7 +208,7 @@ def listener_name_for_host(host_name: str) -> str:
 
 
 def secret_name_for_host(host_name: str) -> str:
-    return _name_for_host(host_name, "-tls")
+    return _name_for_host(host_name, SECRET_SUFFIX)
 
 
 def https_listener_for_host(host_name: str):
@@ -289,3 +297,125 @@ def delete_http_route(custom_obj_api: client.CustomObjectsApi, namespace: str):
         if e.status != 404:
             raise
         log_debug("No HTTPRoute to delete")
+
+
+def _certificate_secret_names_in_use(gateway) -> set:
+    """The certificate Secrets the Gateway's listeners currently reference."""
+    names = set()
+    for listener in gateway.get("spec", {}).get("listeners", []):
+        for ref in (listener.get("tls") or {}).get("certificateRefs", []):
+            if ref.get("name"):
+                names.add(ref["name"])
+    return names
+
+
+def _stack_certificate_secrets(core_api: client.CoreV1Api):
+    """The TLS Secrets stack's listeners named, and only those.
+
+    A machine-provisioned wildcard certificate lives in the same namespace and
+    is nobody's to collect, so the sweep goes by stack's own naming rather than
+    by "every TLS Secret here".
+    """
+    secrets = core_api.list_namespaced_secret(namespace=GATEWAY_NAMESPACE, field_selector="type=kubernetes.io/tls")
+    return [
+        secret
+        for secret in secrets.items
+        if secret.metadata.name.startswith(NAME_PREFIX) and secret.metadata.name.endswith(SECRET_SUFFIX)
+    ]
+
+
+def _annotate_secret(core_api: client.CoreV1Api, name: str, value):
+    """Set (or, with value None, remove) the unreferenced mark on a Secret."""
+    try:
+        core_api.patch_namespaced_secret(
+            name=name,
+            namespace=GATEWAY_NAMESPACE,
+            body={"metadata": {"annotations": {UNREFERENCED_SINCE_ANNOTATION: value}}},
+        )
+    except client.exceptions.ApiException as e:
+        if e.status != 404:
+            raise
+
+
+def clear_unreferenced_mark(core_api: client.CoreV1Api, host_name: str):
+    """Note that a hostname's certificate is in use again.
+
+    Called when a listener is added, so that the sweep below measures from the
+    last time the certificate fell out of use rather than from some earlier one.
+    """
+    _annotate_secret(core_api, secret_name_for_host(host_name), None)
+
+
+def delete_certificate_secret(core_api: client.CoreV1Api, host_name: str) -> bool:
+    """Delete a hostname's certificate Secret now.  True if there was one."""
+    try:
+        core_api.delete_namespaced_secret(name=secret_name_for_host(host_name), namespace=GATEWAY_NAMESPACE)
+        return True
+    except client.exceptions.ApiException as e:
+        if e.status != 404:
+            raise
+        return False
+
+
+def _unreferenced_since(secret):
+    stamp = (secret.metadata.annotations or {}).get(UNREFERENCED_SINCE_ANNOTATION)
+    if not stamp:
+        return None
+    try:
+        return datetime.datetime.fromisoformat(stamp)
+    except ValueError:
+        # Something else wrote it, or an older stack wrote it differently.  Treat
+        # it as unmarked and mark it again: worst case the clock restarts.
+        log_debug(f"Unparseable {UNREFERENCED_SINCE_ANNOTATION} on Secret: {stamp}")
+        return None
+
+
+def sweep_certificate_secrets(core_api: client.CoreV1Api, custom_obj_api: client.CustomObjectsApi, now=None):
+    """Delete certificate Secrets that are certainly expired, and no others.
+
+    A certificate Secret outlives the deployment that caused it on purpose: the
+    listener is removed whenever the deployment stops, and re-adding it later
+    reuses the still-valid certificate instead of asking Let's Encrypt for
+    another one -- whose duplicate-certificate limit is five a week for the same
+    name, which a redeploy loop reaches easily.  So nothing here deletes a
+    certificate that anything could still use.
+
+    What can be deleted is one that has been unreferenced by any listener for a
+    full certificate lifetime: nothing renews an unreferenced certificate, since
+    cert-manager's Certificate object goes with the listener, so such a Secret
+    holds an expired certificate and a redeployment of its hostname would order
+    a new one regardless.
+
+    That is measured rather than read out of the certificate because reading it
+    would mean parsing X.509 -- a dependency for a date.  The first sweep to see
+    a Secret unreferenced marks it and moves on; a later one deletes it.  The
+    mark is cleared whenever the hostname is served again, so the interval is
+    always the current one.
+
+    Returns the names deleted.
+    """
+    gateway = get_gateway(custom_obj_api)
+    if not gateway:
+        return []
+    in_use = _certificate_secret_names_in_use(gateway)
+    now = now or datetime.datetime.now(datetime.timezone.utc)
+    deleted = []
+    for secret in _stack_certificate_secrets(core_api):
+        name = secret.metadata.name
+        if name in in_use:
+            continue
+        since = _unreferenced_since(secret)
+        if since is None:
+            log_debug(f"Marking unreferenced certificate Secret {name}")
+            _annotate_secret(core_api, name, now.isoformat())
+            continue
+        if now - since < CERTIFICATE_LIFETIME:
+            continue
+        log_debug(f"Deleting certificate Secret {name}, unreferenced since {since.isoformat()}")
+        try:
+            core_api.delete_namespaced_secret(name=name, namespace=GATEWAY_NAMESPACE)
+            deleted.append(name)
+        except client.exceptions.ApiException as e:
+            if e.status != 404:
+                raise
+    return deleted

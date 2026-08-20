@@ -85,14 +85,22 @@ def up_operation(ctx, services_list, stay_attached=False, skip_cluster_managemen
     )
 
 
-def down_operation(ctx, delete_volumes, extra_args_list, skip_cluster_management=False):
+def down_operation(ctx, extra_args_list):
     timeout_arg = None
     if extra_args_list:
         timeout_arg = extra_args_list[0]
     # Specify shutdown timeout (default 10s) to give services enough time to shutdown gracefully
-    ctx.obj.deployer.down(
+    ctx.obj.deployer.down(timeout=timeout_arg)
+
+
+def destroy_operation(ctx, delete_volumes, delete_certificate, extra_args_list, skip_cluster_management=False):
+    timeout_arg = None
+    if extra_args_list:
+        timeout_arg = extra_args_list[0]
+    ctx.obj.deployer.destroy(
         timeout=timeout_arg,
-        volumes=delete_volumes,
+        delete_volumes=delete_volumes,
+        delete_certificate=delete_certificate,
         skip_cluster_management=skip_cluster_management,
     )
 

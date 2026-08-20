@@ -111,10 +111,25 @@ class DockerDeployer(Deployer):
             except DockerException as e:
                 raise DeployerException(e)
 
-    def down(self, timeout, volumes, skip_cluster_management):
+    def down(self, timeout):
         if not opts.o.dry_run:
             try:
-                return self.docker.compose.down(timeout=timeout, volumes=volumes)
+                return self.docker.compose.down(timeout=timeout)
+            except DockerException as e:
+                raise DeployerException(e)
+
+    def destroy(self, timeout, delete_volumes, delete_certificate, skip_cluster_management):
+        """Stop the deployment and remove its volume objects.
+
+        There is no certificate of stack's own to collect here: TLS on this
+        target is the docker-ingress stack's business, and its certificates live
+        in its own volume (see docs/ingress.md).  Removing a named volume
+        removes the volume object, never a bind-mounted directory's contents --
+        the same thing it has always meant on this target.
+        """
+        if not opts.o.dry_run:
+            try:
+                return self.docker.compose.down(timeout=timeout, volumes=delete_volumes)
             except DockerException as e:
                 raise DeployerException(e)
 
