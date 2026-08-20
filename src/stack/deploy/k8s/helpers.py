@@ -350,9 +350,18 @@ def _expand_shell_vars(raw_val: str, environ=os.environ) -> str:
 # TODO: handle the case where the same env var is defined in multiple places
 def envs_from_compose_file(compose_file_envs: Mapping[str, str], environ=os.environ) -> Mapping[str, str]:
     result = {}
-    if isinstance(compose_file_envs, CommentedSeq):
+    if isinstance(compose_file_envs, list):
         for item in compose_file_envs:
-            env_var, env_val = item.split("=", 2)
+            # Only the first "=" separates the name from the value: a value is free to
+            # contain more of them.  An entry with none at all is compose's pass-through
+            # form, which names a variable to take from the surrounding environment and
+            # is omitted entirely when that variable is unset.
+            env_var, separator, env_val = _env_value_to_str(item).partition("=")
+            if not separator:
+                if env_var not in environ:
+                    continue
+                result.update({env_var: _env_value_to_str(environ[env_var])})
+                continue
             expanded_env_val = _expand_shell_vars(env_val, environ)
             result.update({env_var: expanded_env_val})
     else:
