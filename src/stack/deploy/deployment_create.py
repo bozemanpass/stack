@@ -18,6 +18,7 @@ import click
 import json
 import os
 import random
+import re
 
 from importlib import util
 from pathlib import Path
@@ -445,6 +446,40 @@ def _remove_secret_environment_literals(service_info, secret_names):
         service_info["environment"] = [e for e in env if str(e).split("=", 1)[0] not in secret_names]
 
 
+def _warn_about_shadowed_config(service_name, service_info, config_vars):
+    # The deployment's config.env is the lowest-precedence env source on both targets
+    # (see docs/stack-files.md), so an inline literal for the same key wins and the
+    # value the deployer supplied at init never reaches the container.  That is the
+    # documented behaviour, and compose's, but it is silent, and a stale inline
+    # default that outranks `--config PUBLIC_BASE_URL=https://...` produces a wrong
+    # deployment rather than a failed one.  So say so, per service and key.
+    env = service_info.get("environment")
+    if not env or not config_vars:
+        return
+    if isinstance(env, dict):
+        inline = {str(name): value for name, value in env.items()}
+    else:
+        # A sequence entry with no "=" is a pass-through, not a literal: it carries no
+        # value of its own and so shadows nothing.
+        inline = dict(str(e).split("=", 1) for e in env if "=" in str(e))
+    for name, value in inline.items():
+        if name not in config_vars:
+            continue
+        value = "" if value is None else str(value)
+        # The documented way to let a config value through is to forward it, e.g.
+        # `SOME_VAR: "${SOME_VAR}"`.  That is the fix, not an instance of the problem.
+        if re.search(r"\$\{?" + re.escape(name) + r"\b", value):
+            continue
+        if value == str(config_vars[name]):
+            continue
+        log_warn(
+            f"WARN: {service_name}: the composefile sets {name} inline, which overrides the "
+            f"{name} in this deployment's config.env; the container will see {value!r}, not "
+            f"{str(config_vars[name])!r}.  To let the deployment's value through, write it as "
+            f'{name}: "${{{name}}}" in the composefile (see docs/stack-files.md).'
+        )
+
+
 def _write_config_file(spec: Spec, config_env_file: Path):
     # Note: we want to write an empty file even if we have no config variables
     with open(config_env_file, "w") as output_file:
@@ -659,6 +694,13 @@ def create_operation(deployment_command_context, parsed_spec: Spec | MergedSpec,
         if parsed_spec.get_secrets():
             for service_info in parsed_pod_file.get(constants.services_key, {}).values():
                 _remove_secret_environment_literals(service_info, list(parsed_spec.get_secrets()))
+
+        # On every target: a config value the deployer supplied is outranked by an
+        # inline literal for the same key, and silence there is what makes it bite.
+        config_vars = parsed_spec.get_config()
+        if config_vars:
+            for service_name, service_info in parsed_pod_file.get(constants.services_key, {}).items():
+                _warn_about_shadowed_config(service_name, service_info, config_vars)
 
         # The backup stack fills a gap that only the Docker target has: on
         # Kubernetes the backup engine is K8up, configured by the deployer from

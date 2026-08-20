@@ -364,6 +364,12 @@ This is the order Docker Compose uses, and it is applied identically for Kuberne
 hands its containers the same values whichever target it is deployed to.  A pod file that wants a deployment-time
 value to reach the container can forward it explicitly, e.g. `environment: {SOME_VAR: "${SOME_VAR}"}`.
 
+The consequence worth knowing is that an inline default beats a value the deployer supplied with `--config`: the
+composefile wins, and the deployment is wrong rather than failed.  So `stack deploy` reports it, naming the service
+and the key and both values, whenever a key in the deployment's `config.env` is shadowed by an inline literal that
+differs from it.  A forwarding entry (above) is the fix and is not reported, nor is an inline literal that agrees
+with the config value, nor a sequence entry with no value of its own (`- SOME_VAR`).
+
 ### Service Hostnames
 
 Every service in a deployment is reachable from every other service by its service name as it appears in the
