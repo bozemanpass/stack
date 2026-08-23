@@ -107,7 +107,10 @@ Rules that matter:
   name in the composefile (`image: postgres:16`); an app without a Dockerfile can use a
   wrapper — `static-content` for a static site, `webapp` for a built frontend, `nextjs`
   for Next.js, `node-service` for a long-running node service (list them with
-  `stack webapp wrappers`).
+  `stack webapp wrappers`). A `static-content` site can be put behind HTTP basic
+  authentication with the `STACK_AUTH_USER` and `STACK_AUTH_PASSWORD` config
+  variables, which is a decision that can be made (and reversed) after deploying;
+  see https://github.com/bozemanpass/stack/blob/main/docs/wrappers.md
 - Pods are the unit of deployment grouping; one composefile each. A single pod holding
   all services is the right default for a small system.
 - A pod entry can carry `pre_start_command` / `post_start_command` (host-side scripts,

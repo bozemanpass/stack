@@ -19,6 +19,12 @@ $TEST_TARGET_STACK webapp build --wrapper static-content --source-repo $STACK_RE
 
 app_image_name="bozemanpass/stack-test-static-content:stack"
 
+# Nothing below configures authentication, so these are also this test's "no
+# credentials configured" leg: what they assert is that the image serves its
+# content to anyone until someone asks for a gate.  Shipping a gate that works
+# only when it is configured, and quietly serves everything when it is not, is
+# the failure they catch, so they are load-bearing rather than redundant with the
+# authentication legs that follow.
 start_container -p 3000:80 -d ${app_image_name}
 sleep 3
 fetch_url http://localhost:3000/ $scratch/test.index
@@ -37,6 +43,68 @@ echo ""
 assert_file_contains $scratch/test.index "STACK_STATIC_CONTENT_TEST_INDEX_MARKER" INDEX
 assert_file_contains $scratch/test.subdir "STACK_STATIC_CONTENT_TEST_SUBDIR_MARKER" SUBDIR
 assert_file_contains $scratch/test.css "font-family" CSS
+
+# Now the same image with authentication configured.  The credentials are read
+# from the environment when the container starts, so this is the same image the
+# assertions above ran against, with nothing rebuilt.
+echo "Running static content authentication test"
+
+auth_user=alice
+# Deliberately awkward: a password reaches the container as an argument, and the
+# quoting is worth exercising once.
+auth_password='s3cr#t pw'
+
+start_container -p 3000:80 -d \
+  -e STACK_AUTH_USER=${auth_user} \
+  -e STACK_AUTH_PASSWORD="${auth_password}" \
+  -e STACK_AUTH_REALM="Test Site" \
+  -e STACK_AUTH_EXCLUDE=/css/ \
+  ${app_image_name}
+
+# The excluded path is served without credentials, so waiting for it is both the
+# wait for the server to come up and the assertion that the exclusion works.
+wait_for_content http://localhost:3000/css/style.css "font-family"
+echo "AUTH-EXCLUDE: PASSED"
+
+assert_url_status http://localhost:3000/ 401 AUTH-CHALLENGED
+assert_url_status http://localhost:3000/pages/about.html 401 AUTH-CHALLENGED-SUBDIR
+assert_url_status http://localhost:3000/ 401 AUTH-WRONG-PASSWORD -u "${auth_user}:wrong"
+assert_url_status http://localhost:3000/ 401 AUTH-UNKNOWN-USER -u "nobody:${auth_password}"
+
+curl -s -D $scratch/test.auth-headers -o /dev/null http://localhost:3000/
+assert_file_contains $scratch/test.auth-headers 'WWW-Authenticate: Basic realm="Test Site"' AUTH-REALM
+
+# The content itself, not just the status: a gate that answers 200 and serves
+# nothing would pass every assertion above.
+fetch_url http://localhost:3000/ $scratch/test.auth-index --user=${auth_user} --password="${auth_password}"
+assert_file_contains $scratch/test.auth-index "STACK_STATIC_CONTENT_TEST_INDEX_MARKER" AUTH-SERVED
+
+docker stop $CONTAINER_ID > /dev/null
+
+# Several users, supplied already hashed.  The hashes are made with the image's
+# own htpasswd, which is the tool the container would have used on a plaintext
+# password anyway.
+bob_entry=$( docker run --rm --entrypoint htpasswd ${app_image_name} -nbB bob bob-password )
+carol_entry=$( docker run --rm --entrypoint htpasswd ${app_image_name} -nbB carol carol-password )
+
+start_container -p 3000:80 -d -e STACK_AUTH_HTPASSWD="${bob_entry}
+${carol_entry}" ${app_image_name}
+
+fetch_url http://localhost:3000/ $scratch/test.auth-htpasswd --user=bob --password=bob-password
+assert_file_contains $scratch/test.auth-htpasswd "STACK_STATIC_CONTENT_TEST_INDEX_MARKER" AUTH-HTPASSWD
+assert_url_status http://localhost:3000/ 200 AUTH-HTPASSWD-SECOND-USER -u carol:carol-password
+assert_url_status http://localhost:3000/ 401 AUTH-HTPASSWD-CHALLENGED
+
+docker stop $CONTAINER_ID > /dev/null
+
+# Half a credential must fail the container's start rather than resolve itself
+# one way or the other: taking the user alone would serve the content to anyone,
+# and taking the password alone would lock it behind a name nobody knows.  No
+# published port here -- the container is expected to exit.
+if docker run --rm -e STACK_AUTH_USER=${auth_user} ${app_image_name} > /dev/null 2>&1; then
+    fail "AUTH-HALF-CREDENTIAL: FAILED - the container started with a user and no password"
+fi
+echo "AUTH-HALF-CREDENTIAL: PASSED"
 
 # Test wrapping only a subdirectory of the source repo, with --content-root
 subdir_image_name="bozemanpass/stack-test-static-content-content-root:stack"
@@ -100,6 +168,37 @@ assert_file_contains $scratch/test.deployed "STACK_STATIC_CONTENT_TEST_INDEX_MAR
 
 fetch_url http://localhost:80/pages/about.html $scratch/test.deployed-subdir
 assert_file_contains $scratch/test.deployed-subdir "STACK_STATIC_CONTENT_TEST_SUBDIR_MARKER" DEPLOY-SUBDIR
+
+# Turning authentication on after the deployment exists, which is the case worth
+# testing: a site is normally published before anyone decides it should be
+# private.  A deployment's config lives in config.env, and `update` is what
+# applies a change to it -- no rebuild, and the same image is left running.
+echo "Running post-deployment authentication test"
+
+deployed_password=deployed-secret
+cat >> $test_deployment_dir/config.env <<EOF
+STACK_AUTH_USER=${auth_user}
+STACK_AUTH_PASSWORD=${deployed_password}
+EOF
+
+$TEST_TARGET_STACK manage --dir $test_deployment_dir update
+
+# The authenticated fetch first: wget retries while the recreated container comes
+# up, so it doubles as the wait, and an immediate status assertion here would
+# otherwise read a refused connection as a gated site.
+fetch_url http://localhost:80/ $scratch/test.deployed-auth --user=${auth_user} --password=${deployed_password}
+assert_file_contains $scratch/test.deployed-auth "STACK_STATIC_CONTENT_TEST_INDEX_MARKER" DEPLOY-AUTH-SERVED
+assert_url_status http://localhost:80/ 401 DEPLOY-AUTH-CHALLENGED
+
+# And off again: the same edit in reverse ungates the site, which is the half of
+# the claim that a test of turning it on does not make.
+grep -v '^STACK_AUTH_' $test_deployment_dir/config.env > $test_deployment_dir/config.env.ungated
+mv $test_deployment_dir/config.env.ungated $test_deployment_dir/config.env
+
+$TEST_TARGET_STACK manage --dir $test_deployment_dir update
+
+fetch_url http://localhost:80/ $scratch/test.deployed-ungated
+assert_file_contains $scratch/test.deployed-ungated "STACK_STATIC_CONTENT_TEST_INDEX_MARKER" DEPLOY-AUTH-REMOVED
 
 # Finally, build a stack whose container entry uses content-root in stack.yml.
 $TEST_TARGET_STACK build containers --stack test-static-content-subdir

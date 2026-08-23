@@ -32,6 +32,7 @@ file listing is its own index.
 | Rebuild giving a dirty checkout a `stackdev-` identity | [`tests/app-deploy/run-test.sh`](../tests/app-deploy/run-test.sh) | `deploy update content` | compose + kind per-PR; remote + remote-compose weekly |
 | `webapp` wrapper (build and serve a Vite/React app) | [`tests/webapp-test/run-webapp-test.sh`](../tests/webapp-test/run-webapp-test.sh) | whole script | compose, per-PR and weekly |
 | `static-content` wrapper | [`tests/static-content-test/run-static-content-test.sh`](../tests/static-content-test/run-static-content-test.sh) | whole script | compose, per-PR and weekly |
+| `static-content` wrapper: HTTP basic auth, configured and unconfigured | [`tests/static-content-test/run-static-content-test.sh`](../tests/static-content-test/run-static-content-test.sh) | `AUTH-CHALLENGED`, `AUTH-SERVED`, `AUTH-EXCLUDE`, `AUTH-HTPASSWD`, `AUTH-HALF-CREDENTIAL` | compose, per-PR and weekly |
 
 ## Init and deploy
 
@@ -52,6 +53,7 @@ file listing is its own index.
 | `manage update`: config change reaches the containers | [`tests/app-deploy/run-test.sh`](../tests/app-deploy/run-test.sh) | `deploy update config` | compose + kind per-PR; remote + remote-compose weekly |
 | `manage update`: data survives the in-place update | [`tests/app-deploy/run-test.sh`](../tests/app-deploy/run-test.sh) | `deploy update storage` | compose + kind per-PR; remote + remote-compose weekly |
 | `manage update`: rebuilt image content reaches the deployment | [`tests/app-deploy/run-test.sh`](../tests/app-deploy/run-test.sh) | `deploy update content` | compose + kind per-PR; remote + remote-compose weekly |
+| `manage update`: authentication turned on and off after deployment | [`tests/static-content-test/run-static-content-test.sh`](../tests/static-content-test/run-static-content-test.sh) | `DEPLOY-AUTH-SERVED`, `DEPLOY-AUTH-CHALLENGED`, `DEPLOY-AUTH-REMOVED` | compose, per-PR and weekly |
 | Spec-mapped volume path: pre-existing host data reaches the container | [`tests/volumes/run-test.sh`](../tests/volumes/run-test.sh) | `external data visible test`, `unmapped volume fresh test`, `volume write-back test` | compose + kind per-PR; remote weekly |
 | `manage destroy`: the deployment is finished; later `manage` commands refuse its directory | [`tests/smoke-test/run-smoke-test.sh`](../tests/smoke-test/run-smoke-test.sh) | `deploy destroy` | compose, per-PR |
 | `manage exec` against a running service | [`tests/database/run-backup-test.sh`](../tests/database/run-backup-test.sh) | `Replay dump test` | compose per-PR; remote weekly |

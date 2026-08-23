@@ -827,6 +827,27 @@ assert_file_not_contains () {
     fi
 }
 
+# Assert that fetching $1 answers with HTTP status $2, reporting "<label>: PASSED"
+# or failing the test.  Any further arguments are passed to curl (e.g. -u user:pw).
+#
+# Distinct from assert_url_not_served because a status is sometimes the whole
+# point: a 401 from a server that is up and a connection refused by a container
+# that never started are both "not served", and a test whose subject is
+# authentication passes on the second one while proving nothing.
+assert_url_status () {
+    local url=$1
+    local expected=$2
+    local label=$3
+    shift 3
+    local actual
+    actual=$( curl -s -o /dev/null -w '%{http_code}' "$@" "$url" ) || true
+    if [ "$actual" = "$expected" ]; then
+        echo "${label}: PASSED"
+    else
+        fail "${label}: FAILED - ${url} answered ${actual}, expected ${expected}"
+    fi
+}
+
 # Assert that $1 is not served -- fetching it must fail.  Call this while the
 # server is still up, or it passes for the wrong reason.  A single attempt: the
 # expected outcome is an immediate refusal from a server known to be running.
