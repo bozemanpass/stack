@@ -8,6 +8,29 @@ setup_test_dir smoke-test-dir
 # We must delete any instances of the test-container in the local registory
 # otherwise we'll skip building it below
 remove_local_images bozemanpass/test-container
+# First, the same stack from a working checkout the tool did not clone -- a developer
+# tree, or a CI actions/checkout.  This phase must stay ahead of the fetch below: once
+# the repo is under STACK_REPO_BASE_DIR the recipe resolves from there and the phase
+# tests nothing (bozemanpass/stack#297).
+checkout_dir=$STACK_TEST_DIR/checkout
+git clone https://github.com/bozemanpass/stack-test-stacks $checkout_dir
+# A path, not a name: a name is only resolvable through the repo base dir, so the path
+# form is the only way to reach a stack that was never cloned.
+$TEST_TARGET_STACK prepare --stack $checkout_dir/stack-files/stacks/test-stack
+if ! docker image inspect bozemanpass/test-container:stack > /dev/null 2>&1; then
+    fail "prepare from local checkout: FAILED - image not built"
+fi
+# The stack's colocated container recipe has to come from the checkout itself.  Assert
+# that it was not instead obtained by quietly cloning the repo: a build that reaches the
+# recipe by way of the repo base dir is the bug, whether or not an image comes out of it.
+if [ -d "$STACK_REPO_BASE_DIR/github.com/bozemanpass/stack-test-stacks" ]; then
+    fail "prepare from local checkout: FAILED - stack repo was cloned into $STACK_REPO_BASE_DIR"
+fi
+echo "prepare from local checkout: PASSED"
+# The checkout and the clone below are the same commit, so they yield the same image
+# identity: leaving this image in place would make the build that follows a no-op.
+remove_local_images bozemanpass/test-container
+
 # Fetch the test stacks
 echo "Fetching test stac repo into: $STACK_REPO_BASE_DIR"
 $TEST_TARGET_STACK fetch repo github.com/bozemanpass/stack-test-stacks
