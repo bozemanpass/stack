@@ -827,6 +827,35 @@ assert_file_not_contains () {
     fi
 }
 
+# Wait until fetching $1 answers with HTTP status $2, reporting "<label>: PASSED"
+# or failing the test.  $4 overrides the number of 5-second attempts (default 20).
+#
+# The waiting is what makes this an assertion rather than a race: a container
+# that has just been recreated is not serving yet, and the status a test wants to
+# see is not the one it gets on the first try.  Waiting for the status the change
+# should produce -- rather than for the server generally, and then asserting --
+# also means a change that never arrives fails here, naming the status that kept
+# coming back instead of somewhere later for a reason that reads as unrelated.
+wait_for_url_status () {
+    local url=$1
+    local expected=$2
+    local label=$3
+    local tries=${4:-20}
+    local try=0
+    local actual=""
+    while [ $try -lt $tries ]; do
+        try=$((try + 1))
+        actual=$( curl -s -o /dev/null -w '%{http_code}' "$url" ) || true
+        if [ "$actual" = "$expected" ]; then
+            echo "${label}: PASSED"
+            return
+        fi
+        echo "waiting for ${url} to answer ${expected} (answered ${actual})..."
+        sleep 5
+    done
+    fail "${label}: FAILED - ${url} answered ${actual}, expected ${expected}"
+}
+
 # Assert that fetching $1 answers with HTTP status $2, reporting "<label>: PASSED"
 # or failing the test.  Any further arguments are passed to curl (e.g. -u user:pw).
 #

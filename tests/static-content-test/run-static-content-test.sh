@@ -1,7 +1,25 @@
 #!/usr/bin/env bash
 source "$( dirname -- "${BASH_SOURCE[0]}" )/../lib/common.sh"
 
-# Test hosting static content with the static-content wrapper
+# Test hosting static content with the static-content wrapper.
+#
+# Three external repos: the content (stack-test-static-content), the wrapper
+# (stack-wrapper-static-content) and the stack files (stack-test-stacks).  The
+# wrapper reaches this test by two paths of different freshness, which is worth
+# knowing before debugging a failure that hits only some of the legs:
+#
+#   - the `webapp build --wrapper` and `build containers` legs build through the
+#     wrapper, so they see whatever is on its main branch now;
+#   - the deployment legs run `prepare`, which matches the image published from
+#     stack-test-stacks by that repo's commit hash and pulls it.  On that path the
+#     wrapper is not merely older, it is not consulted at all -- which is the
+#     point of the lock, and means a wrapper change does not reach these legs
+#     until stack-test-stacks has run its "Update Locks" workflow to regenerate
+#     its pins and republish.
+#
+# So a wrapper change lands here in two stages, and a run where every build leg
+# passes and a deployment leg fails on behaviour the wrapper has just gained is
+# waiting for that second stage rather than reporting a bug.
 echo "Running stack static content test"
 select_test_target "$@"
 setup_test_dir static-content-test-dir
@@ -183,12 +201,14 @@ EOF
 
 $TEST_TARGET_STACK manage --dir $test_deployment_dir update
 
-# The authenticated fetch first: wget retries while the recreated container comes
-# up, so it doubles as the wait, and an immediate status assertion here would
-# otherwise read a refused connection as a gated site.
+# The gate is what this waits for, not the server.  An authenticated fetch would
+# come up first and serve as the wait, but it answers 200 whether the gate is
+# there or not -- which is what an image predating the gate looks like, and it
+# passed that way once before this was written.
+wait_for_url_status http://localhost:80/ 401 DEPLOY-AUTH-CHALLENGED
+
 fetch_url http://localhost:80/ $scratch/test.deployed-auth --user=${auth_user} --password=${deployed_password}
 assert_file_contains $scratch/test.deployed-auth "STACK_STATIC_CONTENT_TEST_INDEX_MARKER" DEPLOY-AUTH-SERVED
-assert_url_status http://localhost:80/ 401 DEPLOY-AUTH-CHALLENGED
 
 # And off again: the same edit in reverse ungates the site, which is the half of
 # the claim that a test of turning it on does not make.
@@ -197,8 +217,10 @@ mv $test_deployment_dir/config.env.ungated $test_deployment_dir/config.env
 
 $TEST_TARGET_STACK manage --dir $test_deployment_dir update
 
+wait_for_url_status http://localhost:80/ 200 DEPLOY-AUTH-REMOVED
+
 fetch_url http://localhost:80/ $scratch/test.deployed-ungated
-assert_file_contains $scratch/test.deployed-ungated "STACK_STATIC_CONTENT_TEST_INDEX_MARKER" DEPLOY-AUTH-REMOVED
+assert_file_contains $scratch/test.deployed-ungated "STACK_STATIC_CONTENT_TEST_INDEX_MARKER" DEPLOY-AUTH-REMOVED-CONTENT
 
 # Finally, build a stack whose container entry uses content-root in stack.yml.
 $TEST_TARGET_STACK build containers --stack test-static-content-subdir
