@@ -127,6 +127,58 @@ $ stack webapp build --wrapper static-content --source-repo ~/my-static-site --c
 build the same way.  See [stack-files.md](./stack-files.md#path-vs-content-root) for how it
 relates to `path`, with worked examples of each combination.
 
+## Authentication for static content
+
+The `static-content` wrapper can put the site it serves behind HTTP basic authentication.
+Nothing is gated by default; a username and password in the container's environment turns
+it on.  Deployment config reaches every service of a deployment, so the composefile needs
+no entry of its own:
+
+```
+$ stack init --stack my-site --output spec.yml \
+    --config STACK_AUTH_USER=alice --config STACK_AUTH_PASSWORD=secret
+```
+
+| Variable | Meaning |
+|----------|---------|
+| `STACK_AUTH_USER`, `STACK_AUTH_PASSWORD` | One credential.  The password is hashed when the container starts, and the two must be set together — half a credential refuses to start rather than guessing which half was meant. |
+| `STACK_AUTH_HTPASSWD` | The content of an htpasswd file, already hashed: several users, and no plaintext password in the environment.  Additive with the pair above. |
+| `STACK_AUTH_REALM` | The name the browser's prompt shows.  Defaults to `Restricted`. |
+| `STACK_AUTH_EXCLUDE` | Space-separated path prefixes served without credentials. |
+
+The variables are read when the container starts rather than baked into the image, which
+makes this a decision that can be made after deploying — the usual way round, since a site
+is normally published before anyone asks for it to be private.  Adding them to a running
+deployment's `config.env` and running `update` gates it:
+
+```
+$ echo 'STACK_AUTH_USER=alice' >> <deployment-dir>/config.env
+$ echo 'STACK_AUTH_PASSWORD=secret' >> <deployment-dir>/config.env
+$ stack manage --dir <deployment-dir> update
+```
+
+`update` applies environment changes on every target (on Kubernetes that is explicitly all
+it applies, along with images and secrets), and removing the variables again ungates the
+site.  The image is the same either way, so neither direction is a rebuild.
+
+Two things to know before turning it on:
+
+- **A composefile `healthcheck` must be excluded.**  On Kubernetes a healthcheck becomes
+  the container's liveness probe, and a probe answered with a 401 restarts the pod for as
+  long as authentication is configured.  Name its path in `STACK_AUTH_EXCLUDE`.
+- **Basic authentication is only worth having over HTTPS**, since the password travels
+  with every request protected by nothing but base64.  See [ingress.md](./ingress.md).
+
+A password that matters belongs in `secrets:` rather than `--config`: a config value is
+written to `config.env` in the clear, while a secret is resolved at up time from an
+`env:`/`file:`/`exec:` reference and never lands in the deployment directory.  `generate`
+is no use here — someone has to know this password to type it — so give the secret a
+reference.  See [secrets.md](./secrets.md).
+
+The other wrappers deliberately have no equivalent.  They build applications that can
+authenticate their own users, with a session and an account database, and a gate in front
+of the whole site would be in the way of that rather than an alternative to it.
+
 ## Runtime environment
 
 A service reads its configuration from the environment at startup, so deploying the same image
