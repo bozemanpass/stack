@@ -570,11 +570,14 @@ def build_containers(parent_stack,  # noqa: C901
                 if wrapper_used:
                     if not identity.wrapper_pin:
                         deviating_inputs.append(f"wrapper:{wrapper_used['hash']}{'-dirty' if wrapper_used['dirty'] else ''}")
-                    elif wrapper_used["dirty"] or (
-                            wrapper_used["hash"] and wrapper_used["hash"] != identity.wrapper_pin.get("hash")):
+                    elif wrapper_used["hash"] and wrapper_used["hash"] != identity.wrapper_pin.get("hash"):
                         log_warn(f"WARN: wrapper {wrapper_used['name']} at {wrapper_used['hash']} "
                                  f"does not match locked hash {identity.wrapper_pin.get('hash')}.", bold=True)
                         deviating_inputs.append(f"wrapper:{wrapper_used['hash']}{'-dirty' if wrapper_used['dirty'] else ''}")
+                    elif wrapper_used["dirty"]:
+                        log_warn(f"WARN: wrapper {wrapper_used['name']} checkout has local modifications, "
+                                 f"so it deviates from locked hash {identity.wrapper_pin.get('hash')}.", bold=True)
+                        deviating_inputs.append(f"wrapper:{wrapper_used['hash']}-dirty")
 
                 # The actual inputs are known now, so settle the image identity.
                 if identity.recipe_fs_path and Path(identity.recipe_fs_path).exists():
