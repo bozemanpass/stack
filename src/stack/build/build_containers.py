@@ -137,11 +137,20 @@ def process_container(build_context: BuildContext) -> bool:
             # If the build script filename is not explicitly provided, we try to infer it
             # DBDB this code seems not to work because we use the bare stack name rather than a directory
             # We go looking for a "containers" directory in the root of the container's repo.
-            container_build_script_dir = (fs_path_for_repo(building_container.ref)
+            if building_container.ref:
+                recipe_repo_dir = _repo_dir_for_ref(building_container.ref, stack)
+                if not recipe_repo_dir:
+                    error_exit(f"Cannot locate the repo {building_container.ref}, which should hold the build "
+                               f"recipe for {building_container.name}")
+            else:
+                # A stack with no derivable repo ref (a checkout whose origin names no
+                # remote we can parse) has only the tree it was loaded from to offer.
+                recipe_repo_dir = Path(stack.repo_path) if stack.repo_path else None
+            container_build_script_dir = (recipe_repo_dir
                                           .joinpath(constants.stack_files_directory_name)
-                                          .joinpath(constants.containers_directory_name))
+                                          .joinpath(constants.containers_directory_name)) if recipe_repo_dir else None
             log_debug(f"Looking for build script in this directory: {container_build_script_dir}")
-            if os.path.exists(container_build_script_dir):
+            if container_build_script_dir and os.path.exists(container_build_script_dir):
                 temp_build_dir = container_build_script_dir.joinpath(building_container.name.replace("/", "-"))
                 temp_build_script_filename = temp_build_dir.joinpath("build.sh")
                 # Now check if the container exists in the external stack.
@@ -179,7 +188,8 @@ def process_container(build_context: BuildContext) -> bool:
     build_envs["STACK_REPO_STACK_DIR"] = str(stack.repo_path) if stack.repo_path else ""
     build_envs["STACK_REPO_CONTAINER_DIR"] = (str(build_context.container.repo_path) if building_container.repo_path
                                               else build_envs["STACK_REPO_STACK_DIR"])
-    build_envs["STACK_REPO_SOURCE_DIR"] = (str(fs_path_for_repo(building_container.ref)) if building_container.ref
+    source_repo_dir = _source_repo_dir(building_container, stack)
+    build_envs["STACK_REPO_SOURCE_DIR"] = (str(source_repo_dir) if building_container.ref and source_repo_dir
                                            else build_envs["STACK_REPO_CONTAINER_DIR"])
 
     # The default build uses this as its context; a build script has to opt in, so hand it over.
@@ -273,18 +283,30 @@ def _resolve_wrapper_for_container(building_container, wrapper_pin: dict):
     return wrapper
 
 
+def _repo_dir_for_ref(ref, stack):
+    """The local tree holding the repo `ref` names.
+
+    A ref naming the stack's own repo resolves to the tree the stack was loaded from,
+    which may be a checkout outside the dev root -- and is never cloned into it, so the
+    dev root is the wrong place to look for anything colocated with that stack.  Any
+    other ref resolves to its dev root clone, or to None when the ref names no repo we
+    can locate."""
+    if not ref:
+        return None
+    if stack is not None and getattr(stack, "repo_path", None) and same_repo_ref(ref, stack.get_repo_ref()):
+        return Path(stack.repo_path)
+    return fs_path_for_repo(ref)
+
+
 def _source_repo_dir(building_container, stack):
     """The repo whose source this container is built from.
 
-    `ref` names it.  A ref naming the stack's own repo resolves to the tree the stack was
-    loaded from (possibly a checkout outside the dev root), keeping the built content and
-    the image identity in the same tree.  A container.yml that omits `ref` means "the repo
-    this descriptor lives in", which is what `repo_path` records.  Failing both, the
-    stack's own repo."""
+    `ref` names it, and resolves as `_repo_dir_for_ref` describes, keeping the built
+    content and the image identity in the same tree.  A container.yml that omits `ref`
+    means "the repo this descriptor lives in", which is what `repo_path` records.
+    Failing both, the stack's own repo."""
     if building_container.ref:
-        if stack is not None and getattr(stack, "repo_path", None) and same_repo_ref(building_container.ref, stack.get_repo_ref()):
-            return stack.repo_path
-        return fs_path_for_repo(building_container.ref)
+        return _repo_dir_for_ref(building_container.ref, stack)
     if building_container.repo_path:
         return building_container.repo_path
     return stack.repo_path

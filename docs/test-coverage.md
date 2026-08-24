@@ -29,6 +29,7 @@ file listing is its own index.
 | What | Test | Step | CI runs |
 |---|---|---|---|
 | `fetch repo`, `prepare`, `build containers` | [`tests/smoke-test/run-smoke-test.sh`](../tests/smoke-test/run-smoke-test.sh) | whole script | compose, per-PR |
+| `prepare` from a working checkout the tool did not clone (colocated container recipes) | [`tests/smoke-test/run-smoke-test.sh`](../tests/smoke-test/run-smoke-test.sh) | `prepare from local checkout` | compose, per-PR |
 | Rebuild giving a dirty checkout a `stackdev-` identity | [`tests/app-deploy/run-test.sh`](../tests/app-deploy/run-test.sh) | `deploy update content` | compose + kind per-PR; remote + remote-compose weekly |
 | `webapp` wrapper (build and serve a Vite/React app) | [`tests/webapp-test/run-webapp-test.sh`](../tests/webapp-test/run-webapp-test.sh) | whole script | compose, per-PR and weekly |
 | `static-content` wrapper | [`tests/static-content-test/run-static-content-test.sh`](../tests/static-content-test/run-static-content-test.sh) | whole script | compose, per-PR and weekly |
