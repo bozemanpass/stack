@@ -220,7 +220,22 @@ machines:
 EOF
 
     echo "Creating machine $machine_fqdn (mode: $STACK_K3S_MODE, kata: $STACK_K3S_KATA, size: $MACHINE_SIZE)"
-    $MACHINE_CMD --config-file "$machine_config" create --name "$machine_name" --type k8s-stack-host --wait-for-ip
+    # A create that fails leaves no VM and no log to read, so the provider's own
+    # one-line message is the whole of the evidence -- worth restating alongside
+    # the request that provoked it.  The commonest cause is the provider being
+    # out of capacity for this size in this region just now, and DigitalOcean
+    # reports that in the same words as a size that is genuinely not offered
+    # there ("Size is not available in this region"), which reads as a permanent
+    # misconfiguration and usually is not one.  Note also that the kata legs ask
+    # for a larger size than the others, so a shortfall takes those out alone.
+    if ! $MACHINE_CMD --config-file "$machine_config" create --name "$machine_name" --type k8s-stack-host --wait-for-ip; then
+        fail "Error: the provider refused to create the VM: size $MACHINE_SIZE, region $MACHINE_REGION, image $MACHINE_IMAGE.
+No VM exists, so no test ran and there is nothing to collect diagnostics from.
+If the message above is about the size being unavailable, it may mean the region
+is temporarily out of that size rather than never offering it; check the
+provider's catalogue before changing anything.  MACHINE_SIZE and MACHINE_REGION
+override the defaults chosen above."
+    fi
 
     local machine_id
     machine_id=$($MACHINE_CMD --config-file "$machine_config" list --name "$machine_name" --output json | jq -r '.[0].id')
@@ -323,8 +338,14 @@ EOF
 # The machine is destroyed when the run ends, so cluster state has to be captured
 # while the failure is fresh -- afterwards there is nothing left to look at.
 diagnostics () {
-    if [ ! -f "$fqdn_file" ]; then
-        echo "No cluster to collect diagnostics from"
+    # The id file is what records that a VM was actually created; the FQDN is
+    # chosen and written before the create call, so a run whose create failed
+    # still has one, and guarding on that instead sent this ssh to a name that
+    # was never registered -- reported as "Could not resolve hostname", which
+    # reads like a DNS fault in the middle of a failing run rather than the
+    # absence of a machine it actually is.
+    if [ ! -f "$machine_id_file" ]; then
+        echo "No cluster to collect diagnostics from: no VM was created"
         return
     fi
     echo "----- cluster diagnostics -----"
