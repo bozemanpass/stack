@@ -563,7 +563,51 @@ dump_diagnostics () {
     $TEST_TARGET_STACK manage --dir "$TEST_DEPLOYMENT_DIR" ps || true
     echo "----- container logs (last 200 lines per service) -----"
     $TEST_TARGET_STACK manage --dir "$TEST_DEPLOYMENT_DIR" logs -n 200 || true
+    dump_k8s_diagnostics
     echo "=============================================================="
+}
+
+# The cluster's own account of the deployment's pods, on the k8s targets.  ps and
+# logs say nothing about a pod that never got as far as running a container --
+# one stuck pulling its image, unscheduled, or whose sandbox would not start --
+# and that is exactly the pod a startup wait times out on.  The pod descriptions
+# and the namespace's events are where k8s says why, and they have to be read
+# here: the deployment is destroyed on the way out, and its events with it.
+#
+# The deployment's cluster id is its namespace (and on kind its cluster name),
+# which is how this finds them without asking the deployer.
+dump_k8s_diagnostics () {
+    local kubectl_args
+    case "$TEST_TARGET_ENV" in
+        kind)
+            kubectl_args="--context kind-"
+            ;;
+        remote)
+            kubectl_args="--kubeconfig $STACK_KUBE_CONFIG"
+            ;;
+        *)
+            return 0
+            ;;
+    esac
+    if ! command -v kubectl > /dev/null; then
+        echo "----- no kubectl, so no cluster diagnostics -----"
+        return 0
+    fi
+    local cluster_id
+    cluster_id=$( grep '^cluster-id:' "$TEST_DEPLOYMENT_DIR/deployment.yml" | cut -d ' ' -f 2 )
+    if [ -z "$cluster_id" ]; then
+        echo "----- no cluster-id in $TEST_DEPLOYMENT_DIR/deployment.yml, so no cluster diagnostics -----"
+        return 0
+    fi
+    if [ "$TEST_TARGET_ENV" == "kind" ]; then
+        kubectl_args="${kubectl_args}${cluster_id}"
+    fi
+    echo "----- pods (namespace $cluster_id) -----"
+    kubectl $kubectl_args -n "$cluster_id" get pods -o wide || true
+    echo "----- pod descriptions -----"
+    kubectl $kubectl_args -n "$cluster_id" describe pods || true
+    echo "----- events -----"
+    kubectl $kubectl_args -n "$cluster_id" get events --sort-by=.lastTimestamp || true
 }
 
 # Run a command inside one of the deployment's containers.  `exec` wraps the
