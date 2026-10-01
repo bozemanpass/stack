@@ -149,10 +149,9 @@ jobs:
     env:
       STACK_K3S_MODE: ${{ matrix.mode }}
       # Kata Containers on the node, so that the kata test can put a pod in a
-      # VM. It costs a larger machine and a longer provisioning run, so it is
-      # installed for the legs that actually run that test rather than always:
-      # a dispatch asking only for the app deploy test gets the smaller, faster
-      # cluster it used to get. Nothing else in a leg is affected -- a pod that
+      # VM. It costs a longer provisioning run, so it is installed for the legs
+      # that actually run that test rather than always: a dispatch asking only
+      # for the app deploy test gets the faster cluster it used to get. Nothing else in a leg is affected -- a pod that
       # names no RuntimeClass runs exactly as it did before -- which is what
       # lets the kata test share this cluster with the rest.
       STACK_K3S_KATA: ${{ contains(fromJSON(matrix.tests), 'kata') }}
