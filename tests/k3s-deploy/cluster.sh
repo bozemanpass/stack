@@ -62,8 +62,10 @@
 #                            share this cluster.
 #   STACK_K3S_STATE_DIR      Where the settings and the machine id are kept
 #                            between commands
-#   MACHINE_REGION           Provider region (default nyc3)
-#   MACHINE_SIZE             Machine size slug (default s-4vcpu-8gb, with or
+#   MACHINE_REGION           Provider regions to try, space-separated, in
+#                            order of preference (default nyc3 nyc1 tor1)
+#   MACHINE_SIZE             Machine size slugs to try, likewise (default
+#                            s-4vcpu-8gb-intel s-4vcpu-8gb-amd, with or
 #                            without kata -- see below)
 #   MACHINE_IMAGE            Machine image (default ubuntu-24-04-x64)
 #   MACHINE_PROJECT          DigitalOcean project to assign the VM to
@@ -80,7 +82,11 @@
 source "$( dirname -- "${BASH_SOURCE[0]}" )/../lib/common.sh"
 
 MACHINE_CMD=${MACHINE_CMD:-machine}
-MACHINE_REGION=${MACHINE_REGION:-nyc3}
+# A list, as is MACHINE_SIZE below, because a DigitalOcean region is sometimes
+# out of a size for a day and machine moves on to the next combination when it
+# is (see machine_config_list in ../lib/common.sh).  These are the cheapest
+# regions.
+MACHINE_REGION=${MACHINE_REGION:-nyc3 nyc1 tor1}
 MACHINE_IMAGE=${MACHINE_IMAGE:-ubuntu-24-04-x64}
 MACHINE_PROVISIONING_URL=${MACHINE_PROVISIONING_URL:-https://raw.githubusercontent.com/stirlingbridge/machine-provisioning/refs/heads/main/scripts/combine.sh}
 STACK_K3S_MODE=${STACK_K3S_MODE:-gateway}
@@ -94,8 +100,9 @@ MACHINE_NEW_USER=stacktest
 # without it used to get a smaller one.  The legs of the CI run then asked the
 # provider for two different sizes, and a shortfall of the larger one failed the
 # kata leg alone, which read as something wrong with that leg rather than with
-# the provider's inventory.
-MACHINE_SIZE=${MACHINE_SIZE:-s-4vcpu-8gb}
+# the provider's inventory.  The -intel and -amd variants because the
+# vendor-less sizes are being retired, and were the ones most often out of stock.
+MACHINE_SIZE=${MACHINE_SIZE:-s-4vcpu-8gb-intel s-4vcpu-8gb-amd}
 
 # How long to allow for the VM to boot and cloud-init to install k3s,
 # cert-manager, kata etc. (seconds).  A default rather than a fixed value so
@@ -202,9 +209,9 @@ digital-ocean:
     access-token: ${MACHINE_DO_TOKEN}
     ssh-key: ${MACHINE_SSH_KEY_NAME}
     dns-zone: ${MACHINE_DNS_ZONE}
-    machine-size: ${MACHINE_SIZE}
+    machine-size:$( machine_config_list "$MACHINE_SIZE" )
     image: ${MACHINE_IMAGE}
-    region: ${MACHINE_REGION}
+    region:$( machine_config_list "$MACHINE_REGION" )
 EOF
     if [ -n "$MACHINE_PROJECT" ]; then
         echo "    project: ${MACHINE_PROJECT}" >> "$machine_config"
@@ -225,18 +232,20 @@ EOF
     echo "Creating machine $machine_fqdn (mode: $STACK_K3S_MODE, kata: $STACK_K3S_KATA, size: $MACHINE_SIZE)"
     # A create that fails leaves no VM and no log to read, so the provider's own
     # one-line message is the whole of the evidence -- worth restating alongside
-    # the request that provoked it.  The commonest cause is the provider being
-    # out of capacity for this size in this region just now, and DigitalOcean
-    # reports that in the same words as a size that is genuinely not offered
-    # there ("Size is not available in this region"), which reads as a permanent
-    # misconfiguration and usually is not one.
+    # the request that provoked it.  machine has already tried every region and
+    # size listed when the provider said it was out of capacity, so a failure
+    # here means none of them had any, or something other than capacity went
+    # wrong.  DigitalOcean reports a stockout in the same words as a size that is
+    # genuinely not offered in a region ("Size is not available in this
+    # region"), which reads as a permanent misconfiguration and usually is not
+    # one.
     if ! $MACHINE_CMD --config-file "$machine_config" create --name "$machine_name" --type k8s-stack-host --wait-for-ip; then
-        fail "Error: the provider refused to create the VM: size $MACHINE_SIZE, region $MACHINE_REGION, image $MACHINE_IMAGE.
+        fail "Error: the provider refused to create the VM: sizes $MACHINE_SIZE, regions $MACHINE_REGION, image $MACHINE_IMAGE.
 No VM exists, so no test ran and there is nothing to collect diagnostics from.
-If the message above is about the size being unavailable, it may mean the region
-is temporarily out of that size rather than never offering it; check the
-provider's catalogue before changing anything.  MACHINE_SIZE and MACHINE_REGION
-override the defaults chosen above."
+If the message above is about capacity or a size being unavailable, it may mean
+those regions are temporarily out of those sizes rather than never offering
+them; check the provider's catalogue before changing anything.  MACHINE_SIZE and
+MACHINE_REGION override the defaults chosen above, and each takes a list."
     fi
 
     local machine_id
