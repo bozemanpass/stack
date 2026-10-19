@@ -58,6 +58,22 @@ require_commands () {
     done
 }
 
+# --- cloud VMs ---------------------------------------------------------------
+
+# Print a space-separated list as the YAML sequence that the machine config's
+# region and machine-size keys accept, for use straight after the key:
+#
+#     region:$( machine_config_list "$MACHINE_REGION" )
+#
+# machine tries the entries in order, moving on when the provider is out of
+# capacity, so a list is how the remote tests ride out a provider's stockouts.
+machine_config_list () {
+    local item
+    for item in $1; do
+        printf '\n        - %s' "$item"
+    done
+}
+
 # --- the package under test --------------------------------------------------
 
 # Pick the stack executable to test, setting TEST_TARGET_STACK, and report it

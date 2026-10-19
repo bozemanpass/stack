@@ -59,8 +59,10 @@
 #   STACK_TEST_ACME_CA_URI   Passed through to the test, which uses Let's
 #                            Encrypt production by default (see
 #                            init_ingress_mix_in in ../lib/common.sh)
-#   MACHINE_REGION           Provider region (default nyc3)
-#   MACHINE_SIZE             Machine size slug (default s-2vcpu-4gb)
+#   MACHINE_REGION           Provider regions to try, space-separated, in
+#                            order of preference (default nyc3 nyc1 tor1)
+#   MACHINE_SIZE             Machine size slugs to try, likewise (default
+#                            s-2vcpu-4gb-intel s-2vcpu-4gb-amd)
 #   MACHINE_IMAGE            Machine image (default ubuntu-24-04-x64)
 #   MACHINE_PROJECT          DigitalOcean project to assign the VM to
 #   MACHINE_PROVISIONING_URL URL of combine.sh; sibling scripts are fetched
@@ -72,8 +74,13 @@
 source "$( dirname -- "${BASH_SOURCE[0]}" )/../lib/common.sh"
 
 MACHINE_CMD=${MACHINE_CMD:-machine}
-MACHINE_REGION=${MACHINE_REGION:-nyc3}
-MACHINE_SIZE=${MACHINE_SIZE:-s-2vcpu-4gb}
+# Lists, because a DigitalOcean region is sometimes out of a size for a day and
+# machine moves on to the next combination when it is (see machine_config_list
+# in ../lib/common.sh).  The regions are the cheapest ones; the sizes are the
+# -intel and -amd variants because the vendor-less ones are being retired, and
+# were the ones most often out of stock.
+MACHINE_REGION=${MACHINE_REGION:-nyc3 nyc1 tor1}
+MACHINE_SIZE=${MACHINE_SIZE:-s-2vcpu-4gb-intel s-2vcpu-4gb-amd}
 MACHINE_IMAGE=${MACHINE_IMAGE:-ubuntu-24-04-x64}
 MACHINE_PROVISIONING_URL=${MACHINE_PROVISIONING_URL:-https://raw.githubusercontent.com/stirlingbridge/machine-provisioning/refs/heads/main/scripts/combine.sh}
 STACK_DOCKER_STATE_DIR=${STACK_DOCKER_STATE_DIR:-${RUNNER_TEMP:-${TMPDIR:-/tmp}}/stack-docker-machine}
@@ -176,9 +183,9 @@ digital-ocean:
     access-token: ${MACHINE_DO_TOKEN}
     ssh-key: ${MACHINE_SSH_KEY_NAME}
     dns-zone: ${MACHINE_DNS_ZONE}
-    machine-size: ${MACHINE_SIZE}
+    machine-size:$( machine_config_list "$MACHINE_SIZE" )
     image: ${MACHINE_IMAGE}
-    region: ${MACHINE_REGION}
+    region:$( machine_config_list "$MACHINE_REGION" )
 EOF
     if [ -n "$MACHINE_PROJECT" ]; then
         echo "    project: ${MACHINE_PROJECT}" >> "$machine_config"
