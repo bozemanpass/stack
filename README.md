@@ -86,6 +86,9 @@ stack manage --dir ~/deployments/todo-k8s stop
  - [Gitea](https://about.gitea.com/) stack: https://github.com/bozemanpass/gitea-stack
  - A [sign in with Ethereum](https://docs.login.xyz/) web app with fixturenet blockchain: https://github.com/bozemanpass/siwe-express-example
  - Todo List Web App with back-end: https://github.com/bozemanpass/example-todo-list
+ - ACME DNS-01 certificate manager for clustered services: https://github.com/bozemanpass/acme-steward
+ - Equipment rental management system, built and deployed with AI: https://github.com/codeassociates/lets-build-something
+ - Parking Buddy, a garage and barn vehicle-fit simulator: https://github.com/dboreham/parking-buddy
 
 For the wider set of related projects — wrapper schemes, companion stacks, test fixtures and the
 host-provisioning tools — see [docs/related-repositories.md](./docs/related-repositories.md).
